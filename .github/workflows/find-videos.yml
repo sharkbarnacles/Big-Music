@@ -1,0 +1,46 @@
+# Finds music videos for your songs, in GitHub's cloud — no computer needed.
+# Runs every night, and any time you tap "Run workflow"
+# (GitHub app → this repo → Actions → Find music videos → Run workflow).
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL         e.g. https://xxxx.supabase.co
+#   SUPABASE_SECRET_KEY  the sb_secret_… key from Supabase → Project Settings → API Keys
+
+name: Find music videos
+
+on:
+  schedule:
+    - cron: '17 7 * * *' # every day at 07:17 UTC (about 2–3 am New York time)
+  workflow_dispatch:
+    inputs:
+      recheck:
+        description: 'Retry songs where no video was found before'
+        type: boolean
+        default: false
+      limit:
+        description: 'Stop after this many songs (0 = all)'
+        type: string
+        default: '0'
+
+jobs:
+  find-videos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install libraries
+        run: pip install -r scripts/requirements.txt
+
+      - name: Find videos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          ARGS="--limit ${{ inputs.limit || '0' }}"
+          if [ "${{ inputs.recheck }}" = "true" ]; then ARGS="$ARGS --recheck"; fi
+          python scripts/find_videos.py $ARGS

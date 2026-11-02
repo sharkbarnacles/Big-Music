@@ -1,0 +1,21 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { SESSION_COOKIE, verifySessionToken } from './lib/session';
+
+// Runs before every page and API call: if you're not logged in, you get sent
+// to /login (pages) or a 401 error (API calls).
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  if (pathname === '/login' || pathname === '/api/login') return NextResponse.next();
+
+  const ok = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+  if (ok) return NextResponse.next();
+
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
+  }
+  return NextResponse.redirect(new URL('/login', req.url));
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};

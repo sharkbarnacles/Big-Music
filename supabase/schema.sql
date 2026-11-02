@@ -1,0 +1,147 @@
+-- Music Hub database schema.
+-- Run this in Supabase → SQL Editor → New query → paste → Run.
+-- Safe to run again after updates: it only adds what's missing.
+
+-- Sign-ins to Spotify and YouTube (one row per service).
+create table if not exists connections (
+  service       text primary key check (service in ('spotify', 'youtube')),
+  account_name  text,
+  access_token  text not null,
+  refresh_token text,
+  expires_at    timestamptz not null,
+  updated_at    timestamptz not null default now()
+);
+
+-- One row per song, no matter how many services have it.
+create table if not exists tracks (
+  id          uuid primary key default gen_random_uuid(),
+  match_key   text not null unique,      -- "artist|title", simplified; how duplicates are merged
+  title       text not null,
+  artist      text not null,
+  album       text,
+  duration_ms integer,
+  isrc        text,                      -- global song ID (Spotify provides it)
+  image_url   text,
+  created_at  timestamptz not null default now()
+);
+
+-- Where a song lives: its Spotify ID and/or YouTube video ID.
+create table if not exists track_sources (
+  id          bigint generated always as identity primary key,
+  track_id    uuid not null references tracks(id) on delete cascade,
+  service     text not null check (service in ('spotify', 'youtube')),
+  external_id text not null,
+  url         text,
+  unique (service, external_id)
+);
+create index if not exists track_sources_track_id_idx on track_sources(track_id);
+
+-- Playlists imported from each service.
+create table if not exists playlists (
+  id          uuid primary key default gen_random_uuid(),
+  service     text not null check (service in ('spotify', 'youtube')),
+  external_id text not null,
+  name        text not null,
+  description text,
+  image_url   text,
+  imported_at timestamptz not null default now(),
+  unique (service, external_id)
+);
+
+-- The songs in each playlist, in order.
+create table if not exists playlist_items (
+  playlist_id uuid not null references playlists(id) on delete cascade,
+  position    integer not null,
+  track_id    uuid not null references tracks(id) on delete cascade,
+  primary key (playlist_id, position)
+);
+create index if not exists playlist_items_track_id_idx on playlist_items(track_id);
+
+-- Every playlist found on a service, imported or not, with your include/skip choice.
+create table if not exists source_playlists (
+  service     text not null check (service in ('spotify', 'youtube')),
+  external_id text not null,
+  name        text not null,
+  item_count  integer not null default 0,
+  music_ratio real,                 -- share of items that are music (YouTube), 0 to 1
+  user_choice boolean,              -- null = automatic, true = always import, false = never
+  last_seen   timestamptz not null default now(),
+  primary key (service, external_id)
+);
+
+-- Music videos: one official video per song, when one exists.
+alter table tracks add column if not exists video_id         text;        -- YouTube video ID
+alter table tracks add column if not exists video_status     text;        -- null = not checked, 'found', 'none'
+alter table tracks add column if not exists video_source     text;        -- how it was found
+alter table tracks add column if not exists video_checked_at timestamptz;
+create index if not exists tracks_video_status_idx on tracks(video_status);
+
+-- ── Ready for later phases ──────────────────────────────────────────
+create table if not exists tags (
+  id    uuid primary key default gen_random_uuid(),
+  name  text not null unique,
+  color text
+);
+
+create table if not exists track_tags (
+  track_id uuid not null references tracks(id) on delete cascade,
+  tag_id   uuid not null references tags(id) on delete cascade,
+  primary key (track_id, tag_id)
+);
+
+create table if not exists ratings (
+  track_id   uuid primary key references tracks(id) on delete cascade,
+  stars      smallint check (stars between 1 and 5),
+  note       text,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists plays (
+  id        bigint generated always as identity primary key,
+  track_id  uuid not null references tracks(id) on delete cascade,
+  service   text not null,
+  played_at timestamptz not null default now()
+);
+
+-- ── Helper functions ────────────────────────────────────────────────
+
+-- Marks videos found during a YouTube import (only fills songs that have none yet).
+create or replace function set_track_videos(items jsonb) returns void
+language sql set search_path = public as $$
+  update tracks t
+     set video_id = i.video_id, video_status = 'found', video_source = i.source, video_checked_at = now()
+    from jsonb_to_recordset(items) as i(track_id uuid, video_id text, source text)
+   where t.id = i.track_id and t.video_id is null;
+$$;
+
+-- Removes songs no longer in any playlist (unless you rated or tagged them).
+create or replace function delete_orphan_tracks() returns integer
+language sql set search_path = public as $$
+  with gone as (
+    delete from tracks t
+     where not exists (select 1 from playlist_items p where p.track_id = t.id)
+       and not exists (select 1 from ratings r where r.track_id = t.id)
+       and not exists (select 1 from track_tags g where g.track_id = t.id)
+    returning 1
+  )
+  select count(*)::int from gone;
+$$;
+
+-- Only your server may call these.
+revoke execute on function set_track_videos(jsonb) from public, anon, authenticated;
+revoke execute on function delete_orphan_tracks() from public, anon, authenticated;
+grant execute on function set_track_videos(jsonb) to service_role;
+grant execute on function delete_orphan_tracks() to service_role;
+
+-- Lock every table: with Row Level Security on and no policies, only your
+-- server (using the secret key) can read or write. The public key gets nothing.
+alter table connections    enable row level security;
+alter table tracks         enable row level security;
+alter table track_sources  enable row level security;
+alter table playlists      enable row level security;
+alter table playlist_items enable row level security;
+alter table tags           enable row level security;
+alter table track_tags     enable row level security;
+alter table ratings        enable row level security;
+alter table plays          enable row level security;
+alter table source_playlists enable row level security;
