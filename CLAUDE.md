@@ -236,18 +236,21 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    and first lists made 2026-11-03. Next: E3 radio tuner + mood chips (could
    precompute a candidate pool and YouTube mood playlists in discover.py),
    optional ListenBrainz scrobbling (needs owner's LB account token).
-   Now Playing: owner picked **A2 + G2 + T3 + B2 + C2 + O2** in the Now
-   Playing Lab (square cover, color wash, title with heart + ⋯, thin progress
-   line, lighter play circle, icon row with YouTube mode/Stop in ⋯) but wants
-   sleeker icons first. Player Icon Lab pick (2026-11-03):
-   **S13 + R11 + I5 + D16 + Q15 + V2 + K3 + L2** = soft outline triangle
-   skips, woven tapering infinity snake for repeat (drawn ~1/3 bigger than
-   the spiral so they look balanced), hairline row icons with a plain +,
-   UFO with beam for radio, constellation for queue, eye for video, soft
-   star replacing the heart (solid when kept), icons only. Owner asked for
-   beam texture options (D21–D27, no outlines) and may swap D16 for one.
-   The lab's drawing code (icon-lab artifact) has the exact SVG paths to
-   copy into `lib/icons.ts`. Not built into the app yet.
+   **Now Playing is built (2026-11-03)**: Now Playing Lab pick
+   A2 + G2 + T3 + B2 + C2 + O2 with Player Icon Lab icons
+   S13 + R11 + I5 + D21 + Q15 + V2 + K3 + L2 (soft outline triangle skips,
+   woven infinity snake repeat drawn bigger than the spiral, hairline +,
+   UFO with ribbed fading beam for radio, constellation queue, eye video,
+   soft star keep). Icons are exported from the lab into
+   `lib/playerIcons.ts` (re-export from the lab when the owner tweaks
+   them). Sheet markup in `components/Player.tsx` (.np-* classes in
+   globals.css): square cover, YouTube iframe cropped to a square over it
+   (`.yt-host.square`), cover-color wash (`.np-wash`, blurred cover), title
+   row with star + ⋯ menu (Add to playlist, Start radio, YouTube mode,
+   Stop), thin progress line, pale play circle, icon row. Star = `/api/keep`
+   (Discoveries playlist, any song). Discover's hearts are now the same
+   star. Owner is still tinkering in the lab; monolid eye options V9–V13
+   were added on request.
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -278,3 +281,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   radio, queue and keep icons; Discover reasons shortened; nav reordered.
   Icon Lab: queue/constellation, eye video, UFO radio + beam textures,
   balanced spiral vs snake. Pick S13+R11+I5+D16+Q15+V2+K3+L2.
+  Built the Now Playing redesign + chosen icons; keep star everywhere.
