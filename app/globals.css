@@ -275,6 +275,13 @@ select {
   .ctrl.huge { width: 64px; height: 64px; }
 }
 
+/* Home-screen app: a solid strip behind the clock and battery icons, so the
+   page scrolls underneath it instead of showing through. */
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; z-index: 30;
+  height: env(safe-area-inset-top); background: var(--bg);
+}
+
 /* Services box on Home */
 details.services { margin-top: 28px; }
 details.services summary { gap: 12px; }

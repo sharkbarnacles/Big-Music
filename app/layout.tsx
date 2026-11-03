@@ -12,6 +12,9 @@ const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-sans'
 export const metadata: Metadata = {
   title: 'Music Hub',
   description: 'My Spotify and YouTube Music library in one place',
+  // Home-screen web app: full screen, page runs behind the status bar
+  // (the strip in globals.css keeps the clock area solid).
+  appleWebApp: { capable: true, title: 'Music Hub', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {
