@@ -98,7 +98,7 @@ const FILLER = new Set(['music', 'songs', 'song', 'playlist', 'mix', 'radio', 's
 
 export type PromptState = { q: string; used: string[] };
 // `liked`: artists in this batch you already love (their keys), for mixing in your own songs.
-export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked: string[]; liked: string[] };
+export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked: string[]; liked: string[]; debug?: string[] };
 
 function parse(q: string) {
   const lower = q.toLowerCase();
@@ -201,7 +201,9 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     scored.set(p.id, { id: p.id, title: p.title, score, origin: hasOrigin });
   }
   // Look at a few more than needed: some turn out not to be what they say.
-  const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, 7);
+  const ranked = [...scored.values()].sort((a, b) => b.score - a.score);
+  const candidates = ranked.slice(0, 7);
+  const debug = process.env.PROMPT_DEBUG ? [`queries: ${unique.join(' | ')}`, ...ranked.slice(0, 14).map((c) => `${c.score.toFixed(1)}  ${c.title}`)] : undefined;
   if (!candidates.length) return { songs: [], state: null, picked: [], liked: [] };
 
   const lists = await Promise.all(candidates.map((p) => browseCollection(p.id, 120).catch(() => null)));
@@ -285,6 +287,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     songs: out.slice(0, 80),
     state: { q, used: [...used, ...usedNow] },
     picked,
+    debug,
     liked: [...new Set(out.map((x) => artistKey(x.artist)).filter((k) => (taste.own.get(k) ?? 0) > 0.15))].slice(0, 12),
   };
 }
