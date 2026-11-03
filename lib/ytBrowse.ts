@@ -29,6 +29,7 @@ export type WebSong = {
   image: string | null;
   durationMs: number | null;
   isVideo: boolean; // a music video or upload, not the studio audio
+  release: 'song' | 'video' | 'upload' | 'unknown'; // official track, official video, anyone's upload
 };
 export type WebItem = {
   kind: 'playlist' | 'album' | 'artist';
@@ -110,6 +111,7 @@ function parseSong(r: any, fallbackArtist = '', fallbackImage: string | null = n
     image: bigImage(r.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails) ?? fallbackImage,
     durationMs: toMs(dur),
     isVideo: VIDEO_TYPES.test(type),
+    release: /ATV/.test(type) ? 'song' : /OMV|OFFICIAL_SOURCE/.test(type) ? 'video' : /UGC/.test(type) ? 'upload' : 'unknown',
   };
 }
 

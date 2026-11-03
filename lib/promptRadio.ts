@@ -81,6 +81,26 @@ function parse(q: string) {
 
 const norm = (t: string) => t.toLowerCase().normalize('NFKC');
 
+// Not a song by an artist: hour-long mixes, "lofi beats" compilations, and
+// the AI music channels that flood these searches.
+const NOT_A_SONG = /\b(mix|mixtape|playlist|compilation|nonstop|non-stop|1 ?hour|2 ?hours|\d+ ?hrs?|hours? of|full album|beats to|lofi beats|lo-fi beats|study music|sleep music|relaxing music|background music|type beat|bgm)\b|🎧|🎶|🎵|☕|🌙|✨|🌧/i;
+export function isRealSong(s: WebSong): boolean {
+  if (s.durationMs && (s.durationMs > 12 * 60_000 || s.durationMs < 60_000)) return false;
+  if (NOT_A_SONG.test(s.title)) return false;
+  return true;
+}
+// A playlist mostly by one name is a channel's own catalogue, not a playlist someone curated.
+function curated(songs: WebSong[]): boolean {
+  if (songs.length < 8) return songs.length > 0;
+  const counts = new Map<string, number>();
+  for (const s of songs) {
+    const k = norm(s.artist.split(/,|&/)[0].trim());
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const top = Math.max(...counts.values());
+  return top / songs.length < 0.4 && counts.size >= Math.min(8, songs.length / 3);
+}
+
 export async function promptRadio(q: string, state: PromptState | null): Promise<PromptBatch> {
   const { origin, originWord, feel, moods, scene } = parse(q);
   const used = new Set(state?.used ?? []);
@@ -116,6 +136,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     const hasOrigin = mentionsOrigin(p.title);
     if (origin && !hasOrigin) continue; // you asked for an origin: the playlist must be about it
     let score = hasOrigin ? 5 : 0;
+    if (NOT_A_SONG.test(p.title.replace(/\b(mix|playlist|mixtape)\b/gi, '')) || /🎧|☕|🌙/.test(p.title)) score -= 6;
     const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(w))).length;
     const sceneHits = scene.filter((w) => t.includes(w)).length;
     score += moodHits * 6 + sceneHits * 2;
@@ -128,7 +149,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     scored.set(p.id, { id: p.id, title: p.title, score, origin: hasOrigin });
   }
   // Look at a few more than needed: some turn out not to be what they say.
-  const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, 5);
+  const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, 7);
   if (!candidates.length) return { songs: [], state: null, picked: [], liked: [] };
 
   const lists = await Promise.all(candidates.map((p) => browseCollection(p.id, 120).catch(() => null)));
@@ -138,7 +159,9 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   // language you asked for, and how close is it to your taste?
   const rated = lists
     .map((list, i) => {
-      if (!list || !list.songs.length) return null;
+      if (!list) return null;
+      list.songs = list.songs.filter(isRealSong);
+      if (!list.songs.length || !curated(list.songs)) return null;
       const share = origin?.script ? list.songs.filter(inScript).length / list.songs.length : 1;
       if (origin?.script && share < 0.3) return null;
       const sample = list.songs.slice(0, 60);
@@ -157,7 +180,9 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       // names); in a mixed one, only the songs in that script are.
       if (origin?.script && !mine && r.share < 0.6) continue;
       // Your taste lifts artists you love (and ones like them) towards the front.
-      pool.push({ s: x, rank: r.score + (mine ? 2 : 0) + affinity(taste, x.artist) * 5 + Math.random() * 3 });
+      // Official releases first; anyone's uploads last.
+      const official = x.release === 'song' ? 2 : x.release === 'video' ? 1 : x.release === 'upload' ? -3 : 0;
+      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + affinity(taste, x.artist) * 5 + Math.random() * 3 });
     }
   }
 
