@@ -387,6 +387,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    which left `draggingRef` true for the rest of the song. Now `dragSeek` /
    `commitSeek` (pointer/touch/mouse up & cancel, blur, and a 0.6 s idle
    timer), and every new song clears the drag.
+   **Zoomed-in Now Playing fix:** text boxes are 16px (iOS zooms the page
+   on focusing smaller ones, and the zoom stayed), and `.np-wash` is a
+   screen-sized clipping frame with the scaled cover in `::before` (the
+   scaled wash was ~1% wider than the screen).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -436,3 +440,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Word radios rebuilt from matching playlists (origin/language + mood aware), tested on 9 prompts.
   Taste profile + real-artists-only word radios; Now Playing scroll no longer leaks to the page.
   Time bar no longer freezes after touching it on iPhone.
+  Zoomed-in pages fixed (16px text boxes, clipped colour wash).
