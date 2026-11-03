@@ -10,6 +10,13 @@ export type ItemLite = { id: string; reason: string | null; hearted: boolean };
 
 const HEART = 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z';
 
+// Reasons are stored in full ("Because you like HYUKOH"); on screen only the
+// part that matters is shown, so it fits: "HYUKOH".
+export function shortReason(reason: string | null): string | null {
+  if (!reason) return null;
+  return reason.replace(/^Because you (like|played) /i, '').replace(/ a lot$/i, '');
+}
+
 // Heart = keep: the song goes into your "Discoveries" playlist (and your Library).
 export function HeartButton({ itemId, initial, small = false }: { itemId: string; initial: boolean; small?: boolean }) {
   const [on, setOn] = useState(initial);
@@ -77,7 +84,11 @@ export function TodayGrid({ tracks, items }: { tracks: TrackRowData[]; items: It
             <span className="d-cover">{t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : null}</span>
             <span className="d-nm">{t.title}</span>
             <span className="d-ar">{t.artist}</span>
-            {items[i].reason && <span className="d-why">{items[i].reason}</span>}
+            {items[i].reason && (
+              <span className="d-why" title={items[i].reason ?? undefined}>
+                {shortReason(items[i].reason)}
+              </span>
+            )}
           </button>
           <HeartButton itemId={items[i].id} initial={items[i].hearted} small />
         </div>
@@ -98,7 +109,11 @@ export function DiscoverList({ tracks, items }: { tracks: TrackRowData[]; items:
             <div className="main">
               <div className="title">{t.title}</div>
               <div className="sub">{t.artist}</div>
-              {items[i].reason && <div className="d-why">{items[i].reason}</div>}
+              {items[i].reason && (
+                <div className="d-why" title={items[i].reason ?? undefined}>
+                  {shortReason(items[i].reason)}
+                </div>
+              )}
             </div>
           </button>
           <div className="end">

@@ -37,7 +37,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
       <div className="muted small">
         {KIND_NOTE[edition.kind]} · {tracks.length} songs · {date}
       </div>
-      <p className="muted small" style={{ marginTop: 4 }}>Tap the heart to keep a song in your Discoveries playlist.</p>
+      <p className="muted small" style={{ marginTop: 4 }}>The teal name is the artist in your library that led to each song. Tap the heart to keep a song in your Discoveries playlist.</p>
       <div style={{ marginTop: 10 }}>
         <DiscoverList tracks={tracks} items={edition.items} />
       </div>
