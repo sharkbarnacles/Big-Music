@@ -89,6 +89,15 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .badge.youtube { border-color: var(--youtube); color: var(--youtube); }
 .badge.video { border-color: var(--accent); color: var(--accent); }
 
+/* A box that opens and closes when you tap its first line. */
+details.collapsible { padding: 12px 16px; }
+details.collapsible summary {
+  cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
+}
+details.collapsible summary::-webkit-details-marker { display: none; }
+details.collapsible summary::after { content: '▾'; transition: transform 0.15s; }
+details.collapsible[open] summary::after { transform: rotate(180deg); }
+
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; align-items: center; }
 .filters input[type="search"] { flex: 1 1 220px; width: auto; }
 select {

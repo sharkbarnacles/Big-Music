@@ -80,18 +80,22 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       )}
 
       {unchecked > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="small muted" style={{ marginBottom: 10 }}>
-            {unchecked} songs haven’t been checked for a music video. The fast way is the
-            <code> find_videos.py</code> script (see README). Or use YouTube’s official search here:
-            {` ${SEARCH_BATCH} songs per click, using ${(SEARCH_BATCH * 100).toLocaleString()} of your 10,000 daily quota units.`}
+        // Collapsed by default: tap the line to open it.
+        <details className="card collapsible" style={{ marginTop: 16 }}>
+          <summary className="small muted">
+            Checking {unchecked.toLocaleString()} songs for music videos
+          </summary>
+          <div className="small muted" style={{ margin: '10px 0' }}>
+            The video finder runs automatically every night in GitHub and checks a few thousand songs
+            each time. To check some right now, use YouTube’s official search:
+            {` ${SEARCH_BATCH} songs per tap, using ${(SEARCH_BATCH * 100).toLocaleString()} of your 10,000 daily quota units.`}
           </div>
           <ActionButton
             url={`/api/videos/find?limit=${SEARCH_BATCH}`}
             label={`Find videos for ${SEARCH_BATCH} songs`}
             busyLabel="Searching YouTube…"
           />
-        </div>
+        </details>
       )}
 
       {error && <div className="notice error">{error}</div>}
