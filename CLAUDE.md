@@ -209,6 +209,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Player Icon Lab (skip S, ouroboros repeat R, row icons I, radio D, queue Q, keep K, row layout L): https://claude.ai/artifact/CeDBEAZJqHhY9bWZLxEGps
 - Queue Lab (how it opens P, button H, list look L, editing E): https://claude.ai/artifact/XHkfVmvZdjt7F4jqqc73vr
 - App Icon Lab (mark M, background B, name N): https://claude.ai/artifact/9NfsRk65axr1MmKkw21Gpu
+- Playlist Tools Lab (Set aside folder F, moving M, add-to-playlist window P, multi-select S): https://claude.ai/artifact/LVa34wAaGVwoizVJzvuEf2
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -495,3 +496,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Style-aware word radios (experimental/grunge/indie… in English and natively), consensus check, no oldies unless asked.
   Goth/emo/metal/visual kei/cottagecore… styles; Daily discover leans English + Korean.
   Similar-artist radios ("similar to Silica Gel").
+  Playlist Tools Lab (Set aside folder out of taste, searchable add window, multi-select move/copy); waiting for the owner's pick.
