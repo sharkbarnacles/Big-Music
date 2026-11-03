@@ -44,12 +44,13 @@ const ORIGINS: Origin[] = [
 const FILLER = new Set(['music', 'songs', 'song', 'playlist', 'mix', 'radio', 'some', 'the', 'and', 'of', 'a', 'an', 'with', 'for', 'like', 'that', 'is', 'vibes', 'vibe', 'type', 'kind']);
 
 export type PromptState = { q: string; used: string[] };
-export type PromptBatch = { songs: WebSong[]; state: PromptState | null };
+export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked: string[] };
 
 function parse(q: string) {
   const lower = q.toLowerCase();
-  const origin = ORIGINS.find((o) => o.words.some((w) => new RegExp(`(^|[^\\p{L}])${w.replace(/[-]/g, '\\-')}($|[^\\p{L}])`, 'u').test(lower))) ?? null;
-  const originWord = origin?.words.find((w) => lower.includes(w)) ?? null;
+  const has = (w: string) => new RegExp(`(^|[^\\p{L}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}])`, 'u').test(lower);
+  const origin = ORIGINS.find((o) => o.words.some(has)) ?? null;
+  const originWord = origin?.words.find(has) ?? null;
   const feel = lower
     .split(/[^\p{L}\p{N}-]+/u)
     .filter((w) => w && !FILLER.has(w) && !(origin?.words.includes(w)));
@@ -82,27 +83,41 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   };
   const scored = new Map<string, { id: string; title: string; score: number; origin: boolean }>();
   for (const p of found) {
-    if (used.has(p.id) || scored.has(p.id)) continue;
+    if (!p.id.startsWith('VL') || used.has(p.id) || scored.has(p.id)) continue;
     const t = norm(p.title);
     const hasOrigin = mentionsOrigin(p.title);
     if (origin && !hasOrigin) continue; // you asked for an origin: the playlist must be about it
     let score = hasOrigin ? 5 : 0;
-    for (const f of feel) if (t.includes(f)) score += 2;
+    let feelHits = 0;
+    for (const f of feel) if (t.includes(f)) feelHits++;
+    score += feelHits * 3;
+    // Playlists that match the feel too beat ones that only match the origin.
+    if (feel.length && !feelHits) score -= 4;
     if (/\b(mix|radio)\b/.test(t)) score -= 0.5;
     scored.set(p.id, { id: p.id, title: p.title, score, origin: hasOrigin });
   }
-  const picks = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, 3);
-  if (!picks.length) return { songs: [], state: null };
+  // Look at a few more than needed: some turn out not to be what they say.
+  const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, 5);
+  if (!candidates.length) return { songs: [], state: null, picked: [] };
 
-  const lists = await Promise.all(picks.map((p) => browseCollection(p.id, 120).catch(() => null)));
+  const lists = await Promise.all(candidates.map((p) => browseCollection(p.id, 120).catch(() => null)));
   const pool: { s: WebSong; rank: number }[] = [];
+  const picked: string[] = [];
+  const usedNow: string[] = [];
   lists.forEach((list, i) => {
-    if (!list) return;
+    if (!list || !list.songs.length || picked.length >= 3) return;
+    usedNow.push(candidates[i].id);
+    const inScript = (s: WebSong) => (origin?.script ? origin.script.test(`${s.title} ${s.artist}`) : false);
+    // For a language with its own script, check the playlist really is in it.
+    const share = origin?.script ? list.songs.filter(inScript).length / list.songs.length : 1;
+    if (origin?.script && share < 0.3) return;
+    picked.push(candidates[i].title);
     for (const s of list.songs) {
-      const inScript = origin?.script ? origin.script.test(`${s.title} ${s.artist}`) : false;
-      // Origin with a script: songs in that script first, then the rest of an origin playlist.
-      const rank = picks[i].score + (inScript ? 3 : 0) + Math.random() * 2;
-      pool.push({ s, rank });
+      const mine = inScript(s);
+      // In a mostly-in-language playlist, Latin-named songs are kept (many artists use Latin
+      // names); in a mixed one, only the songs in that script are.
+      if (origin?.script && !mine && share < 0.6) continue;
+      pool.push({ s, rank: candidates[i].score + (mine ? 2 : 0) + Math.random() * 3 });
     }
   });
 
@@ -133,7 +148,8 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   }
   return {
     songs: out.slice(0, 80),
-    state: { q, used: [...used, ...picks.map((p) => p.id)] },
+    state: { q, used: [...used, ...usedNow] },
+    picked,
   };
 }
 

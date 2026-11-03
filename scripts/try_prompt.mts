@@ -8,7 +8,7 @@ const out: any = {};
 for (const p of prompts) {
   const t = Date.now();
   const b = await promptRadio(p, null).catch((e) => ({ error: String(e) }) as any);
-  out[p] = { ms: Date.now() - t, used: b.state?.used, songs: (b.songs ?? []).map((s: any) => `${s.title} — ${s.artist}`), error: b.error };
+  out[p] = { ms: Date.now() - t, used: b.picked, songs: (b.songs ?? []).map((s: any) => `${s.title} — ${s.artist}`), error: b.error };
   console.log(p, out[p].used, out[p].songs?.length);
 }
 writeFileSync('probe/prompt.json', JSON.stringify(out, null, 1));
