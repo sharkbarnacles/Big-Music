@@ -40,6 +40,24 @@ const ORIGINS: Origin[] = [
   { words: ['italian', 'italy'], native: ['musica italiana'] },
   { words: ['african', 'afrobeats', 'nigerian', 'ghanaian', 'amapiano', 'south african'], native: ['afrobeats'] },
 ];
+// Moods weigh more than scene words ("niche", "underground"), and a playlist
+// title counts as matching if it has any of the mood's usual words.
+const MOODS: Record<string, string[]> = {
+  chill: ['chill', 'chilled', 'relax', 'calm', 'mellow', 'soft', 'lofi', 'lo-fi', 'easy', 'ชิล', '잔잔', '칠', 'まったり'],
+  sad: ['sad', 'heartbreak', 'broken', 'melancholy', 'cry', 'เศร้า', '이별', '슬픈'],
+  happy: ['happy', 'feel good', 'upbeat', 'sunny', 'cheerful'],
+  aggressive: ['aggressive', 'hard', 'heavy', 'metal', 'intense', 'angry', 'rage', 'hardcore'],
+  energetic: ['energetic', 'hype', 'workout', 'gym', 'party', 'dance', 'upbeat'],
+  romantic: ['romantic', 'love', 'รัก', '사랑'],
+  dreamy: ['dreamy', 'dream', 'ethereal', 'shoegaze', 'ambient'],
+  night: ['night', 'late night', 'midnight', 'นอน'],
+  rainy: ['rain', 'rainy', '비', '雨'],
+  sleep: ['sleep', 'bedtime', 'lullaby'],
+  focus: ['focus', 'study', 'concentration', 'work'],
+  acoustic: ['acoustic', 'unplugged'],
+};
+const moodOf = (w: string) => Object.entries(MOODS).find(([k, syn]) => k === w || syn.includes(w))?.[0] ?? null;
+
 // Words that say nothing about the music on their own.
 const FILLER = new Set(['music', 'songs', 'song', 'playlist', 'mix', 'radio', 'some', 'the', 'and', 'of', 'a', 'an', 'with', 'for', 'like', 'that', 'is', 'vibes', 'vibe', 'type', 'kind']);
 
@@ -54,26 +72,30 @@ function parse(q: string) {
   const feel = lower
     .split(/[^\p{L}\p{N}-]+/u)
     .filter((w) => w && !FILLER.has(w) && !(origin?.words.includes(w)));
-  return { origin, originWord, feel };
+  const moods = [...new Set(feel.map(moodOf).filter((m): m is string => m !== null))];
+  const scene = feel.filter((w) => !moodOf(w));
+  return { origin, originWord, feel, moods, scene };
 }
 
 const norm = (t: string) => t.toLowerCase().normalize('NFKC');
 
 export async function promptRadio(q: string, state: PromptState | null): Promise<PromptBatch> {
-  const { origin, originWord, feel } = parse(q);
+  const { origin, originWord, feel, moods, scene } = parse(q);
   const used = new Set(state?.used ?? []);
   const o = originWord ?? '';
 
   // Searches: the words as typed, then origin + each feel word, then the native name.
   const queries = [q];
   if (o) {
+    // The mood first: it decides how the radio feels.
+    for (const m of moods.slice(0, 2)) queries.push(`${o} ${m}`, `${m} ${o} songs`);
     queries.push(`${o} ${feel.join(' ')}`.trim());
-    for (const f of feel.slice(0, 3)) queries.push(`${o} ${f}`);
-    for (const n of origin?.native ?? []) queries.push(feel.length ? `${n} ${feel[0]}` : n);
+    for (const f of scene.slice(0, 2)) queries.push(`${o} ${f}`);
+    for (const n of origin?.native ?? []) queries.push(moods.length ? `${n} ${moods[0]}` : n);
   } else if (feel.length > 1) {
     queries.push(feel.slice(0, 2).join(' '));
   }
-  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 6);
+  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 7);
   const found = (await Promise.all(unique.map((x) => searchPlaylists(x).catch(() => [])))).flat();
 
   // Score each playlist by its title.
@@ -88,11 +110,14 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     const hasOrigin = mentionsOrigin(p.title);
     if (origin && !hasOrigin) continue; // you asked for an origin: the playlist must be about it
     let score = hasOrigin ? 5 : 0;
-    let feelHits = 0;
-    for (const f of feel) if (t.includes(f)) feelHits++;
-    score += feelHits * 3;
-    // Playlists that match the feel too beat ones that only match the origin.
-    if (feel.length && !feelHits) score -= 4;
+    const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(w))).length;
+    const sceneHits = scene.filter((w) => t.includes(w)).length;
+    score += moodHits * 6 + sceneHits * 2;
+    // A mood you asked for that the title doesn't have counts against it.
+    score -= (moods.length - moodHits) * 4;
+    if (!moods.length && scene.length && !sceneHits) score -= 3;
+    // Asked for no origin: a playlist about a particular country is off-topic.
+    if (!origin && ORIGINS.some((x) => x.words.some((w) => new RegExp(`\\b${w}\\b`).test(t)))) score -= 4;
     if (/\b(mix|radio)\b/.test(t)) score -= 0.5;
     scored.set(p.id, { id: p.id, title: p.title, score, origin: hasOrigin });
   }
