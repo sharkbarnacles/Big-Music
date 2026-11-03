@@ -360,6 +360,17 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    radio chips use `PlanetIcon` (ringed planet); Now Playing / mix pages
    still use the UFO. Search Everywhere sections are pinned to the screen
    width (`minmax(0,1fr)`), which fixed the zoomed-out page.
+   **Radio from words v2 (owner: "niche underground chill thai" gave
+   non-Thai, aggressive songs):** a one-song radio drifts, so word radios
+   are now built from playlists (`lib/promptRadio.ts`): split origin
+   (`ORIGINS`, with script + native names) / moods (`MOODS`, synonyms, weigh
+   most) / scene words; several playlist searches; titles scored; for
+   scripted languages each playlist must be ≥30% in that script (<60% →
+   only in-script songs kept); artists spread out. `/api/radio/prompt` starts
+   (`lib/promptRadioRoute.ts`, Familiar/Mixed/New applied, saved edition),
+   continuations are `p:<base64 state>` through `/api/radio`. Player
+   `startPromptRadio(words)`. Test prompts from GitHub with the manual
+   workflow `try-prompt.yml` (results on branch `probe-output`).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -406,3 +417,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Search Everywhere: YouTube Music songs/artists/albums/playlists + pages.
   Crash = deploy restarts: player now comes back after a restart; notes-only commits skip deploys.
   Radio from words + idea chips, planet icon on Discover, Search Everywhere layout fix.
+  Word radios rebuilt from matching playlists (origin/language + mood aware), tested on 9 prompts.
