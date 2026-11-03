@@ -15,12 +15,13 @@ export type TrackRowData = {
   duration_ms: number | null;
   image_url: string | null;
   video_id: string | null;
+  yt_audio_id: string | null; // YouTube version to play in YouTube mode
   track_sources: TrackSource[];
 };
 
 // Columns every song list asks the database for.
 export const TRACK_COLUMNS =
-  'id, title, artist, album, duration_ms, image_url, video_id, track_sources(service, external_id, url)';
+  'id, title, artist, album, duration_ms, image_url, video_id, yt_audio_id, track_sources(service, external_id, url)';
 
 // The song's ID on a service (first one, if it's there more than once).
 export function sourceId(track: TrackRowData, service: 'spotify' | 'youtube'): string | null {

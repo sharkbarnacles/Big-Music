@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Finds the official music video for every song in your library, using
-YouTube Music through the unofficial `ytmusicapi` library.
+Finds, for every song in your library, its official music video and its
+YouTube audio version (used by YouTube mode in the player), using YouTube
+Music through the unofficial `ytmusicapi` library.
 
 Why this instead of the button in the app?
   - No daily quota: it can check thousands of songs in one go.
@@ -82,18 +83,21 @@ class Database:
             self.headers["Authorization"] = f"Bearer {key}"
 
     def songs_to_check(self, recheck: bool, batch: int, started: str, skip_ids: list) -> list:
-        # Songs saved during this run drop out of these filters on their own;
-        # songs that hit an error are skipped by id so they aren't retried forever.
+        # A song needs work if its music video OR its YouTube audio version
+        # hasn't been looked for. Songs saved during this run drop out of these
+        # filters on their own; songs that hit an error are skipped by id.
         params = {
-            "select": "id,title,artist,track_sources(service,external_id)",
+            "select": "id,title,artist,video_status,yt_audio_id,yt_audio_status,track_sources(service,external_id)",
             "order": "created_at,id",
             "limit": str(batch),
         }
         if recheck:
-            params["video_status"] = "eq.none"
-            params["video_checked_at"] = f"lt.{started}"
+            params["or"] = (
+                f'(and(video_status.eq.none,video_checked_at.lt."{started}"),'
+                f'and(yt_audio_status.eq.none,yt_audio_checked_at.lt."{started}"))'
+            )
         else:
-            params["video_status"] = "is.null"
+            params["or"] = "(video_status.is.null,yt_audio_status.is.null)"
         if skip_ids:
             params["id"] = f"not.in.({','.join(skip_ids)})"
         r = requests.get(f"{self.base}/tracks", headers=self.headers, params=params, timeout=30)
@@ -101,13 +105,9 @@ class Database:
             sys.exit(f"Database error {r.status_code}: {r.text[:300]}\n(Did you re-run supabase/schema.sql?)")
         return r.json()
 
-    def save(self, track_id: str, video_id: str | None):
-        body = {
-            "video_id": video_id,
-            "video_status": "found" if video_id else "none",
-            "video_source": "ytmusic",
-            "video_checked_at": datetime.now(timezone.utc).isoformat(),
-        }
+    def save(self, track_id: str, body: dict):
+        if not body:
+            return
         r = requests.patch(
             f"{self.base}/tracks",
             headers={**self.headers, "Prefer": "return=minimal"},
@@ -151,16 +151,59 @@ def from_search(yt: YTMusic, artist: str, title: str) -> str | None:
     return None
 
 
-def find_video(yt: YTMusic, song: dict) -> str | None:
-    for source in song.get("track_sources") or []:
-        if source.get("service") == "youtube":
-            try:
-                video = from_counterpart(yt, source["external_id"])
-                if video:
-                    return video
-            except Exception:
-                pass  # fall back to search
-    return from_search(yt, song["artist"], song["title"])
+def from_song_search(yt: YTMusic, artist: str, title: str) -> str | None:
+    """Search YouTube Music's 'Songs' section for the audio version of a song."""
+    want_artist, want_title = simplify(primary_artist(artist)), simplify(title)
+    if not want_artist or not want_title:
+        return None
+    for result in yt.search(f"{primary_artist(artist)} {title}", filter="songs", limit=5):
+        names = " ".join(a.get("name", "") for a in result.get("artists") or [])
+        found_title = simplify(result.get("title", ""))
+        if want_title in found_title and want_artist in f"{found_title} {simplify(names)}":
+            return result.get("videoId")
+    return None
+
+
+def process(yt: YTMusic, song: dict, recheck: bool) -> dict:
+    """Finds what's missing for one song and returns the fields to save."""
+    now = datetime.now(timezone.utc).isoformat()
+    want = "none" if recheck else None
+    need_audio = song.get("yt_audio_status") == want
+    need_video = song.get("video_status") == want
+    yt_ids = [s["external_id"] for s in song.get("track_sources") or [] if s.get("service") == "youtube"]
+    fields: dict = {}
+
+    # The YouTube audio version, for playing inside the hub ("YouTube mode").
+    audio = song.get("yt_audio_id") or (yt_ids[0] if yt_ids else None)
+    if need_audio:
+        if not audio:
+            audio = from_song_search(yt, song["artist"], song["title"])
+        fields.update(
+            yt_audio_id=audio,
+            yt_audio_status="found" if audio else "none",
+            yt_audio_source="ytmusic",
+            yt_audio_checked_at=now,
+        )
+
+    # The official music video: YouTube Music links each song to its video,
+    # so ask about the uploads we know first, then search.
+    if need_video:
+        video = None
+        for base in [*yt_ids, audio]:
+            if base and not video:
+                try:
+                    video = from_counterpart(yt, base)
+                except Exception:
+                    pass  # fall back to search
+        if not video:
+            video = from_search(yt, song["artist"], song["title"])
+        fields.update(
+            video_id=video,
+            video_status="found" if video else "none",
+            video_source="ytmusic",
+            video_checked_at=now,
+        )
+    return fields
 
 
 def main():
@@ -172,8 +215,8 @@ def main():
     db = Database(load_env())
     yt = YTMusic()  # no login needed
 
-    started = datetime.now(timezone.utc).isoformat()
-    failed_ids, checked, found, errors = [], 0, 0, 0
+    started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    failed_ids, checked, found, audios, errors = [], 0, 0, 0, 0
     while True:
         songs = db.songs_to_check(args.recheck, 100, started, failed_ids)
         if not songs:
@@ -181,12 +224,14 @@ def main():
         for song in songs:
             label = f"{song['artist']} – {song['title']}"
             try:
-                video = find_video(yt, song)
-                db.save(song["id"], video)
+                fields = process(yt, song, args.recheck)
+                db.save(song["id"], fields)
                 checked += 1
-                if video:
-                    found += 1
-                print(f"{'✓' if video else '·'} {label}" + (f"  → youtu.be/{video}" if video else ""))
+                video, audio = fields.get("video_id"), fields.get("yt_audio_id")
+                found += 1 if video else 0
+                audios += 1 if audio else 0
+                marks = ("▶" if video else "·") + ("♪" if audio else "·")
+                print(f"{marks} {label}" + (f"  → video youtu.be/{video}" if video else ""))
             except Exception as err:  # keep going; this song stays unchecked for next time
                 errors += 1
                 failed_ids.append(song["id"])
@@ -201,7 +246,7 @@ def main():
         if args.limit and checked >= args.limit:
             break
 
-    print(f"\nDone. Checked {checked} songs, found {found} music videos, {errors} errors.")
+    print(f"\nDone. Checked {checked} songs: {found} music videos, {audios} YouTube audio versions, {errors} errors.")
 
 
 if __name__ == "__main__":

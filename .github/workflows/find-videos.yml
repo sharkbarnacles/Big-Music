@@ -1,20 +1,21 @@
-# Finds music videos for your songs, in GitHub's cloud — no computer needed.
-# Runs every night, and any time you tap "Run workflow"
+# Finds music videos and YouTube audio versions (for YouTube mode) for your
+# songs, in GitHub's cloud — no computer needed.
+# Runs every 3 hours, and any time you tap "Run workflow"
 # (GitHub app → this repo → Actions → Find music videos → Run workflow).
 #
 # Needs two repository secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL         e.g. https://xxxx.supabase.co
 #   SUPABASE_SECRET_KEY  the sb_secret_… key from Supabase → Project Settings → API Keys
 
-name: Find music videos
+name: Find music videos and YouTube versions
 
 on:
   schedule:
-    - cron: '17 7 * * *' # every day at 07:17 UTC (about 2–3 am New York time)
+    - cron: '17 */3 * * *' # every 3 hours; once the library is done, each run takes about a minute
   workflow_dispatch:
     inputs:
       recheck:
-        description: 'Retry songs where no video was found before'
+        description: 'Retry songs where nothing was found before'
         type: boolean
         default: false
       limit:
@@ -22,7 +23,7 @@ on:
         type: string
         default: '0'
 
-# Only one run at a time: a nightly run waits for a manual one to finish
+# Only one run at a time: a scheduled run waits for a manual one to finish
 # (and vice versa), so the same songs are never checked twice.
 concurrency:
   group: find-videos

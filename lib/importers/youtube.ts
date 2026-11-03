@@ -1,5 +1,5 @@
 import { getAccessToken } from '../connections';
-import { chunk } from '../db';
+import { chunk, db } from '../db';
 import {
   cleanupOrphans,
   recordSource,
@@ -193,5 +193,7 @@ export async function importYouTube(): Promise<ImportSummary> {
     }
   }
   await cleanupOrphans();
+  // Songs you have on YouTube can be played in YouTube mode right away.
+  await db().rpc('fill_yt_audio_from_sources');
   return summary;
 }

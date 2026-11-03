@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { getAccessToken, NotConnectedError } from './connections';
 
 // Talks to Spotify Connect: the feature that lets one device tell another
-// Spotify app what to play. Requires Spotify Premium.
+// Spotify player what to play. Requires Spotify Premium.
 
 const API = 'https://api.spotify.com/v1';
 
 export const NO_DEVICE_MESSAGE =
-  'Open the Spotify app on your phone for a moment (play and pause anything), then come back and tap the song again.';
+  'Spotify is asleep on this phone. Open the Spotify app for a moment, then come back. Or switch on YouTube mode to play here instead.';
 
 type Device = { id: string; name: string; type: string; is_active: boolean; is_restricted: boolean };
 
@@ -20,14 +20,15 @@ export async function spotifyFetch(path: string, init: { method?: string; body?:
   });
 }
 
-// Picks the device to play on: the one already playing, else your phone,
-// else any Spotify app that's open. Null when none are open.
-export async function pickDevice(): Promise<Device | null> {
+// Picks the device to play on: the one asked for (e.g. this browser tab),
+// else the one already playing, else your phone, else any open Spotify app.
+export async function pickDevice(preferredId?: string | null): Promise<Device | null> {
   const res = await spotifyFetch('/me/player/devices');
   if (!res.ok) throw new Error(`Spotify ${res.status}: ${(await res.text()).slice(0, 150)}`);
   const { devices = [] } = (await res.json()) as { devices?: Device[] };
   const usable = devices.filter((d) => d.id && !d.is_restricted);
   return (
+    (preferredId ? usable.find((d) => d.id === preferredId) : undefined) ??
     usable.find((d) => d.is_active) ??
     usable.find((d) => d.type === 'Smartphone') ??
     usable[0] ??

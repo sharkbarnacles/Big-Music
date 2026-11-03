@@ -145,3 +145,31 @@ alter table track_tags     enable row level security;
 alter table ratings        enable row level security;
 alter table plays          enable row level security;
 alter table source_playlists enable row level security;
+
+-- ── YouTube audio versions (for "YouTube mode") ─────────────────────
+-- The YouTube upload to play for each song when playing inside the hub.
+alter table tracks add column if not exists yt_audio_id         text;
+alter table tracks add column if not exists yt_audio_status     text;   -- null = not checked, 'found', 'none'
+alter table tracks add column if not exists yt_audio_source     text;   -- 'library', 'ytmusic', 'youtube-search'
+alter table tracks add column if not exists yt_audio_checked_at timestamptz;
+create index if not exists tracks_yt_audio_status_idx on tracks(yt_audio_status);
+
+-- Songs you already have on YouTube use that upload as their audio version.
+create or replace function fill_yt_audio_from_sources() returns integer
+language sql set search_path = public as $$
+  with src as (
+    select distinct on (track_id) track_id, external_id
+      from track_sources where service = 'youtube'
+     order by track_id, id
+  ), upd as (
+    update tracks t
+       set yt_audio_id = src.external_id, yt_audio_status = 'found',
+           yt_audio_source = 'library', yt_audio_checked_at = now()
+      from src
+     where t.id = src.track_id and t.yt_audio_id is null
+    returning 1
+  )
+  select count(*)::int from upd;
+$$;
+revoke execute on function fill_yt_audio_from_sources() from public, anon, authenticated;
+grant execute on function fill_yt_audio_from_sources() to service_role;

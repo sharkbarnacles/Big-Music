@@ -1,6 +1,6 @@
 'use client';
 
-import type { TrackRowData } from '@/lib/tracks';
+import { sourceUrl, type TrackRowData } from '@/lib/tracks';
 
 function formatDuration(ms: number | null): string {
   if (!ms) return '';
@@ -8,23 +8,29 @@ function formatDuration(ms: number | null): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-// One song in a list. Tap the song to play it; tap "▶ Video" to watch its
-// music video. The Spotify / YouTube badges open the song on that service.
+// One song in a list. Tap it to play; the ⋯ button opens Play next,
+// Add to queue, the music video, and links to Spotify / YouTube.
 export default function TrackRow({
   track,
   active,
+  menuOpen,
   onPlay,
   onVideo,
+  onMenu,
+  onPlayNext,
+  onAddToQueue,
 }: {
   track: TrackRowData;
   active: boolean;
+  menuOpen: boolean;
   onPlay: () => void;
   onVideo: () => void;
+  onMenu: (open: boolean) => void;
+  onPlayNext: () => void;
+  onAddToQueue: () => void;
 }) {
-  // A song can be linked twice on one service; show each service once.
-  const services = track.track_sources.filter(
-    (s, i, all) => all.findIndex((o) => o.service === s.service) === i,
-  );
+  const spotify = sourceUrl(track, 'spotify');
+  const youtube = sourceUrl(track, 'youtube');
 
   return (
     <div className={`item${active ? ' active' : ''}`}>
@@ -40,23 +46,54 @@ export default function TrackRow({
       </button>
       <div className="end">
         <span className="dur">{formatDuration(track.duration_ms)}</span>
+        <span className="avail" aria-label={[spotify && 'On Spotify', youtube && 'On YouTube'].filter(Boolean).join(', ')}>
+          {spotify && <span className="dot spotify" />}
+          {youtube && <span className="dot youtube" />}
+        </span>
         {track.video_id && (
-          <button type="button" className="badge video" onClick={onVideo}>
-            ▶ Video
+          <button type="button" className="icon-btn video" aria-label={`Watch the music video for ${track.title}`} onClick={onVideo}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 5h18v14H3zM10 9l5 3-5 3z" />
+            </svg>
           </button>
         )}
-        {services.map((s) => (
-          <a
-            key={s.service}
-            className={`badge ${s.service}`}
-            href={s.url ?? '#'}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {s.service === 'spotify' ? 'Spotify' : 'YouTube'}
-          </a>
-        ))}
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={`More options for ${track.title}`}
+          aria-expanded={menuOpen}
+          onClick={() => onMenu(!menuOpen)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h.01M12 12h.01M19 12h.01" />
+          </svg>
+        </button>
       </div>
+
+      {menuOpen && (
+        <>
+          <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => onMenu(false)} />
+          <div className="row-menu" role="menu">
+            <button type="button" role="menuitem" onClick={onPlayNext}>Play next</button>
+            <button type="button" role="menuitem" onClick={onAddToQueue}>Add to queue</button>
+            {track.video_id && (
+              <button type="button" role="menuitem" onClick={() => { onMenu(false); onVideo(); }}>
+                Watch music video
+              </button>
+            )}
+            {spotify && (
+              <a role="menuitem" href={spotify} target="_blank" rel="noreferrer" onClick={() => onMenu(false)}>
+                Open in Spotify
+              </a>
+            )}
+            {youtube && (
+              <a role="menuitem" href={youtube} target="_blank" rel="noreferrer" onClick={() => onMenu(false)}>
+                Open in YouTube Music
+              </a>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

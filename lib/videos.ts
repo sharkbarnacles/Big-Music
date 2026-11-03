@@ -28,6 +28,67 @@ export function pickVideo(artist: string, title: string, candidates: Candidate[]
   return (official ?? ok[0])?.videoId ?? null;
 }
 
+// For listening: prefers YouTube Music's audio-only upload ("Artist - Topic"),
+// then an official video, then any upload whose title and artist match.
+export function pickAudio(artist: string, title: string, candidates: Candidate[]): string | null {
+  const ok = candidates.filter((c) => looksLikeMatch(artist, title, c));
+  const topic = ok.find((c) => isTopicChannel(c.channel));
+  const official = ok.find((c) => /official|\bm\/?v\b|music video|audio/i.test(c.title) || /vevo$/i.test(c.channel));
+  return (topic ?? official ?? ok[0])?.videoId ?? null;
+}
+
+// Looks up one song's YouTube audio version with the official search
+// (100 quota units) and saves it. Used when you play a song in YouTube mode
+// before the background finder has reached it.
+export async function findAudioForTrack(trackId: string): Promise<{ audioId: string | null; message?: string }> {
+  const { data: track, error } = await db()
+    .from('tracks')
+    .select('id, title, artist, yt_audio_id, yt_audio_status')
+    .eq('id', trackId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!track) return { audioId: null, message: 'Song not found.' };
+  if (track.yt_audio_id) return { audioId: track.yt_audio_id };
+  if (track.yt_audio_status === 'none') return { audioId: null, message: 'No YouTube version of this song was found.' };
+
+  const token = await getAccessToken('youtube');
+  const params = new URLSearchParams({
+    part: 'snippet',
+    q: `${primaryArtist(track.artist)} ${track.title}`,
+    type: 'video',
+    videoCategoryId: '10',
+    maxResults: '6',
+  });
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    return {
+      audioId: null,
+      message: text.includes('quota')
+        ? 'YouTube’s daily search limit is used up; the background finder will catch this song tonight.'
+        : `YouTube error ${res.status}.`,
+    };
+  }
+  const json = await res.json();
+  const candidates: Candidate[] = (json.items ?? [])
+    .map((it: any) => ({ videoId: it.id?.videoId, title: it.snippet?.title ?? '', channel: it.snippet?.channelTitle ?? '' }))
+    .filter((c: Candidate) => c.videoId);
+  const audioId = pickAudio(track.artist, track.title, candidates);
+
+  await db()
+    .from('tracks')
+    .update({
+      yt_audio_id: audioId,
+      yt_audio_status: audioId ? 'found' : 'none',
+      yt_audio_source: 'youtube-search',
+      yt_audio_checked_at: new Date().toISOString(),
+    })
+    .eq('id', track.id);
+  return { audioId, message: audioId ? undefined : 'No YouTube version of this song was found.' };
+}
+
 export type FindResult = { checked: number; found: number; message: string };
 
 export async function findVideosWithSearch(limit: number): Promise<FindResult> {
