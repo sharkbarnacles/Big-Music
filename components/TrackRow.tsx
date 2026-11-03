@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { sourceUrl, type TrackRowData } from '@/lib/tracks';
 import { smallCover } from '@/lib/img';
 
@@ -23,6 +24,9 @@ export default function TrackRow({
   onAddToPlaylist,
   onRadio,
   onRemove,
+  selecting = false,
+  checked = false,
+  onHold,
 }: {
   track: TrackRowData;
   active: boolean;
@@ -35,13 +39,60 @@ export default function TrackRow({
   onAddToPlaylist: () => void;
   onRadio?: () => void; // only for songs with a YouTube version
   onRemove?: () => void; // only in your hub playlists
+  // Select mode (Playlist Tools Lab S2): press and hold a song to start
+  // selecting; while selecting, a tap ticks or unticks the song.
+  selecting?: boolean;
+  checked?: boolean;
+  onHold?: () => void;
 }) {
+  const hold = useRef<{ timer: number; x: number; y: number; fired: boolean } | null>(null);
+  const clearHold = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+  };
+  const holdProps = onHold
+    ? {
+        onPointerDown: (e: React.PointerEvent) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          clearHold();
+          const h = { timer: 0, x: e.clientX, y: e.clientY, fired: false };
+          h.timer = window.setTimeout(() => {
+            h.fired = true;
+            onHold();
+          }, 450);
+          hold.current = h;
+        },
+        onPointerMove: (e: React.PointerEvent) => {
+          const h = hold.current;
+          if (h && !h.fired && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 10) clearHold();
+        },
+        onPointerUp: clearHold,
+        onPointerCancel: clearHold,
+        onPointerLeave: clearHold,
+        onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+      }
+    : {};
+  const tap = () => {
+    // The tap that ends a long press doesn't also play the song.
+    if (hold.current?.fired) {
+      hold.current = null;
+      return;
+    }
+    onPlay();
+  };
+
   const spotify = sourceUrl(track, 'spotify');
   const youtube = sourceUrl(track, 'youtube');
 
   return (
-    <div className={`item${active ? ' active' : ''}`}>
-      <button type="button" className="row-play" onClick={onPlay} aria-label={`Play ${track.title} by ${track.artist}`}>
+    <div className={`item${active ? ' active' : ''}${selecting ? ' selecting' : ''}${checked ? ' checked' : ''}`}>
+      <button
+        type="button"
+        className="row-play"
+        onClick={tap}
+        {...holdProps}
+        aria-pressed={selecting ? checked : undefined}
+        aria-label={selecting ? `${checked ? 'Untick' : 'Tick'} ${track.title} by ${track.artist}` : `Play ${track.title} by ${track.artist}`}
+      >
         {track.image_url ? <img src={smallCover(track.image_url)} alt="" loading="lazy" decoding="async" /> : <div className="ph" />}
         <div className="main">
           <div className="title">{track.title}</div>
@@ -51,6 +102,9 @@ export default function TrackRow({
           </div>
         </div>
       </button>
+      {selecting ? (
+        <span className={`tick${checked ? ' on' : ''}`} aria-hidden="true" onClick={onPlay} />
+      ) : (
       <div className="end">
         <span className="dur">{formatDuration(track.duration_ms)}</span>
         {track.video_id && (
@@ -72,8 +126,9 @@ export default function TrackRow({
           </svg>
         </button>
       </div>
+      )}
 
-      {menuOpen && (
+      {menuOpen && !selecting && (
         <>
           <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => onMenu(false)} />
           <div className="row-menu" role="menu">

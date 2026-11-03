@@ -156,8 +156,14 @@ def script_language(text: str) -> str | None:
 
 class Library:
     def __init__(self, db: Database):
-        rows = db.get_all("tracks", {"select": "artist,title", "order": "id"})
+        rows = db.get_all("tracks", {"select": "id,artist,title", "order": "id"})
         self.keys = {match_key(r["artist"], r["title"]) for r in rows}
+        # Songs only in playlists you set aside don't shape your taste.
+        try:
+            aside = set(db.rpc("set_aside_track_list", {}) or [])
+        except Exception:  # noqa: BLE001
+            aside = set()
+        rows = [r for r in rows if r["id"] not in aside]
         counts: dict[str, int] = {}
         names: dict[str, str] = {}
         for r in rows:

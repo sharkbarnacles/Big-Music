@@ -735,3 +735,68 @@ svg.planet .planet-body { fill: var(--panel-2); }
 .t-legend { display: flex; gap: 14px; }
 .t-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .t-legend i { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ── Playlist tools (Playlist Tools Lab F2 + M3 + P3 + S2) ─────────────── */
+/* Round tick circles for Select modes */
+.tick { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--muted); display: inline-grid; place-items: center; opacity: .7; }
+.tick.on { background: var(--accent); border-color: var(--accent); opacity: 1; }
+.tick.on::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--on-accent); border-top: 0; border-right: 0; transform: translate(0, -1px) rotate(-45deg); }
+
+/* Home: Select / New buttons, the quiet Set aside chip, the action bar */
+.pl-head-btns { display: inline-flex; gap: 6px; }
+.pl-new[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.pl-aside-chip { color: var(--muted); opacity: .75; }
+.pl-aside-chip svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.pl-aside-chip[aria-pressed="true"] { opacity: 1; }
+.pl-aside-note { margin: 4px 0 2px; }
+button.pl-pick { width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 0; color: inherit; font: inherit; justify-content: flex-start; }
+button.pl-pick:hover { border-color: var(--line); }
+.pl-pick .main { display: flex; flex-direction: column; }
+.select-bar {
+  position: fixed; z-index: 30;
+  left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right));
+  bottom: calc(var(--nav-h) + 8px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px;
+  background: var(--raised); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.8);
+}
+.select-count { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); }
+.select-bar button { height: 40px; padding: 0 16px; font-weight: 600; }
+
+/* Add to playlist window (P3): search on top, the list scrolls inside */
+.picker-sheet {
+  top: calc(env(safe-area-inset-top) + 48px); max-height: none; overflow: hidden;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.picker-top { display: flex; align-items: flex-start; gap: 12px; }
+.picker-head { flex: 1; min-width: 0; }
+.picker-close { flex: none; height: 34px; padding: 0 12px; font-size: 14px; }
+.picker-search {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 44px; flex: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; color: var(--muted);
+}
+.picker-search svg { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.picker-search input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; height: 100%; font-size: 16px; color: var(--text); outline: none; }
+.picker-sheet .picker-list { flex: 1; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 8px; }
+.picker-sec { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 12px 0 2px; }
+.picker-plus { display: grid; place-items: center; font-size: 26px; line-height: 1; color: var(--accent); }
+.picker-make .title { color: var(--accent); font-weight: 600; }
+.picker-list .picker-new { padding: 8px 0; border-bottom: 1px solid var(--line); }
+
+/* Selecting songs in a playlist (S2): hold a song, bar pinned at the top */
+.row-play { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.item.selecting .row-play { cursor: default; }
+.item.checked { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.item.selecting { padding-right: 6px; }
+.sel-top {
+  position: sticky; top: env(safe-area-inset-top); z-index: 15; margin: 0 -16px 6px; padding: 8px 16px 10px;
+  background: var(--raised); border-bottom: 1px solid var(--line); display: grid; gap: 8px;
+}
+.sel-line { display: flex; align-items: center; gap: 8px; }
+.sel-x { width: 36px; height: 36px; padding: 0; display: inline-grid; place-items: center; border-radius: 50%; }
+.sel-x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.sel-count { flex: 1; min-width: 0; font-weight: 600; }
+.sel-all { height: 34px; padding: 0 12px; font-size: 14px; }
+.sel-acts { display: flex; gap: 8px; }
+.sel-acts button { flex: 1; height: 40px; padding: 0 8px; font-weight: 600; font-size: 14px; }
+.sel-hint { text-align: center; margin-top: 14px; }

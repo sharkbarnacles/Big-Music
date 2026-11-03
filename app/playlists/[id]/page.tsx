@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
-import HubTrackList from '@/components/HubTrackList';
 import PlayButtons from '@/components/PlayButtons';
 import PlaylistMenu from '@/components/PlaylistMenu';
-import TrackList from '@/components/TrackList';
+import PlaylistSongs from '@/components/PlaylistSongs';
 import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { db, fetchAllRows } from '@/lib/db';
 
@@ -14,7 +13,7 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
 
   const { data: playlist } = await db()
     .from('playlists')
-    .select('id, service, name, description, image_url, imported_at, last_added_at')
+    .select('id, service, name, description, image_url, imported_at, last_added_at, set_aside')
     .eq('id', id)
     .maybeSingle();
   if (!playlist) notFound();
@@ -55,21 +54,19 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
         <span className={`dot ${playlist.service}`} />
         {from} · {tracks.length.toLocaleString()} songs · {hub ? 'updated' : 'imported'}{' '}
         {new Date(when).toLocaleDateString()}
+        {playlist.set_aside ? ' · set aside' : ''}
       </div>
       {playlist.description && <p className="muted">{playlist.description}</p>}
       {error && <div className="notice error">{error}</div>}
 
       <div style={{ marginTop: 14 }}>
-        {hub ? (
-          <HubTrackList
-            key={`${positions.length}-${positions[positions.length - 1] ?? ''}`}
-            playlistId={playlist.id}
-            tracks={tracks}
-            positions={positions}
-          />
-        ) : (
-          <TrackList tracks={tracks} />
-        )}
+        <PlaylistSongs
+          key={`${positions.length}-${positions[positions.length - 1] ?? ''}`}
+          playlistId={playlist.id}
+          hub={hub}
+          tracks={tracks}
+          positions={positions}
+        />
       </div>
     </main>
   );

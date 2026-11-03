@@ -65,7 +65,8 @@ Environment variables (set in Vercel; names only, never values):
   limited is not retried: after the reset, push any real app change
   (notes-only commits are skipped by vercel.json). Pending since the limit:
   goth/emo/metal/visual kei styles + style-fit lift (commits d046afe,
-  321b273, 1541ea6) and similar-artist radios.
+  321b273, 1541ea6), similar-artist radios, and the Playlist Tools pick
+  (Set aside folder, new Add to playlist window, hold-to-select songs).
 - Database changes: the Supabase connector (apply_migration / execute_sql) on
   project `dvcjjcuqmhwdahhaafuy`, **and** append the same SQL to
   `supabase/schema.sql` (kept re-runnable with `if not exists`).
@@ -133,6 +134,20 @@ Environment variables (set in Vercel; names only, never values):
   and Home's "New playlist"). Playlist ⋯ menu (`PlaylistMenu.tsx`): rename,
   delete; songs removable (`HubTrackList.tsx`). Home chip "Mine" shows them.
   Duplicates are skipped when adding. No reordering yet.
+  **Playlist Tools Lab pick F2 + M3 + P3 + S2 (2026-11-03):** `playlists.set_aside`
+  (any service): Home's dim "Set aside · n" chip (only when non-empty;
+  those playlists leave the other chips), "Select" on Home ticks playlists →
+  "Set aside" / "Bring back" (`/api/playlists/set-aside`). SQL
+  `set_aside_track_ids()` = songs whose every playlist is set aside; they
+  drop out of `taste_artists` (so taste page, word radios, tag queue),
+  `forgotten_candidates`, and discover.py seeds (`set_aside_track_list`).
+  Add to playlist window (`PlaylistPicker.tsx`) = sheet anchored near the
+  top (keyboard-safe) with a name search, Recently used 3, then A–Z; no match
+  → "New playlist “…”". Options `{verb: Copy|Move, exclude, onAdded}`.
+  Playlist pages use `components/PlaylistSongs.tsx`: hold a song ~450 ms
+  (TrackRow `onHold`) to select, sticky top bar: Select all, Copy to…, and
+  for hub playlists Move to… / Remove (DELETE `{positions}`). Spotify/YouTube
+  playlists are copy-only (imports would undo removals).
 - `components/BottomNav.tsx`: Home, Discover, Search (= `/library?search=1`),
   Library (owner swapped Search and Discover on 2026-11-03).
 - **Discover** (owner's Lab v2 pick **P3 + T5 + W2 + M3 + A1 + E3**):
@@ -496,4 +511,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Style-aware word radios (experimental/grunge/indie… in English and natively), consensus check, no oldies unless asked.
   Goth/emo/metal/visual kei/cottagecore… styles; Daily discover leans English + Korean.
   Similar-artist radios ("similar to Silica Gel").
-  Playlist Tools Lab (Set aside folder out of taste, searchable add window, multi-select move/copy); waiting for the owner's pick.
+  Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove (deploys with the next allowed push).

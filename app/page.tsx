@@ -15,6 +15,7 @@ type PlaylistRow = {
   image_url: string | null;
   imported_at: string;
   last_added_at: string | null;
+  set_aside: boolean;
   playlist_items: { count: number }[];
 };
 
@@ -28,7 +29,7 @@ export default async function Home({
   const [playlistsRes, tracksRes] = await Promise.all([
     db()
       .from('playlists')
-      .select('id, service, name, image_url, imported_at, last_added_at, playlist_items(count)')
+      .select('id, service, name, image_url, imported_at, last_added_at, set_aside, playlist_items(count)')
       .order('name'),
     db().from('tracks').select('id', { count: 'exact', head: true }),
   ]);
@@ -40,6 +41,7 @@ export default async function Home({
     image_url: p.image_url,
     count: p.playlist_items?.[0]?.count ?? 0,
     last_added_at: p.last_added_at,
+    set_aside: !!p.set_aside,
   }));
 
   return (

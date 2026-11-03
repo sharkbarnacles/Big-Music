@@ -3,7 +3,7 @@ import { addToHubPlaylist, removeFromHubPlaylist } from '@/lib/hubPlaylists';
 
 export const dynamic = 'force-dynamic';
 
-// POST { trackIds }: add songs to the end. DELETE { position }: remove one song.
+// POST { trackIds }: add songs to the end. DELETE { positions } (or { position }): remove songs.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -19,7 +19,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const { id } = await params;
     const body = await req.json();
-    await removeFromHubPlaylist(id, Number(body.position));
+    const positions: number[] = Array.isArray(body.positions) ? body.positions.map(Number) : [Number(body.position)];
+    await removeFromHubPlaylist(id, positions);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

@@ -16,12 +16,20 @@ export default function TrackList({
   video = false,
   source,
   onRemove,
+  selected,
+  onHold,
+  onToggle,
 }: {
   tracks: TrackRowData[];
   video?: boolean;
   source?: QueueSource;
   onRemove?: (index: number) => void;
+  // Select mode: `selected` (null = not selecting), hold to start, tap to tick.
+  selected?: Set<number> | null;
+  onHold?: (index: number) => void;
+  onToggle?: (index: number) => void;
 }) {
+  const selecting = !!selected;
   const player = usePlayer();
   const pick = usePlaylistPicker();
   const [menuFor, setMenuFor] = useState<number | null>(null);
@@ -35,7 +43,10 @@ export default function TrackList({
           track={t}
           active={player.current?.id === t.id}
           menuOpen={menuFor === i}
-          onPlay={() => player.playList(tracks, i, { video, source })}
+          selecting={selecting}
+          checked={!!selected?.has(i)}
+          onHold={onHold && !selecting ? () => onHold(i) : undefined}
+          onPlay={() => (selecting ? onToggle?.(i) : player.playList(tracks, i, { video, source }))}
           onVideo={() => player.playList(tracks, i, { video: true, source })}
           onMenu={(open) => setMenuFor(open ? i : null)}
           onPlayNext={() => {

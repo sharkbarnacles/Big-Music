@@ -82,8 +82,24 @@ export async function addToHubPlaylist(id: string, ids: string[]): Promise<{ add
   return { added: wanted.length, skipped: trackIds.length - wanted.length };
 }
 
-export async function removeFromHubPlaylist(id: string, position: number) {
+// Removes songs by their places in the playlist (one or many at once).
+export async function removeFromHubPlaylist(id: string, positions: number[]) {
   await requireHub(id);
-  const { error } = await db().from('playlist_items').delete().eq('playlist_id', id).eq('position', position);
+  const clean = [...new Set(positions.filter((n) => Number.isInteger(n)))];
+  if (!clean.length) return;
+  for (const part of chunk(clean, 500)) {
+    const { error } = await db().from('playlist_items').delete().eq('playlist_id', id).in('position', part);
+    if (error) throw new Error(error.message);
+  }
+}
+
+// "Set aside" (Playlist Tools Lab F2 + M3): any playlist (Spotify, YouTube or
+// yours) can go in the Set aside folder. It still plays, but songs that are
+// only in set-aside playlists stop shaping your taste (SQL taste_artists).
+export async function setAside(ids: string[], aside: boolean): Promise<number> {
+  const clean = ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+  if (!clean.length) return 0;
+  const { error, count } = await db().from('playlists').update({ set_aside: aside }, { count: 'exact' }).in('id', clean);
   if (error) throw new Error(error.message);
+  return count ?? clean.length;
 }

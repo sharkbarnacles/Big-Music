@@ -521,3 +521,63 @@ $$;
 -- discover leans on the main ones (scripts/discover.py weighted_seeds).
 insert into taste_settings (key, value) values ('languages', '{"main": ["english", "korean"], "branch": ["japanese", "chinese", "thai", "filipino", "spanish", "french", "russian"]}')
 on conflict (key) do nothing;
+
+-- ── Set aside playlists (Playlist Tools Lab F2 + M3) ───────────────
+-- Playlists you don't love much. They still play, but your taste profile
+-- ignores songs that are only in set-aside playlists.
+alter table playlists add column if not exists set_aside boolean not null default false;
+
+-- Songs whose every playlist is set aside.
+create or replace function set_aside_track_ids()
+returns table (track_id uuid)
+language sql stable as $$
+  select pi.track_id from playlist_items pi join playlists p on p.id = pi.playlist_id
+   group by pi.track_id
+  having bool_and(p.set_aside);
+$$;
+
+create or replace function taste_artists(max_rows int default 4000)
+returns table (artist_key text, artist text, songs int, playlists int, plays int, kept int, weight real)
+language sql stable as $$
+  with t as (
+    select id,
+      lower(trim(regexp_replace(split_part(regexp_replace(artist, '\s+(feat\.?|ft\.?|x|&|and)\s+.*$', '', 'i'), ',', 1), '\s+', ' ', 'g'))) as k,
+      trim(split_part(regexp_replace(artist, '\s+(feat\.?|ft\.?|x|&|and)\s+.*$', '', 'i'), ',', 1)) as name
+    from tracks
+    where id not in (select track_id from set_aside_track_ids())
+  ),
+  s as (select k, min(name) as name, count(*)::int as songs from t where k <> '' group by k),
+  p as (select t.k, count(distinct pi.playlist_id)::int as playlists from playlist_items pi join t on t.id = pi.track_id
+          join playlists pp on pp.id = pi.playlist_id where not pp.set_aside group by t.k),
+  pl as (select t.k, count(*)::int as plays from plays join t on t.id = plays.track_id where plays.played_at > now() - interval '120 days' group by t.k),
+  kp as (select t.k, count(*)::int as kept from discover_items d join t on t.id = d.track_id where d.hearted group by t.k)
+  select s.k, s.name, s.songs, coalesce(p.playlists, 0), coalesce(pl.plays, 0), coalesce(kp.kept, 0),
+    (ln(1 + s.songs) + 1.5 * ln(1 + coalesce(p.playlists, 0)) + 1.2 * ln(1 + coalesce(pl.plays, 0)) + 1.5 * coalesce(kp.kept, 0))::real as weight
+  from s left join p using (k) left join pl using (k) left join kp using (k)
+  order by weight desc
+  limit max_rows;
+$$;
+
+create or replace function forgotten_candidates(lim integer default 300)
+returns table (track_id uuid, title text, artist text, album text, image_url text, duration_ms integer,
+               yt_audio_id text, playlist text, last_added_at timestamptz, last_played timestamptz)
+language sql set search_path = public as $$
+  select t.id, t.title, t.artist, t.album, t.image_url, t.duration_ms, t.yt_audio_id,
+         (select p.name from playlist_items pi join playlists p on p.id = pi.playlist_id
+           where pi.track_id = t.id and p.service <> 'hub' and not p.set_aside order by p.last_added_at nulls first limit 1),
+         (select min(p.last_added_at) from playlist_items pi join playlists p on p.id = pi.playlist_id
+           where pi.track_id = t.id and p.service <> 'hub' and not p.set_aside),
+         (select max(pl.played_at) from plays pl where pl.track_id = t.id)
+    from tracks t
+   where t.yt_audio_id is not null
+     and t.id not in (select track_id from set_aside_track_ids())
+     and not exists (select 1 from plays pl where pl.track_id = t.id and pl.played_at > now() - interval '180 days')
+   order by random()
+   limit lim;
+$$;
+
+-- The same as one array (no row limit through the API), for scripts/discover.py.
+create or replace function set_aside_track_list()
+returns uuid[] language sql stable as $$
+  select coalesce(array_agg(track_id), '{}') from set_aside_track_ids();
+$$;
