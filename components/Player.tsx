@@ -151,6 +151,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [repeat, setRepeat] = useState<Repeat>('off');
   const [youtubeMode, setYoutubeModeState] = useState(true); // YouTube-first by default
   const [video, setVideo] = useState(false);
+  const [, setVersionTick] = useState(0); // redraw when a song's other version turns up
+  const historyRef = useRef<TrackRowData[]>([]); // songs you were on before, newest last (for Back)
+  const ytIdRef = useRef<string | null>(null); // the YouTube video loaded right now
+  const versionsAskedRef = useRef(new Set<string>()); // songs already asked about
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [device, setDevice] = useState<string | null>(null);
@@ -282,9 +286,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Playing ──────────────────────────────────────────────────────────
 
-  const playAt = async (i: number, opts: { positionMs?: number; skips?: number } = {}) => {
+  const playAt = async (i: number, opts: { positionMs?: number; skips?: number; back?: boolean } = {}) => {
     const track = queueRef.current[i];
     if (!track) return;
+    // Remember the song you're leaving, so Back returns to it even after jumping ahead.
+    const leaving = queueRef.current[indexRef.current];
+    if (!opts.back && leaving && leaving !== track && !opts.skips) {
+      historyRef.current.push(leaving);
+      if (historyRef.current.length > 200) historyRef.current.shift();
+    }
     const token = ++tokenRef.current;
     setI(i);
     setNotice(null);
@@ -308,7 +318,48 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       choice = { engine: 'youtube', id };
     }
     if (choice.engine === 'spotify') await startSpotify(i, token, opts.positionMs ?? 0);
-    else startYouTube(choice.id, opts.positionMs ?? 0);
+    else {
+      startYouTube(choice.id, opts.positionMs ?? 0);
+      findVersions(track, token);
+    }
+  };
+
+  // YouTube Music pairs most songs' studio audio with their music video. If a
+  // song only knows one of the two, ask once (in the background, so the song
+  // starts straight away). The eye button then shows the video, and when a
+  // music video was standing in for the song, the studio audio takes over
+  // within the first few seconds.
+  const findVersions = async (track: TrackRowData, token: number) => {
+    if (track.video_id && track.yt_audio_id && track.video_id !== track.yt_audio_id) return;
+    const key = track.id;
+    if (versionsAskedRef.current.has(key)) return;
+    versionsAskedRef.current.add(key);
+    const playing = ytIdRef.current;
+    if (!playing) return;
+    try {
+      const res = await fetch('/api/youtube/versions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: playing,
+          trackId: /^[0-9a-f-]{36}$/i.test(track.id) ? track.id : undefined,
+          title: track.title,
+          artist: track.artist,
+          // Titles like "… MV「…」", "(Official Video)" or "【PV】" are videos even when YouTube doesn't say so.
+          looksLikeVideo: /\b(mv|m\/v|pv|official (music )?video|music video)\b|【[^】]*(mv|pv)[^】]*】/i.test(track.title),
+        }),
+      });
+      const v = await res.json().catch(() => ({}));
+      if (!v.audioId && !v.mvId) return;
+      const wasVideo = v.mvId === playing;
+      if (v.mvId && !track.video_id) track.video_id = v.mvId;
+      if (v.audioId && (!track.yt_audio_id || track.yt_audio_id === v.mvId)) track.yt_audio_id = v.audioId;
+      setVersionTick((n) => n + 1);
+      if (token !== tokenRef.current || videoRef.current) return;
+      if (wasVideo && v.audioId && v.audioId !== playing && currentProgress() < 8000) startYouTube(v.audioId, 0);
+    } catch {
+      /* keep playing what's playing */
+    }
   };
 
   const startSpotify = async (i: number, token: number, positionMs: number) => {
@@ -423,6 +474,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setDevice(null);
     setPlay(true);
     wantPlayRef.current = true;
+    ytIdRef.current = id;
     playYouTube(id, startMs / 1000);
     watchYouTubeStart();
   };
@@ -664,8 +716,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const prev = () => {
     gesture();
-    if (currentProgress() > 3000 || indexRef.current <= 0) seek(0);
-    else playAt(indexRef.current - 1);
+    if (currentProgress() > 3000) return seek(0);
+    // The song you were on before (it may be further down if you jumped back).
+    while (historyRef.current.length) {
+      const t = historyRef.current.pop()!;
+      const j = queueRef.current.indexOf(t);
+      if (j >= 0 && j !== indexRef.current) return playAt(j, { back: true });
+    }
+    if (indexRef.current <= 0) seek(0);
+    else playAt(indexRef.current - 1, { back: true });
   };
 
   const seek = (ms: number) => {
@@ -734,11 +793,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     else resyncSpotify();
   };
 
+  // The eye: watch the music video, or go back to the cover and studio audio.
+  // If both are the same YouTube video (only a video exists), just the view changes.
   const toggleVideo = () => {
     gesture();
     videoRef.current = !videoRef.current;
     setVideo(videoRef.current);
-    if (current) playAt(indexRef.current);
+    const track = queueRef.current[indexRef.current];
+    if (!track) return;
+    const next = decide(track, videoRef.current);
+    if (next.engine === 'youtube' && next.id === ytIdRef.current) return;
+    playAt(indexRef.current, { positionMs: currentProgress() });
   };
 
   const playList = (list: TrackRowData[], start: number, opts: PlayOptions = {}) => {
@@ -746,6 +811,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (list.length === 0) return;
     baseRef.current = list.slice();
     addedRef.current = new WeakSet();
+    historyRef.current = [];
     setFromLabel(opts.from || pageTitle());
     if (opts.noShuffle) shuffleRef.current = false;
     if (opts.shuffle) shuffleRef.current = true;
@@ -776,7 +842,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
     setQ(q, i);
     setSrcLeft(srcRef.current ? srcRef.current.total - srcRef.current.next : 0);
-    playAt(i);
+    playAt(i, { back: true }); // a new list starts with no history
     loadMore();
   };
 
@@ -1192,7 +1258,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     ? 'Starting…'
     : engine === 'spotify'
       ? `Spotify${device ? ` · ${device}` : ''}`
-      : video && current?.video_id
+      : video
         ? 'Music video · in the hub'
         : 'YouTube · in the hub';
 
@@ -1394,7 +1460,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <button type="button" className="np-icon" aria-label="Start radio" title="Start radio" disabled={!current.yt_audio_id} onClick={() => startRadio(current)}>
                   {picon('radio', 'row-radio')}
                 </button>
-                <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Stop watching video' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!current.video_id} onClick={toggleVideo}>
+                <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Back to the cover and studio audio' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!ytActive || !(current.video_id || current.yt_audio_id)} onClick={toggleVideo}>
                   {picon('video', 'row-video')}
                 </button>
                 <button type="button" className="np-icon" aria-label="Show up next" title="Up next" onClick={showUpNext}>

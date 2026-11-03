@@ -57,6 +57,7 @@ const keyOf = (t: TrackRowData) => {
 export default function QueueList(p: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<number | null>(null);
+  const [allEarlier, setAllEarlier] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const pointerY = useRef(0);
@@ -242,8 +243,41 @@ export default function QueueList(p: Props) {
     );
   });
 
+  // Songs before the one playing (played, or skipped by tapping a song further
+  // down). They stay in the queue: tap one to go back to it.
+  const earlierAll = p.index;
+  const earlierShown = allEarlier ? Math.min(earlierAll, SHOW) : Math.min(earlierAll, 3);
+  const earlier: number[] = [];
+  for (let j = p.index - earlierShown; j < p.index; j++) earlier.push(j);
+
   return (
     <div className="q-list">
+      {earlierAll > 0 && (
+        <div className="q-earlier">
+          <div className="q-group q-earlier-head">
+            <span>Earlier</span>
+            {earlierAll > 3 && (
+              <button type="button" className="q-showall" onClick={() => setAllEarlier(!allEarlier)}>
+                {allEarlier ? 'Show fewer' : `Show all ${earlierAll.toLocaleString()}`}
+              </button>
+            )}
+          </div>
+          {earlier.map((j) => {
+            const t = p.queue[j];
+            return (
+              <div key={`e-${keyOf(t)}`} className="q-row past">
+                <button type="button" className="q-play" onClick={() => p.onPlay(j)} aria-label={`Go back to ${t.title} by ${t.artist}`}>
+                  {t.image_url ? <img src={t.image_url} alt="" loading="lazy" draggable={false} /> : <span className="ph" />}
+                  <span className="q-text">
+                    <span className="title">{splitTitle(t.title).title}</span>
+                    <span className="sub">{t.artist}</span>
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {now && (
         <div className="q-now">
           <div className="q-group">Now playing</div>

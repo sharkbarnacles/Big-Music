@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
     if (!songs.length) return NextResponse.json({ tracks: [], continuation: null });
 
     // Which of these are already in your library (same YouTube video, or same artist + title)?
-    const videoIds = songs.map((s) => s.videoId);
+    // Studio audio first when YouTube Music has it; the music video is kept for the eye button.
+    for (const s of songs) if (s.audioId && s.audioId !== s.videoId) s.videoId = s.audioId;
+    const videoIds = [...new Set(songs.flatMap((s) => [s.videoId, s.mvId].filter(Boolean) as string[]))];
     const keys = songs.map((s) => matchKey({ service: 'youtube', externalId: s.videoId, url: '', title: s.title, artist: s.artist }));
     const [byAudio, bySource, byKey] = await Promise.all([
       db().from('tracks').select(TRACK_COLUMNS).in('yt_audio_id', videoIds),
@@ -41,11 +43,11 @@ export async function GET(req: NextRequest) {
     let libCount = 0;
     const tracks: TrackRowData[] = [];
     songs.forEach((s, i) => {
-      const own = mine.get(s.videoId) ?? byMatch.get(keys[i]);
+      const own = mine.get(s.videoId) ?? (s.mvId ? mine.get(s.mvId) : undefined) ?? byMatch.get(keys[i]);
       if (own) {
         if (mode === 'new') return;
         if (mode === 'mixed' && libCount++ % 3 !== 0) return;
-        tracks.push({ ...own, yt_audio_id: own.yt_audio_id ?? s.videoId });
+        tracks.push({ ...own, yt_audio_id: own.yt_audio_id ?? s.videoId, video_id: own.video_id ?? s.mvId });
         return;
       }
       fresh.push({ video_id: s.videoId, title: s.title, artist: s.artist, album: s.album, image_url: s.image, duration_ms: s.durationMs, seen_at: new Date().toISOString() });
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
         album: s.album,
         duration_ms: s.durationMs,
         image_url: s.image,
-        video_id: null,
+        video_id: s.mvId,
         yt_audio_id: s.videoId,
         track_sources: [{ service: 'youtube', external_id: s.videoId, url: `https://music.youtube.com/watch?v=${s.videoId}` }],
       });

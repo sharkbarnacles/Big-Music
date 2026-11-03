@@ -581,6 +581,11 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 /* Queue, cleaned up: one flat list with thin dividers, a ≡ grip to drag. */
 .q-list { overflow-x: clip; }
 .q-now { margin-bottom: 14px; }
+.q-earlier { margin-bottom: 14px; }
+.q-earlier-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 0; }
+.q-showall { padding: 2px 0; border: 0; background: none; border-radius: 0; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--accent); }
+.q-row.past { opacity: .62; }
+.q-row.past:last-child { border-bottom: 0; }
 .q-group { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-now .q-group { margin-top: 0; }
 .q-row {
