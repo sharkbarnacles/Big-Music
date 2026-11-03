@@ -399,10 +399,74 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setEng('youtube');
     setDevice(null);
     setPlay(true);
+    wantPlayRef.current = true;
     playYouTube(id, startMs / 1000);
+    watchYouTubeStart();
+  };
+
+  // ── Starting YouTube without an extra tap ──────────────────────────
+  // iPhones only let a video start with sound right after a tap. The YouTube
+  // player is therefore made as soon as the app opens (warmYouTube), so a tap
+  // on Play reaches it straight away instead of after it has loaded. If a song
+  // still doesn't start, the hub nudges it a few times, and when you come
+  // back to the app it carries on where it was.
+  const wantPlayRef = useRef(false); // you want music playing (not paused by you)
+  const startWatchRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const ytState = (): number => {
+    try {
+      return ytPlayerRef.current?.getPlayerState?.() ?? -1;
+    } catch {
+      return -1;
+    }
+  };
+
+  const watchYouTubeStart = () => {
+    startWatchRef.current.forEach(clearTimeout);
+    const token = tokenRef.current;
+    const stillWaiting = () =>
+      token === tokenRef.current && engineRef.current === 'youtube' && wantPlayRef.current && ![1, 3].includes(ytState());
+    startWatchRef.current = [
+      setTimeout(() => stillWaiting() && ytPlayerRef.current?.playVideo?.(), 1200),
+      setTimeout(() => stillWaiting() && ytPlayerRef.current?.playVideo?.(), 2600),
+      setTimeout(() => {
+        if (!stillWaiting()) return;
+        setPlay(false);
+        setNotice({ text: 'Your iPhone wants one tap to start the sound: tap Play, or the picture above, once (only needed once after opening the app).' });
+      }, 4500),
+    ];
+  };
+
+  const warmYouTube = async () => {
+    if (ytPlayerRef.current || ytPendingRef.current || !hostRef.current) return;
+    const YT = await loadYouTubeApi();
+    if (ytPlayerRef.current || ytPendingRef.current || !hostRef.current) return;
+    ytPendingRef.current = { id: '', start: 0 };
+    const target = document.createElement('div');
+    hostRef.current.replaceChildren(target);
+    new YT.Player(target, {
+      width: '100%',
+      height: '100%',
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: (e: any) => {
+          ytPlayerRef.current = e.target;
+          const latest = ytPendingRef.current;
+          ytPendingRef.current = null;
+          if (latest?.id) e.target.loadVideoById({ videoId: latest.id, startSeconds: latest.start });
+        },
+        onStateChange: (e: any) => api.current.onYouTubeState(e.data),
+        onError: () => api.current.onYouTubeError(),
+      },
+    });
   };
 
   const playYouTube = async (id: string, start: number) => {
+    // Already made: start right now, inside your tap (no waiting first).
+    if (ytPlayerRef.current) {
+      ytPlayerRef.current.loadVideoById({ videoId: id, startSeconds: start });
+      return;
+    }
     const YT = await loadYouTubeApi();
     if (ytPlayerRef.current) {
       ytPlayerRef.current.loadVideoById({ videoId: id, startSeconds: start });
@@ -441,6 +505,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (state === 1) {
       ytErrorsRef.current = 0;
       setPlay(true);
+      startWatchRef.current.forEach(clearTimeout);
+      setNotice((n) => (n?.text.startsWith('Your iPhone wants one tap') ? null : n));
     }
     if (state === 2) setPlay(false);
     if (state === 0) {
@@ -541,8 +607,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     gesture();
     if (!current || busy) return;
     if (engineRef.current === 'youtube') {
-      if (playingRef.current) ytPlayerRef.current?.pauseVideo?.();
-      else ytPlayerRef.current?.playVideo?.();
+      if (playingRef.current) {
+        wantPlayRef.current = false;
+        ytPlayerRef.current?.pauseVideo?.();
+      } else {
+        wantPlayRef.current = true;
+        setNotice(null);
+        ytPlayerRef.current?.playVideo?.();
+        watchYouTubeStart();
+      }
       return;
     }
     if (playingRef.current) {
@@ -785,6 +858,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const closePlayer = () => {
     tokenRef.current++;
+    wantPlayRef.current = false;
+    radioRef.current = null;
+    startWatchRef.current.forEach(clearTimeout);
     if (engineRef.current === 'youtube') ytPlayerRef.current?.pauseVideo?.();
     if (engineRef.current === 'spotify' && playingRef.current) spotifyAction('action=pause');
     runRef.current = null;
@@ -821,7 +897,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-    loadYouTubeApi().catch(() => {});
+    // Make the YouTube player now, so the first Play tap starts the sound.
+    warmYouTube().catch(() => {});
+  }, []);
+
+  // Coming back to the app: if iPhone paused your music while you were away, carry on.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (engineRef.current === 'youtube' && wantPlayRef.current && ![1, 3].includes(ytState())) {
+        ytPlayerRef.current?.playVideo?.();
+        watchYouTubeStart();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+    };
   }, []);
 
   // On computers, start Spotify's in-browser player so songs play in this tab.
