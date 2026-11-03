@@ -16,6 +16,10 @@ export type Taste = {
 };
 let cache: { at: number; taste: Taste } | null = null;
 
+// Tags about who an artist is rather than how they sound (voice, country,
+// generation, "seen live"…): those are used separately, not as style.
+export const NOT_STYLE = /\b(boy|girl|male|female|co-ed|group|band|duo|trio|vocalists?|singers?|seen live|gen(eration)?|\d(st|nd|rd|th) gen|british|american|english|korean|korea|japanese|japan|chinese|china|taiwanese|thai|thailand|canadian|australian|french|german|swedish|irish|scottish|welsh|spanish|mexican|brazilian|filipino|indonesian|vietnamese|uk|usa|us)\b/i;
+
 // Same as the SQL: first artist name, without "feat. …", "x …", "& …".
 export function artistKey(name: string): string {
   return name
@@ -53,7 +57,7 @@ export async function loadTaste(): Promise<Taste> {
   // Tags: square-root scaled so a few huge genres don't drown out the rest.
   const tags = new Map<string, number>();
   const tagTop = Math.sqrt((tagRows as any[])?.[0]?.weight || 1);
-  for (const r of (tagRows as any[]) ?? []) tags.set(r.tag, Math.sqrt(r.weight) / tagTop);
+  for (const r of (tagRows as any[]) ?? []) if (!NOT_STYLE.test(r.tag)) tags.set(r.tag, Math.sqrt(r.weight) / tagTop);
   const voice = ((setting as any)?.value ?? {}) as VoicePrefs;
   const taste = { own, similar, tags, voice };
   cache = { at: Date.now(), taste };
@@ -82,7 +86,7 @@ export async function queueArtists(names: string[]) {
 // How well an artist's tags fit your taste in tags: 0..1.
 export function tagFit(taste: Taste, p: Profile | undefined): number {
   if (!p || !p.tags.length || !taste.tags.size) return 0;
-  const scores = p.tags.map((t) => taste.tags.get(t) ?? 0).sort((a, b) => b - a);
+  const scores = p.tags.filter((t) => !NOT_STYLE.test(t)).map((t) => taste.tags.get(t) ?? 0).sort((a, b) => b - a);
   return Math.min(1, scores[0] * 0.6 + (scores[1] ?? 0) * 0.3 + (scores[2] ?? 0) * 0.1);
 }
 

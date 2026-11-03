@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import VoicePrefs from '@/components/VoicePrefs';
 import { db } from '@/lib/db';
+import { NOT_STYLE } from '@/lib/taste';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ const COUNTRY: Record<string, string> = {
 export default async function TastePage() {
   const [{ data: artists }, { data: tags }, { data: overview }, { data: voice }] = await Promise.all([
     db().rpc('taste_artists', { max_rows: 15 }),
-    db().rpc('taste_tags', { max_rows: 40 }),
+    db().rpc('taste_tags', { max_rows: 90 }),
     db().rpc('taste_overview'),
     db().from('taste_settings').select('value').eq('key', 'voice').maybeSingle(),
   ]);
@@ -26,7 +27,8 @@ export default async function TastePage() {
   const prog = o.progress ?? {};
   const total = Object.values(prog).reduce((a: number, b: any) => a + Number(b), 0) as number;
   const checked = total - Number(prog.pending ?? 0);
-  const topTag = (tags as any[])?.[0]?.weight || 1;
+  const styles = ((tags as any[]) ?? []).filter((t) => !NOT_STYLE.test(t.tag)).slice(0, 40);
+  const topTag = styles[0]?.weight || 1;
   const countries = (o.countries ?? []) as { country: string; w: number; n: number }[];
   const topCountry = countries[0]?.w || 1;
   const voices = (o.voices ?? []) as { lang: string; voice: string; w: number; n: number }[];
@@ -70,11 +72,11 @@ export default async function TastePage() {
         </ol>
       </section>
 
-      {(tags as any[])?.length > 0 && (
+      {styles.length > 0 && (
         <section className="t-sec">
           <h2>Genres and styles</h2>
           <div className="t-tags">
-            {((tags as any[]) ?? []).map((t) => (
+            {styles.map((t) => (
               <span key={t.tag} className="t-tag" style={{ ['--w' as string]: String(0.35 + 0.65 * Math.sqrt(t.weight / topTag)) } as React.CSSProperties}>
                 {t.tag}
               </span>
