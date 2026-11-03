@@ -1,0 +1,30 @@
+# Tags your artists from MusicBrainz (genres, tags, country, solo/group,
+# vocal gender) for the taste profile, favourites first. MusicBrainz allows
+# one request a second, so each run works for ~50 minutes; it runs every hour
+# until every artist is done, then only picks up new ones.
+name: Tag artists
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: tag-artists
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Tag artists
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python scripts/tag_artists.py --minutes 50
