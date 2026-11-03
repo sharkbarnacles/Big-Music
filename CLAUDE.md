@@ -240,7 +240,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    A2 + G2 + T3 + B2 + C2 + O2 with Player Icon Lab icons
    S13 + R11 + I5 + D21 + Q15 + V2 + K3 + L2 (soft outline triangle skips,
    woven infinity snake repeat drawn bigger than the spiral, hairline +,
-   UFO with ribbed fading beam for radio, constellation queue, eye video,
+   UFO with ribbed fading beam for radio, constellation queue, V9 monolid eye video,
    soft star keep). Icons are exported from the lab into
    `lib/playerIcons.ts` (re-export from the lab when the owner tweaks
    them). Sheet markup in `components/Player.tsx` (.np-* classes in
@@ -249,8 +249,14 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    row with star + ⋯ menu (Add to playlist, Start radio, YouTube mode,
    Stop), thin progress line, pale play circle, icon row. Star = `/api/keep`
    (Discoveries playlist, any song). Discover's hearts are now the same
-   star. Owner is still tinkering in the lab; monolid eye options V9–V13
-   were added on request.
+   star. Owner is still tinkering in the lab. Bottom-row icons are sized by
+   eye (`.np-row .picon.row-*`; the eye is the biggest).
+   **Stability:** owner reported the player "crashing" on page changes and
+   adding to playlists. No DB errors found. Added `app/error.tsx` (a failed
+   page no longer takes down the layout/player), made the cover wash cheap
+   (small element scaled up, no full-screen blur), and the picker only
+   refreshes Home/playlist pages. Ask the owner whether it still happens and
+   what exactly they see (music stops? blank page? app reloads?).
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -282,3 +288,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Icon Lab: queue/constellation, eye video, UFO radio + beam textures,
   balanced spiral vs snake. Pick S13+R11+I5+D16+Q15+V2+K3+L2.
   Built the Now Playing redesign + chosen icons; keep star everywhere.
+  Stability fixes (error.tsx, lighter wash, fewer refreshes); V9 eye.
