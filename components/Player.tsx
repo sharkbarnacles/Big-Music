@@ -411,6 +411,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const track = queueRef.current[i];
     if (!track) return;
     restoredRef.current = false;
+    draggingRef.current = false; // a new song never starts with a frozen time bar
     // Remember the song you're leaving, so Back returns to it even after jumping ahead.
     const leaving = queueRef.current[indexRef.current];
     if (!opts.back && leaving && leaving !== track && !opts.skips) {
@@ -1345,9 +1346,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const timer = setInterval(() => {
       if (draggingRef.current) return;
       if (engineRef.current === 'youtube' && ytPlayerRef.current?.getCurrentTime) {
-        setProgress(ytPlayerRef.current.getCurrentTime() * 1000);
-        const d = ytPlayerRef.current.getDuration?.();
-        if (d) setDuration(d * 1000);
+        try {
+          const t = ytPlayerRef.current.getCurrentTime();
+          if (Number.isFinite(t)) setProgress(t * 1000);
+          const d = ytPlayerRef.current.getDuration?.();
+          if (d) setDuration(d * 1000);
+        } catch {
+          /* the player is between songs; try again next tick */
+        }
       } else if (engineRef.current === 'spotify' && playingRef.current) {
         setProgress(posRef.current.ms + (Date.now() - posRef.current.at));
       }
@@ -1399,9 +1405,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ? 'Music video · in the hub'
         : 'YouTube · in the hub';
 
-  const commitSeek = (ms: number) => {
+  // Moving the time bar. iPhones often don't report letting go of a slider,
+  // which used to leave the bar frozen for the rest of the song. Now letting
+  // go is caught several ways, and if the bar hasn't moved for 0.6 s the new
+  // spot is used anyway, so the bar always comes back to life.
+  const seekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
+  const commitSeek = (ms?: number) => {
+    if (seekTimerRef.current) clearTimeout(seekTimerRef.current);
+    seekTimerRef.current = null;
+    const target = ms ?? pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    if (!draggingRef.current) return;
     draggingRef.current = false;
-    seek(ms);
+    if (target != null && Number.isFinite(target)) seek(target);
+  };
+  const dragSeek = (ms: number) => {
+    draggingRef.current = true;
+    pendingSeekRef.current = ms;
+    setProgress(ms);
+    if (seekTimerRef.current) clearTimeout(seekTimerRef.current);
+    seekTimerRef.current = setTimeout(() => commitSeek(), 600);
   };
 
   // The owner's chosen player icons (lib/playerIcons.ts, from the Player Icon Lab).
@@ -1556,12 +1580,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   value={Math.floor(Math.min(progress, duration || progress))}
                   aria-label="Position in song"
                   style={{ ['--pct' as string]: `${pct}%` } as React.CSSProperties}
-                  onChange={(e) => {
-                    draggingRef.current = true;
-                    setProgress(Number(e.target.value));
-                  }}
+                  onChange={(e) => dragSeek(Number(e.target.value))}
                   onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                  onPointerCancel={() => commitSeek()}
+                  onTouchEnd={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                  onTouchCancel={() => commitSeek()}
+                  onMouseUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
                   onKeyUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
+                  onBlur={() => commitSeek()}
                 />
                 <div className="times">
                   <span>{formatTime(progress)}</span>

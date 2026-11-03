@@ -383,6 +383,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    AI catalogues; `release` song/video/upload ranks official first).
    **One scroller in Now Playing:** `.sheet` has overscroll-behavior:
    contain, and the page behind is pinned (`html.sheet-open`, `--page-y`).
+   **Frozen time bar fix:** iOS often skips pointerup on the range input,
+   which left `draggingRef` true for the rest of the song. Now `dragSeek` /
+   `commitSeek` (pointer/touch/mouse up & cancel, blur, and a 0.6 s idle
+   timer), and every new song clears the drag.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -431,3 +435,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Radio from words + idea chips, planet icon on Discover, Search Everywhere layout fix.
   Word radios rebuilt from matching playlists (origin/language + mood aware), tested on 9 prompts.
   Taste profile + real-artists-only word radios; Now Playing scroll no longer leaks to the page.
+  Time bar no longer freezes after touching it on iPhone.
