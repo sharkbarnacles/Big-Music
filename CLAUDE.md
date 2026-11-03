@@ -77,6 +77,11 @@ Environment variables (set in Vercel; names only, never values):
   `components/ImportButton.tsx` keeps calling until done; a new press within
   6 h resumes. Playlists whose Spotify `snapshot_id` matches
   `source_playlists.snapshot` are skipped (Liked Songs uses "count|newest").
+  Requests are paced (~3/s). A long Spotify 429 is stored as
+  `import_progress.blocked_until` and nothing calls Spotify before then.
+  `.github/workflows/import-resume.yml` (hourly) carries on any unfinished
+  import via `/api/jobs/import`, signed with an HMAC of the time using the
+  existing SUPABASE_SECRET_KEY (middleware lets `/api/jobs/*` through).
 - Playback: `components/Player.tsx` (big file; the hub owns the queue,
   shuffle, repeat, Now Playing sheet, queue view). Engines:
   - **YouTube** (default, "YouTube mode"): embedded YouTube IFrame player.
@@ -153,6 +158,9 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   but **Spotify was incomplete** (243 of the owner's several thousand) and
   playlist dates were missing, so Home's "Recently updated" sort did nothing.
   Owner asked to re-run Import for Spotify (rounds) and YouTube (dates).
+  2026-11-03: Spotify put the app on a ~21 h time-out (until 2026-11-04
+  08:31 UTC); the hourly job resumes the Spotify import after that by itself.
+  Check: `select * from import_progress;`
 - Background finder is still filling YouTube versions (started 2026-11-03,
   expected to cover the library within about a day). Check progress:
   `select count(*) filter (where yt_audio_id is not null), count(*) filter (where yt_audio_status is null) from tracks;`
