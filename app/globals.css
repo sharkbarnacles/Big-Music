@@ -487,9 +487,12 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 /* ── Now Playing, owner's pick A2 + G2 + T3 + B2 + C2 + O2 with the Player Icon
    Lab icons (S13 + R11 + I5 + D21 + Q15 + V2 + K3 + L2) ─────────────────── */
 :root { --np-art: min(calc(100vw - 44px), 420px, 46vh); }
-.np-wash { position: fixed; inset: 0 0 auto 0; height: 78vh; z-index: -1; background-size: cover; background-position: center;
-  filter: blur(60px) saturate(1.3); opacity: .42; transform: scale(1.3);
-  -webkit-mask-image: linear-gradient(#000 0%, #000 30%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 30%, transparent 100%); }
+/* The wash is drawn small and stretched up (cheap for the phone, and naturally
+   soft) instead of blurring a full-screen picture, which can make iOS run out of
+   memory and reload the app. */
+.np-wash { position: fixed; top: 0; left: 0; width: 12vw; height: 9vh; z-index: -1; background-size: cover; background-position: center;
+  transform: scale(8.4); transform-origin: 0 0; will-change: transform; filter: blur(2px) saturate(1.3); opacity: .4;
+  -webkit-mask-image: linear-gradient(#000 0%, #000 25%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 25%, transparent 100%); }
 .sheet-art.np-art { width: var(--np-art); max-width: 100%; margin: 0 auto 22px; border-radius: 14px; box-shadow: 0 24px 50px -24px rgba(0, 0, 0, .8); }
 .sheet-art.np-art.wide { width: min(100%, 520px); aspect-ratio: 16 / 9; }
 .sheet-art.np-art.yt { background: transparent; box-shadow: none; }

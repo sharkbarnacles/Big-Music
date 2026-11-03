@@ -37,7 +37,10 @@ export function PlaylistPickerProvider({ children }: { children: React.ReactNode
     close();
     setToast(message);
     setTimeout(() => setToast(null), 2500);
-    router.refresh();
+    // Only pages that show playlists need fresh data (Home, a playlist page);
+    // refreshing the big Library or Discover pages for nothing is slow.
+    const path = window.location.pathname;
+    if (path === '/' || path.startsWith('/playlists')) router.refresh();
   };
   const what = (n: number) => (n === 1 ? tracks?.[0]?.title ?? '1 song' : `${n.toLocaleString()} songs`);
 
