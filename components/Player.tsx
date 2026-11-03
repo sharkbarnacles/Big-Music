@@ -70,6 +70,7 @@ type PlayerApi = {
   playNext: (track: TrackRowData) => void;
   addToQueue: (track: TrackRowData) => void;
   startRadio: (track: TrackRowData, label?: string) => void;
+  startPromptRadio: (words: string) => Promise<void>;
 };
 
 const PlayerContext = createContext<PlayerApi>({
@@ -79,6 +80,7 @@ const PlayerContext = createContext<PlayerApi>({
   playList: () => {},
   playNext: () => {},
   startRadio: () => {},
+  startPromptRadio: async () => {},
   addToQueue: () => {},
 });
 export const usePlayer = () => useContext(PlayerContext);
@@ -1040,6 +1042,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // A radio from words: built from playlists people made for them (lib/promptRadio.ts).
+  const startPromptRadio = async (words: string) => {
+    const mode = readRadioMode();
+    showToast(`Building a “${words}” radio…`);
+    const res = await fetch(`/api/radio/prompt?${new URLSearchParams({ q: words, mode })}`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.tracks?.length) throw new Error(body.error || 'The radio couldn’t start. Try again in a moment.');
+    playList(body.tracks, 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null }, from: `Radio · ${words}` });
+    setRadioEdition(body.editionId ?? null);
+  };
+
   // Play next: straight after the current song. Add to queue: after the other
   // songs you added, before the rest of the list (like Spotify's queue).
   // Each added song is a copy, so it can be told apart from the same song in the list.
@@ -1403,7 +1416,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <PlayerContext.Provider value={{ current, youtubeMode, setYoutubeMode, playList, playNext, addToQueue, startRadio }}>
+    <PlayerContext.Provider value={{ current, youtubeMode, setYoutubeMode, playList, playNext, addToQueue, startRadio, startPromptRadio }}>
       {children}
 
       {/* Space so the bar never covers the end of a list. */}

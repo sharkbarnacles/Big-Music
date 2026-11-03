@@ -382,13 +382,7 @@ export function RadioExplore({ seeds }: { seeds: { label: string; tracks: TrackR
     setBusy(q);
     setErr(null);
     try {
-      const res = await fetch(`/api/radio/seed?q=${encodeURIComponent(q)}`);
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || 'The radio couldn’t start.');
-      const top: TrackRowData[] = (d.tracks ?? []).filter((t: TrackRowData) => t.yt_audio_id);
-      if (!top.length) throw new Error(`Nothing found for “${q}”. Try other words.`);
-      // One of the best few matches, so the same words don't always give the same radio.
-      player.startRadio(top[Math.floor(Math.random() * Math.min(3, top.length))], q);
+      await player.startPromptRadio(q);
     } catch (e) {
       setErr((e as Error).message);
     } finally {

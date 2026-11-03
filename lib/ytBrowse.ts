@@ -139,6 +139,16 @@ function shelfItems(data: any): any[] {
   return sections.flatMap((s: any) => s?.musicShelfRenderer?.contents ?? []).map((c: any) => c?.musicResponsiveListItemRenderer).filter(Boolean);
 }
 
+// Playlists people made, plus YouTube Music's own, for some words.
+export async function searchPlaylists(query: string): Promise<WebItem[]> {
+  const q = query.trim().slice(0, 150);
+  const [community, featured] = await Promise.all([
+    call('search', { query: q, params: FILTER.community }).then(shelfItems).catch(() => [] as any[]),
+    call('search', { query: q, params: FILTER.featured }).then(shelfItems).catch(() => [] as any[]),
+  ]);
+  return [...featured, ...community].map((r) => parseListItem(r, 'playlist')).filter((p): p is WebItem => p !== null);
+}
+
 // Songs only (for starting a radio from words like "rainy day lo-fi").
 export async function searchSongs(query: string): Promise<WebSong[]> {
   const items = await call('search', { query: query.trim().slice(0, 150), params: FILTER.songs }).then(shelfItems);

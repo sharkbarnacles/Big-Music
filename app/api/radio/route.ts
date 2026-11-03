@@ -4,6 +4,7 @@ import { matchKey } from '@/lib/library';
 import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { appendToRadioEdition, createRadioEdition } from '@/lib/radioEditions';
 import { fetchRadio } from '@/lib/ytRadio';
+import { runPromptRadio } from '@/lib/promptRadioRoute';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,15 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
   const mode = q.get('mode') === 'new' ? 'new' : q.get('mode') === 'familiar' ? 'familiar' : 'mixed';
+  // More songs for a radio started from words.
+  const token = q.get('continuation');
+  if (token?.startsWith('p:')) {
+    try {
+      return NextResponse.json(await runPromptRadio({ token, mode, editionId: q.get('editionId') }));
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    }
+  }
   try {
     const { songs, continuation } = await fetchRadio({
       videoId: q.get('videoId') ?? undefined,
