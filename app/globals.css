@@ -408,3 +408,8 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .import-progress { height: 3px; margin-top: 8px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .import-progress i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
 @media (prefers-reduced-motion: reduce) { .import-progress i { transition: none; } }
+
+/* Source dots in lists and chips stay quiet so the page doesn't look busy.
+   (The Services button's status dots keep full color: they show connection state.) */
+.pl-chip .dot, .pl-meta .dot, .avail .dot { opacity: .5; filter: saturate(.6); }
+.pl-chip[aria-pressed="true"] .dot { opacity: .7; }
