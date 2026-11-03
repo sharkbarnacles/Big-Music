@@ -2,6 +2,7 @@ import { getAccessToken } from '../connections';
 import { chunk, db } from '../db';
 import {
   cleanupOrphans,
+  newestDate,
   recordSource,
   removePlaylist,
   savePlaylist,
@@ -183,6 +184,8 @@ export async function importYouTube(): Promise<ImportSummary> {
           name: p.snippet?.title || 'Untitled playlist',
           description: p.snippet?.description || null,
           imageUrl: thumb(p.snippet),
+          // publishedAt on a playlist item is when it was added to the playlist
+          lastAddedAt: newestDate(items.map((it) => it.snippet?.publishedAt)),
         },
         entries,
         info,

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Header from '@/components/Header';
 import ImportButton from '@/components/ImportButton';
+import PlaylistBrowser, { type PlaylistCard } from '@/components/PlaylistBrowser';
 import { getConnection } from '@/lib/connections';
 import { db } from '@/lib/db';
 
@@ -12,6 +13,7 @@ type PlaylistRow = {
   name: string;
   image_url: string | null;
   imported_at: string;
+  last_added_at: string | null;
   playlist_items: { count: number }[];
 };
 
@@ -32,12 +34,20 @@ export default async function Home({
     getConnection('youtube'),
     db()
       .from('playlists')
-      .select('id, service, name, image_url, imported_at, playlist_items(count)')
+      .select('id, service, name, image_url, imported_at, last_added_at, playlist_items(count)')
       .order('name'),
     db().from('tracks').select('id', { count: 'exact', head: true }),
   ]);
   const connections = { spotify, youtube };
   const playlists = (playlistsRes.data ?? []) as unknown as PlaylistRow[];
+  const cards: PlaylistCard[] = playlists.map((p) => ({
+    id: p.id,
+    service: p.service,
+    name: p.name,
+    image_url: p.image_url,
+    count: p.playlist_items?.[0]?.count ?? 0,
+    last_added_at: p.last_added_at,
+  }));
 
   return (
     <main className="wrap">
@@ -94,26 +104,7 @@ export default async function Home({
       </div>
       </details>
 
-      {SERVICES.map((s) => {
-        const list = playlists.filter((p) => p.service === s.id);
-        if (list.length === 0) return null;
-        return (
-          <section key={s.id}>
-            <h2><span className={`dot ${s.id}`} />{s.name} playlists</h2>
-            <div className="list">
-              {list.map((p) => (
-                <Link className="item" key={p.id} href={`/playlists/${p.id}`}>
-                  {p.image_url ? <img src={p.image_url} alt="" loading="lazy" /> : <div className="ph" />}
-                  <div className="main">
-                    <div className="title">{p.name}</div>
-                    <div className="sub">{p.playlist_items?.[0]?.count ?? 0} songs</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      <PlaylistBrowser playlists={cards} />
     </main>
   );
 }

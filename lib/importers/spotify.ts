@@ -1,6 +1,7 @@
 import { getAccessToken } from '../connections';
 import {
   cleanupOrphans,
+  newestDate,
   recordSource,
   removePlaylist,
   savePlaylist,
@@ -79,10 +80,20 @@ export async function importSpotify(): Promise<ImportSummary> {
   const summary: ImportSummary = { service: 'spotify', playlists: 0, songs: 0, excluded: 0, skipped: [] };
 
   // 1. Liked Songs, saved as its own playlist.
-  const liked = (await collect(token, '/me/tracks?limit=50'))
+  const likedItems = await collect(token, '/me/tracks?limit=50');
+  const liked = likedItems
     .map((item) => toTrack(item.track))
     .filter((t): t is ImportedTrack => t !== null);
-  await keepOrSkip({ service: 'spotify', externalId: 'liked', name: 'Liked Songs (Spotify)' }, liked, summary);
+  await keepOrSkip(
+    {
+      service: 'spotify',
+      externalId: 'liked',
+      name: 'Liked Songs (Spotify)',
+      lastAddedAt: newestDate(likedItems.map((it) => it.added_at)),
+    },
+    liked,
+    summary,
+  );
 
   // 2. Every playlist you made or follow.
   const playlists = await collect(token, '/me/playlists?limit=50');
@@ -109,6 +120,7 @@ export async function importSpotify(): Promise<ImportSummary> {
           name: p.name || 'Untitled playlist',
           description: p.description || null,
           imageUrl: p.images?.[0]?.url ?? null,
+          lastAddedAt: newestDate(items.map((it) => it.added_at)),
         },
         tracks,
         summary,

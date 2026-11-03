@@ -173,3 +173,6 @@ language sql set search_path = public as $$
 $$;
 revoke execute on function fill_yt_audio_from_sources() from public, anon, authenticated;
 grant execute on function fill_yt_audio_from_sources() to service_role;
+
+-- When a song was last added to each playlist (for sorting by "Recently updated").
+alter table playlists add column if not exists last_added_at timestamptz;

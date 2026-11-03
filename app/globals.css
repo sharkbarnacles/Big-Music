@@ -288,3 +288,20 @@ details.services summary { gap: 12px; }
 .services-title { font-size: 17px; font-weight: 700; flex: 1; }
 .services-status { display: inline-flex; align-items: center; gap: 2px; }
 .services-status .dot { margin-right: 4px; }
+
+/* Playlists on Home: Sort drop-down, source chips, rows with covers */
+.playlists { margin-top: 8px; }
+.pl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.pl-head h2 { margin-bottom: 10px; }
+.pl-sort { position: relative; display: inline-block; }
+.pl-sort-btn { height: 36px; gap: 6px; font-size: 14px; }
+.pl-menu { left: 0; right: auto; top: calc(100% + 6px); }
+.row-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
+.row-menu button[aria-checked="true"]::after { content: "✓"; float: right; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
+.pl-chip { height: 34px; gap: 6px; font-size: 14px; }
+.pl-chip .dot { width: 8px; height: 8px; margin: 0; }
+.pl-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.pl-row img, .pl-row .ph { width: 52px; height: 52px; border-radius: 8px; }
+.pl-meta { display: flex; align-items: center; gap: 6px; }
+.pl-meta .dot { width: 7px; height: 7px; margin: 0; flex: none; }

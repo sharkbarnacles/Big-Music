@@ -181,7 +181,18 @@ export type PlaylistMeta = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
+  lastAddedAt?: string | null; // when a song was last added (for "Recently updated")
 };
+
+// The newest of a list of dates (ignores missing or broken ones).
+export function newestDate(dates: (string | null | undefined)[]): string | null {
+  let best = 0;
+  for (const d of dates) {
+    const t = d ? Date.parse(d) : NaN;
+    if (!Number.isNaN(t) && t > best) best = t;
+  }
+  return best ? new Date(best).toISOString() : null;
+}
 
 // Saves a playlist and replaces its song list with the fresh import.
 export async function savePlaylist(meta: PlaylistMeta, tracks: ImportedTrack[]): Promise<number> {
@@ -196,6 +207,7 @@ export async function savePlaylist(meta: PlaylistMeta, tracks: ImportedTrack[]):
         name: meta.name,
         description: meta.description ?? null,
         image_url: meta.imageUrl ?? null,
+        last_added_at: meta.lastAddedAt ?? null,
         imported_at: new Date().toISOString(),
       },
       { onConflict: 'service,external_id' },

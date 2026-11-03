@@ -128,10 +128,11 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 ## Next steps (owner's plan)
 
 1. Fix anything the owner reports about the new look / player on iPhone.
-   Waiting on their pick from the Playlist Sort Lab (four codes like
-   "S1 + G3 + K1 + P1") to build Home's playlist sorting/grouping. Real
-   "recently updated" needs a stored date per playlist (e.g. newest item
-   added_at from Spotify / publishedAt from YouTube) — not stored yet.
+   Home playlists use their Playlist Sort Lab pick **S1 + G3 + K1 + P1**
+   (`components/PlaylistBrowser.tsx`): Recently updated by default
+   (`playlists.last_added_at`, filled on import from Spotify `added_at` /
+   YouTube `publishedAt`; YouTube "Liked Music" has no date), Sort
+   drop-down, All/Spotify/YouTube Music chips, rows with covers.
 2. Organization (phase 3): tags, ratings, notes, smart playlists, manual fix
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
