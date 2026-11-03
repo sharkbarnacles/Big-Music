@@ -7,9 +7,9 @@ import { usePathname, useSearchParams } from 'next/navigation';
 // page you're on. Hidden on the login screen.
 const ITEMS = [
   { href: '/', label: 'Home', d: 'M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
-  { href: '/library', label: 'Library', d: 'M4 4v16M9 4v16M14 4l6 16' },
   { href: '/library?search=1', label: 'Search', d: 'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM20 20l-3.5-3.5' },
   { href: '/discover', label: 'Discover', d: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM15.5 8.5l-2 5-5 2 2-5z' },
+  { href: '/library', label: 'Library', d: 'M4 4v16M9 4v16M14 4l6 16' },
 ];
 
 export default function BottomNav() {
