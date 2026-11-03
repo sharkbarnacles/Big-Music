@@ -144,7 +144,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Playlist Sort Lab (sort/group/switch/look for Home playlists): https://claude.ai/artifact/BHWY4jdLiPGqAH6QYXfnQM
 - Home Top Lab (header/numbers/services/messages above Playlists): https://claude.ai/artifact/Db76mHuAcsarbFNo88ztzu
 - Library Top Lab (numbers/search & filters/video finder/play row): https://claude.ai/artifact/UTVPcvWT74dmoa62gLescy
-- Discovery Lab (layout/source/why line/actions/kept songs, L·S·W·A·K): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
+- Discovery Lab v2 (page/today/weekly/monthly/archive/extras, P·T·W·M·A·E; v1 L·S·W·A·K superseded): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -181,7 +181,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
    recommendations, a discovery inbox; the Discover tab is a placeholder.
-   Waiting on the owner's Discovery Lab pick (five codes, L+S+W+A+K).
+   Owner's wishes: something served for the day, **nothing disappearing or
+   reshuffling** (refreshing lists stress them), weekly/monthly mixes are fun.
+   Plan: every edition is dated, frozen and archived in Supabase; hearts copy
+   songs to a "Discoveries" playlist. Sources: ListenBrainz (needs the hub to
+   submit plays; LB weeklies can run late), ytmusicapi radio/related (gives
+   YouTube IDs), own play history for monthly. Research report delivered in
+   chat ("Music discovery formats"). Waiting on the Lab v2 pick (six codes).
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -200,3 +206,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-03: Longer spiral Shuffle icon (`lib/icons.ts`), YouTube color
   red → purple, built the Discovery Lab.
   Spotify import now resumable in rounds with unchanged-playlist skipping.
+  Bigger spiral; Home Sort + chips on one line, 'YouTube' label, muted
+  source dots. Discovery research + Lab v2.
