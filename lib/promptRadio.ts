@@ -44,8 +44,9 @@ const ORIGINS: Origin[] = [
 // Moods weigh more than scene words ("niche", "underground"), and a playlist
 // title counts as matching if it has any of the mood's usual words.
 const MOODS: Record<string, string[]> = {
-  chill: ['chill', 'chilled', 'relax', 'calm', 'mellow', 'soft', 'lofi', 'lo-fi', 'easy', 'ชิล', '잔잔', '칠', 'まったり'],
-  sad: ['sad', 'heartbreak', 'broken', 'melancholy', 'cry', 'เศร้า', '이별', '슬픈'],
+  chill: ['chill', 'chilled', 'relax', 'calm', 'mellow', 'soft', 'lofi', 'lo-fi', 'easy', 'ชิล', '잔잔', '칠', 'まったり', '放松', '轻松', '慵懒', '放鬆'],
+  dark: ['dark', 'existential', 'gloomy', 'bleak', 'melancholic', 'brooding', 'nihilist', '丧', '致郁', '暗黑', '存在主义', '黑暗', '頹', '颓'],
+  sad: ['sad', 'heartbreak', 'broken', 'melancholy', 'cry', 'เศร้า', '이별', '슬픈', '伤感', '傷感', '悲伤'],
   happy: ['happy', 'feel good', 'upbeat', 'sunny', 'cheerful'],
   aggressive: ['aggressive', 'hard', 'heavy', 'metal', 'intense', 'angry', 'rage', 'hardcore'],
   energetic: ['energetic', 'hype', 'workout', 'gym', 'party', 'dance', 'upbeat'],
@@ -58,6 +59,28 @@ const MOODS: Record<string, string[]> = {
   acoustic: ['acoustic', 'unplugged'],
 };
 const moodOf = (w: string) => Object.entries(MOODS).find(([k, syn]) => k === w || syn.includes(w))?.[0] ?? null;
+
+// Styles: like moods, they must show up in a playlist's title (or a synonym,
+// in English or the language itself), or the playlist drops far down.
+const STYLES: Record<string, string[]> = {
+  experimental: ['experimental', 'avant-garde', 'avant garde', 'avant', 'art rock', 'art pop', 'noise', 'post-rock', 'post rock', 'math rock', 'leftfield', 'weird', 'abstract', '实验', '實驗', '前卫', '前衛', '后摇', '後搖', '噪音', '실험', '実験', 'ทดลอง'],
+  grunge: ['grunge', 'grungy', 'alt rock', 'alternative rock', 'noise rock', 'garage', 'shoegaze', 'sludge', 'post-punk', 'punk', '垃圾摇滚', '摇滚', '搖滾', '朋克', '后朋克', '그런지', 'グランジ'],
+  indie: ['indie', 'independent', 'underground', 'alternative', 'alt', '独立', '獨立', '地下', '인디', 'インディー', 'อินดี้', 'นอกกระแส'],
+  shoegaze: ['shoegaze', 'dream pop', 'dreampop', '自赏', '自賞', '梦幻', '슈게이징'],
+  psychedelic: ['psychedelic', 'psych', 'trippy', '迷幻', '사이키델릭'],
+  folk: ['folk', 'acoustic', 'singer-songwriter', '民谣', '民謠', '포크'],
+  electronic: ['electronic', 'electronica', 'synth', 'techno', 'house', 'idm', '电子', '電子', '일렉'],
+  hiphop: ['hip hop', 'hip-hop', 'hiphop', 'rap', 'trap', 'drill', '说唱', '饶舌', '嘻哈', '힙합', 'ラップ'],
+  rnb: ['r&b', 'rnb', 'neo soul', 'soul', '节奏布鲁斯'],
+  jazz: ['jazz', 'jazzy', '爵士', '재즈'],
+  rock: ['rock', 'band', '摇滚', '搖滾', '록', 'ロック', 'ร็อก'],
+  metal: ['metal', 'metalcore', 'heavy', '金属', '메탈'],
+  pop: ['pop'],
+};
+const styleOf = (w: string) => Object.entries(STYLES).find(([k, syn]) => k === w || syn.includes(w))?.[0] ?? null;
+// Old songs: pushed down unless you ask for them.
+const OLD = /\b(classic|classics|oldies|old songs|golden|evergreen|throwback|retro|vintage|[5-9]0s|19[5-9]\d)\b|经典|經典|老歌|怀旧|懷舊|金曲|老情歌/i;
+const WANTS_OLD = /\b(old|oldies|classic|retro|vintage|throwback|[5-9]0s|19[5-9]\d)\b|经典|老歌|怀旧/i;
 
 // Words that say nothing about the music on their own.
 const FILLER = new Set(['music', 'songs', 'song', 'playlist', 'mix', 'radio', 'some', 'the', 'and', 'of', 'a', 'an', 'with', 'for', 'like', 'that', 'is', 'vibes', 'vibe', 'type', 'kind']);
@@ -75,8 +98,9 @@ function parse(q: string) {
     .split(/[^\p{L}\p{N}-]+/u)
     .filter((w) => w && !FILLER.has(w) && !(origin?.words.includes(w)));
   const moods = [...new Set(feel.map(moodOf).filter((m): m is string => m !== null))];
-  const scene = feel.filter((w) => !moodOf(w));
-  return { origin, originWord, feel, moods, scene };
+  const styles = [...new Set(feel.map((w) => (moodOf(w) ? null : styleOf(w))).filter((m): m is string => m !== null))];
+  const scene = feel.filter((w) => !moodOf(w) && !styleOf(w));
+  return { origin, originWord, feel, moods, styles, scene, wantsOld: WANTS_OLD.test(lower) };
 }
 
 const norm = (t: string) => t.toLowerCase().normalize('NFKC');
@@ -102,22 +126,29 @@ function curated(songs: WebSong[]): boolean {
 }
 
 export async function promptRadio(q: string, state: PromptState | null): Promise<PromptBatch> {
-  const { origin, originWord, feel, moods, scene } = parse(q);
+  const { origin, originWord, feel, moods, styles, scene, wantsOld } = parse(q);
   const used = new Set(state?.used ?? []);
   const o = originWord ?? '';
 
   // Searches: the words as typed, then origin + each feel word, then the native name.
   const queries = [q];
   if (o) {
-    // The mood first: it decides how the radio feels.
+    // Styles and moods first: they decide what the radio sounds like.
+    for (const st of styles.slice(0, 2)) queries.push(`${o} ${st}`, `${st} ${o} music`);
     for (const m of moods.slice(0, 2)) queries.push(`${o} ${m}`, `${m} ${o} songs`);
+    // The same in the language itself ("华语 实验"), when there's a word for it.
+    const script = origin?.script;
+    for (const k of [...styles, ...moods].slice(0, 2)) {
+      const local = (STYLES[k] ?? MOODS[k] ?? []).find((w) => script?.test(w));
+      if (local) queries.push(`${origin?.native?.[0] ?? ''} ${local}`.trim(), local);
+    }
     queries.push(`${o} ${feel.join(' ')}`.trim());
     for (const f of scene.slice(0, 2)) queries.push(`${o} ${f}`);
-    for (const n of origin?.native ?? []) queries.push(moods.length ? `${n} ${moods[0]}` : n);
+    if (!styles.length && !moods.length) for (const n of origin?.native ?? []) queries.push(n);
   } else if (feel.length > 1) {
     queries.push(feel.slice(0, 2).join(' '));
   }
-  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 7);
+  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 9);
   const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {} };
   const [found, taste] = await Promise.all([
     Promise.all(unique.map((x) => searchPlaylists(x).catch(() => []))).then((r) => r.flat()),
@@ -137,12 +168,16 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     if (origin && !hasOrigin) continue; // you asked for an origin: the playlist must be about it
     let score = hasOrigin ? 5 : 0;
     if (NOT_A_SONG.test(p.title.replace(/\b(mix|playlist|mixtape)\b/gi, '')) || /🎧|☕|🌙/.test(p.title)) score -= 6;
-    const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(w))).length;
+    const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(norm(w)))).length;
+    const styleHits = styles.filter((st) => STYLES[st].some((w) => t.includes(norm(w)))).length;
     const sceneHits = scene.filter((w) => t.includes(w)).length;
-    score += moodHits * 6 + sceneHits * 2;
-    // A mood you asked for that the title doesn't have counts against it.
-    score -= (moods.length - moodHits) * 4;
-    if (!moods.length && scene.length && !sceneHits) score -= 3;
+    score += moodHits * 6 + styleHits * 7 + sceneHits * 3;
+    // Moods and styles you asked for that the title doesn't have count against it.
+    score -= (moods.length - moodHits) * 4 + (styles.length - styleHits) * 5;
+    // You described the sound but the title matches none of it: almost certainly off.
+    if (feel.length && !moodHits && !styleHits && !sceneHits) score -= 6;
+    // Classics and oldies only when you ask for them.
+    if (!wantsOld && OLD.test(p.title)) score -= 7;
     // Asked for no origin: a playlist about a particular country is off-topic.
     if (!origin && ORIGINS.some((x) => x.words.some((w) => new RegExp(`\\b${w}\\b`).test(t)))) score -= 4;
     if (/\b(mix|radio)\b/.test(t)) score -= 0.5;
@@ -193,7 +228,9 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       // Deeper taste: how well the artist's genres/tags fit yours, and your vocal
       // preference for this language (a gentle lift, never a filter).
       const prof = profiles.get(artistKey(x.artist));
-      const deep = tagFit(taste, prof) * 4 + voiceFit(taste, songLanguage(`${x.title} ${x.artist}`, prof), prof) * 2.5;
+      // Artists tagged with the style you asked for (MusicBrainz: "experimental", "post-rock"…).
+      const styleTag = prof && styles.some((st) => STYLES[st].some((w) => prof.tags.some((t: string) => t.includes(w)))) ? 3 : 0;
+      const deep = tagFit(taste, prof) * 4 + styleTag + voiceFit(taste, songLanguage(`${x.title} ${x.artist}`, prof), prof) * 2.5;
       pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + deep + Math.random() * 3 });
     }
   }
