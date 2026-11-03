@@ -51,7 +51,9 @@ const MOODS: Record<string, string[]> = {
   aggressive: ['aggressive', 'hard', 'heavy', 'metal', 'intense', 'angry', 'rage', 'hardcore'],
   energetic: ['energetic', 'hype', 'workout', 'gym', 'party', 'dance', 'upbeat'],
   romantic: ['romantic', 'love', 'รัก', '사랑'],
-  dreamy: ['dreamy', 'dream', 'ethereal', 'shoegaze', 'ambient'],
+  dreamy: ['dreamy', 'dream', 'ethereal', 'hazy', 'floaty', 'ambient', '梦幻', '夢幻', '몽환', '夢', 'ฝัน', 'onírico', 'rêveur', 'мечтательн'],
+  soft: ['soft', 'dainty', 'delicate', 'gentle', 'feminine', 'soft girl', 'soft feminine', 'pastel', 'cute', 'sweet', '温柔', '溫柔', '甜', '소프트', '잔잔한', 'ゆるふわ', 'かわいい', 'นุ่ม', 'suave', 'douce', 'нежн'],
+  whimsical: ['whimsical', 'fairytale', 'fairy tale', 'fairy', 'magical', 'enchanted', 'storybook', 'quirky', 'playful', '童话', '童話', '동화', 'メルヘン', 'ファンタジー', 'mágico', 'féerique', 'сказочн'],
   night: ['night', 'late night', 'midnight', 'นอน'],
   rainy: ['rain', 'rainy', '비', '雨'],
   sleep: ['sleep', 'bedtime', 'lullaby'],
@@ -67,15 +69,22 @@ const STYLES: Record<string, string[]> = {
   experimental: ['experimental', 'avant-garde', 'avant garde', 'avant', 'art rock', 'art pop', 'noise', 'post-rock', 'post rock', 'math rock', 'leftfield', 'abstract', '实验音乐', '實驗音樂', '实验摇滚', '實驗搖滾', '前卫摇滚', '前衛搖滾', '前卫', '前衛', '后摇', '後搖', '噪音', '실험음악', '実験音楽'],
   grunge: ['grunge', 'grungy', 'noise rock', 'garage rock', 'shoegaze', 'sludge', 'post-punk', 'post punk', '垃圾摇滚', '垃圾搖滾', '后朋克', '後龐克', '噪音', '그런지', 'グランジ'],
   indie: ['indie', 'independent', 'underground', 'alternative', 'alt', '独立', '獨立', '地下', '인디', 'インディー', 'อินดี้', 'นอกกระแส'],
-  shoegaze: ['shoegaze', 'dream pop', 'dreampop', '自赏', '自賞', '梦幻', '슈게이징'],
+  shoegaze: ['shoegaze', 'shoegazing', 'dream pop', 'dreampop', 'noise pop', '自赏', '自賞', '盯鞋', '슈게이징', '슈게이즈', 'シューゲイザー', 'シューゲイズ', 'ชูเกซ', 'шугейз'],
   psychedelic: ['psychedelic', 'psych', 'trippy', '迷幻', '사이키델릭'],
   folk: ['folk', 'acoustic', 'singer-songwriter', '民谣', '民謠', '포크'],
   electronic: ['electronic', 'electronica', 'synth', 'techno', 'house', 'idm', '电子', '電子', '일렉'],
   hiphop: ['hip hop', 'hip-hop', 'hiphop', 'rap', 'trap', 'drill', '说唱', '饶舌', '嘻哈', '힙합', 'ラップ'],
   rnb: ['r&b', 'rnb', 'neo soul', 'soul', '节奏布鲁斯'],
   jazz: ['jazz', 'jazzy', '爵士', '재즈'],
-  rock: ['rock', 'band', '摇滚', '搖滾', '록', 'ロック', 'ร็อก'],
-  metal: ['metal', 'metalcore', 'heavy', '金属', '메탈'],
+  rock: ['rock', 'band', 'alt rock', 'alternative rock', 'indie rock', 'garage rock', 'post-rock', 'art rock', 'prog', 'progressive rock', 'hard rock', 'j-rock', 'jrock', 'k-rock', '摇滚', '搖滾', '록', '밴드', 'ロック', 'バンド', 'ร็อก', 'roca', 'рок'],
+  goth: ['goth', 'gothic', 'gothic rock', 'goth rock', 'darkwave', 'deathrock', 'coldwave', 'cold wave', 'ethereal wave', 'dark wave', 'witch house', 'gothic metal', '哥特', '哥德', '暗潮', '고딕', 'ゴシック', 'ゴス', 'โกธิค', 'gótico', 'gothique', 'готик', 'готи'],
+  emo: ['emo', 'midwest emo', 'emo rock', 'emocore', 'post-hardcore', 'post hardcore', 'pop punk', 'pop-punk', '情绪硬核', '情緒搖滾', '이모', 'エモ', 'อีโม', 'эмо'],
+  screamo: ['screamo', 'skramz', 'post-hardcore', 'post hardcore', 'hardcore', 'emoviolence', '스크리모', 'スクリーモ', 'скримо'],
+  metal: ['metal', 'heavy metal', 'metalcore', 'melodic metalcore', 'deathcore', 'death metal', 'melodic death metal', 'melodeath', 'black metal', 'doom', 'sludge', 'djent', 'nu metal', 'nu-metal', 'progressive metal', 'symphonic metal', 'power metal', 'thrash', 'post-metal', '金属', '金屬', '死亡金属', '메탈', '메탈코어', 'メタル', 'メタルコア', 'デスメタル', 'เมทัล', 'метал'],
+  visualkei: ['visual kei', 'visual-kei', 'vkei', 'v-kei', 'ヴィジュアル系', 'ビジュアル系', 'v系', '視覺系', '视觉系', '비주얼계', '비쥬얼'],
+  industrial: ['industrial', 'ebm', 'industrial rock', 'industrial metal', 'aggrotech', 'noise industrial', '工业', '工業', '인더스트리얼', 'インダストリアル', 'индастриал'],
+  cottagecore: ['cottagecore', 'cottage core', 'folk', 'indie folk', 'pastoral', 'acoustic', 'chamber pop', 'baroque pop', 'fairy', 'forest', '田园', '田園', '森系', '코티지코어', '森ガール', 'campestre', 'champêtre'],
+  postpunk: ['post-punk', 'post punk', 'new wave', 'coldwave', 'gothic rock', '后朋克', '後龐克', '포스트펑크', 'ポストパンク', 'пост-панк', 'постпанк'],
   pop: ['pop'],
 };
 // Related styles to also search for: they fill the same corner when the exact word is rare.
@@ -83,7 +92,15 @@ const RELATED: Record<string, string[]> = {
   experimental: ['post-punk', 'post punk', 'shoegaze', 'noise', 'alternative', 'post-rock', 'art rock', 'indie', '另類', '另类', '独立', '獨立', '地下'],
   artsy: ['indie', 'art rock', 'post-rock', 'post-punk', 'alternative', '独立', '獨立', '另類'],
   grunge: ['indie rock', 'alternative rock', 'shoegaze', 'post-punk', 'noise', '另類', '地下'],
-  shoegaze: ['dream pop', 'indie'],
+  shoegaze: ['dream pop', 'indie', 'noise pop', 'ethereal wave', 'slowcore'],
+  goth: ['post-punk', 'darkwave', 'coldwave', 'industrial', 'shoegaze', 'deathrock'],
+  emo: ['post-hardcore', 'screamo', 'pop punk', 'math rock', 'midwest emo'],
+  screamo: ['emo', 'post-hardcore', 'hardcore', 'skramz'],
+  metal: ['metalcore', 'post-hardcore', 'deathcore', 'heavy', 'hardcore'],
+  visualkei: ['j-rock', 'jrock', 'gothic', 'ヴィジュアル系', 'ロック'],
+  industrial: ['ebm', 'darkwave', 'aggrotech', 'goth'],
+  cottagecore: ['indie folk', 'folk', 'chamber pop', 'dream pop', 'acoustic', 'whimsical'],
+  postpunk: ['darkwave', 'coldwave', 'goth', 'shoegaze', 'new wave'],
   psychedelic: ['indie', 'psych rock'],
 };
 // Words that look like a style but aren't: 实验小学 = "experimental primary school".
@@ -102,15 +119,30 @@ export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked:
 
 function parse(q: string) {
   const lower = q.toLowerCase();
-  const has = (w: string) => new RegExp(`(^|[^\\p{L}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}])`, 'u').test(lower);
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const has = (w: string) => new RegExp(`(^|[^\\p{L}])${esc(w)}($|[^\\p{L}])`, 'u').test(lower);
   const origin = ORIGINS.find((o) => o.words.some(has)) ?? null;
   const originWord = origin?.words.find(has) ?? null;
-  const feel = lower
+  // Whole phrases first ("visual kei", "melodic metalcore", "soft feminine"),
+  // in English or the language itself; the words they used are taken out.
+  let rest = ` ${lower} `;
+  const take = (table: Record<string, string[]>) => {
+    const out: string[] = [];
+    for (const [key, syn] of Object.entries(table)) {
+      const hit = [key, ...syn].sort((a, b) => b.length - a.length).find((w) => (/^[\p{Script=Latin}\d\s&'-]+$/u.test(w) ? new RegExp(`(^|[^\\p{L}])${esc(w)}($|[^\\p{L}])`, 'u').test(rest) : rest.includes(w)));
+      if (hit) {
+        out.push(key);
+        rest = rest.replace(hit, ' ');
+      }
+    }
+    return out;
+  };
+  const moods = take(MOODS);
+  const styles = take(STYLES).filter((st) => !moods.includes(st));
+  const feel = lower.split(/[^\p{L}\p{N}-]+/u).filter((w) => w && !FILLER.has(w) && !(origin?.words.includes(w)));
+  const scene = rest
     .split(/[^\p{L}\p{N}-]+/u)
     .filter((w) => w && !FILLER.has(w) && !(origin?.words.includes(w)));
-  const moods = [...new Set(feel.map(moodOf).filter((m): m is string => m !== null))];
-  const styles = [...new Set(feel.map((w) => (moodOf(w) ? null : styleOf(w))).filter((m): m is string => m !== null))];
-  const scene = feel.filter((w) => !moodOf(w) && !styleOf(w));
   return { origin, originWord, feel, moods, styles, scene, wantsOld: WANTS_OLD.test(lower) };
 }
 
@@ -198,7 +230,8 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     // A title that's just "playlist" / "test" with a word in front isn't a curated playlist.
     if (/播放列表|歌单测试|\btest\b|测试|未命名|untitled|new playlist|my playlist/i.test(p.title)) score -= 9;
     // Asked for no origin: a playlist about a particular country is off-topic.
-    if (!origin && ORIGINS.some((x) => x.words.some((w) => new RegExp(`\\b${w}\\b`).test(t)))) score -= 4;
+    // No language named: a mix is fine, so a country playlist only loses a little.
+    if (!origin && ORIGINS.some((x) => x.words.some((w) => new RegExp(`\\b${w}\\b`).test(t)))) score -= 1;
     if (/\b(mix|radio)\b/.test(t)) score -= 0.5;
     scored.set(p.id, { id: p.id, title: p.title, score, origin: hasOrigin });
   }

@@ -517,3 +517,7 @@ returns jsonb language sql stable as $$
     'voices', (select coalesce(jsonb_agg(x), '[]') from (select lang, voice, round(sum(weight)::numeric, 1) as w, count(*) as n from lang where voice is not null group by 1, 2) x)
   );
 $$;
+-- 'languages': your main languages and the ones you branch out to; Daily
+-- discover leans on the main ones (scripts/discover.py weighted_seeds).
+insert into taste_settings (key, value) values ('languages', '{"main": ["english", "korean"], "branch": ["japanese", "chinese", "thai", "filipino", "spanish", "french", "russian"]}')
+on conflict (key) do nothing;

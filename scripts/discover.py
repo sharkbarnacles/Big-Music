@@ -133,6 +133,27 @@ class Database:
 
 # ── Your library ───────────────────────────────────────────────────────
 
+SCRIPT_LANGUAGE = [
+    ("thai", re.compile(r"[\u0E00-\u0E7F]")),
+    ("korean", re.compile(r"[\uAC00-\uD7AF]")),
+    ("japanese", re.compile(r"[\u3040-\u30FF]")),
+    ("chinese", re.compile(r"[\u4E00-\u9FFF]")),
+    ("russian", re.compile(r"[\u0400-\u04FF]")),
+]
+COUNTRY_LANGUAGE = {
+    "KR": "korean", "JP": "japanese", "CN": "chinese", "TW": "chinese", "HK": "chinese", "TH": "thai",
+    "PH": "filipino", "ES": "spanish", "MX": "spanish", "AR": "spanish", "CO": "spanish", "CL": "spanish", "PE": "spanish",
+    "FR": "french", "BE": "french", "RU": "russian", "UA": "russian", "BY": "russian",
+}
+
+
+def script_language(text: str) -> str | None:
+    for lang, rx in SCRIPT_LANGUAGE:
+        if rx.search(text):
+            return lang
+    return None
+
+
 class Library:
     def __init__(self, db: Database):
         rows = db.get_all("tracks", {"select": "artist,title", "order": "id"})
@@ -148,6 +169,31 @@ class Library:
             names.setdefault(k, name)
         self.artist_counts = counts
         self.artist_names = names
+        # Which language each artist sings in (from their titles' script, or
+        # their country on MusicBrainz), and your language settings: Daily
+        # discover leans on your main languages and only sometimes branches out.
+        scripts: dict[str, dict[str, int]] = {}
+        for r in rows:
+            k = simplify(primary_artist(r["artist"]))
+            lang = script_language(f"{r['title']} {r['artist']}")
+            if k and lang:
+                scripts.setdefault(k, {})[lang] = scripts.setdefault(k, {}).get(lang, 0) + 1
+        try:
+            prof = db.get_all("artist_profiles", {"select": "artist_key,country", "status": "eq.found", "country": "not.is.null"})
+            countries = {p["artist_key"]: p["country"] for p in prof}
+        except SystemExit:
+            countries = {}
+        self.artist_lang: dict[str, str] = {}
+        for k, name in names.items():
+            if k in scripts:
+                self.artist_lang[k] = max(scripts[k], key=scripts[k].get)
+            else:
+                self.artist_lang[k] = COUNTRY_LANGUAGE.get(countries.get(name.lower().strip(), ""), "english")
+        try:
+            row = db.get("taste_settings", {"select": "value", "key": "eq.languages"})
+            self.languages = row[0]["value"] if row else {}
+        except SystemExit:
+            self.languages = {}
         suggested = db.get_all("discover_items", {"select": "match_key", "match_key": "not.is.null"})
         self.suggested = {r["match_key"] for r in suggested}
         print(f"Library: {len(rows)} songs, {len(counts)} artists; {len(self.suggested)} songs suggested before.")
@@ -165,7 +211,16 @@ class Library:
     def weighted_seeds(self, n: int, pool: int = 400) -> list[str]:
         """Artists from your library, picked at random; artists you have more songs by come up more often."""
         top = self.top_artists(pool)
-        weights = [math.sqrt(self.artist_counts[k]) for k in top]
+        main = set(self.languages.get("main", []))
+        branch = set(self.languages.get("branch", []))
+
+        def lean(k: str) -> float:
+            lang = self.artist_lang.get(k, "english")
+            if not main:
+                return 1.0
+            return 1.0 if lang in main else 0.35 if lang in branch else 0.5
+
+        weights = [math.sqrt(self.artist_counts[k]) * lean(k) for k in top]
         picked: list[str] = []
         while top and len(picked) < n:
             i = random.choices(range(len(top)), weights=weights)[0]
