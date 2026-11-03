@@ -85,7 +85,10 @@ Environment variables (set in Vercel; names only, never values):
 - Playback: `components/Player.tsx` (big file; the hub owns the queue,
   shuffle, repeat, Now Playing sheet, queue view). Engines:
   - **YouTube** (default, "YouTube mode"): embedded YouTube IFrame player.
-    Needs each song's `tracks.yt_audio_id`.
+    Needs each song's `tracks.yt_audio_id`. The player is created when the
+    app opens (`warmYouTube`) so a Play tap reaches it synchronously (iOS
+    needs a tap for sound); `watchYouTubeStart` nudges playVideo() and then
+    asks for one tap; `wantPlayRef` resumes on returning to the app.
   - **Spotify** (switch YouTube mode off): Spotify Connect remote control via
     `app/api/play/spotify` and `app/api/player/spotify`; on computers the
     Spotify Web Playback SDK plays in the tab (`app/api/spotify/token`).
@@ -182,6 +185,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Home Top Lab (header/numbers/services/messages above Playlists): https://claude.ai/artifact/Db76mHuAcsarbFNo88ztzu
 - Library Top Lab (numbers/search & filters/video finder/play row): https://claude.ai/artifact/UTVPcvWT74dmoa62gLescy
 - Discovery Lab v2 (page/today/weekly/monthly/archive/extras, P·T·W·M·A·E; v1 L·S·W·A·K superseded): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
+- Now Playing Lab (artwork/background/title/progress/controls/options, A·G·T·B·C·O): https://claude.ai/artifact/LcYeZ1AkMCLZtxeFBuCQ1x
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -255,3 +259,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   dated editions, hearts, archive calendar, play counting).
   Self-hosting research (declined). Spotify queue handoff + auto-wake.
   Fixed adding Discover songs to playlists. Radio from any song.
+  YouTube start without tapping the video; Now Playing Lab.
