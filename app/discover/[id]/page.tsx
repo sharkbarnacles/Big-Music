@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
 import PlayButtons from '@/components/PlayButtons';
-import { DiscoverList } from '@/components/Discover';
+import { DiscoverList, SaveAsPlaylist } from '@/components/Discover';
 import { getEdition, toTrack } from '@/lib/discover';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,7 @@ const KIND_NOTE: Record<string, string> = {
   releases: 'Weekly · new from your artists',
   month: 'Monthly · what you played and kept most',
   forgotten: 'Monthly · from your own library',
+  radio: 'Radio · started from a song',
 };
 
 // One edition, exactly as it was made. It never changes.
@@ -37,6 +38,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
       <div className="muted small">
         {KIND_NOTE[edition.kind]} · {tracks.length} songs · {date}
       </div>
+      <SaveAsPlaylist editionId={edition.id} savedId={edition.playlist_id ?? null} />
       <p className="muted small" style={{ marginTop: 4 }}>The teal name is the artist in your library that led to each song. Tap the heart to keep a song in your Discoveries playlist.</p>
       <div style={{ marginTop: 10 }}>
         <DiscoverList tracks={tracks} items={edition.items} />

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { matchKey } from '@/lib/library';
 import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
+import { appendToRadioEdition, createRadioEdition } from '@/lib/radioEditions';
 import { fetchRadio } from '@/lib/ytRadio';
 
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,31 @@ export async function GET(req: NextRequest) {
       });
     });
     if (fresh.length) await db().from('radio_songs').upsert(fresh, { onConflict: 'video_id' });
-    return NextResponse.json({ tracks, continuation });
+
+    // Keep the radio in Past editions: a new edition when it starts, more songs as it goes.
+    let editionId = q.get('editionId');
+    const seedTitle = q.get('seedTitle');
+    if (!q.get('continuation') && seedTitle) {
+      // The song you started from always comes first, even if the dial filters it out.
+      const vid = q.get('videoId') ?? '';
+      const seedId = q.get('seedId') ?? '';
+      const seed: TrackRowData = {
+        id: seedId || `yt:${vid}`,
+        title: seedTitle,
+        artist: q.get('seedArtist') ?? '',
+        album: null,
+        duration_ms: null,
+        image_url: q.get('seedImage'),
+        video_id: null,
+        yt_audio_id: vid,
+        track_sources: [],
+      };
+      const list = [seed, ...tracks.filter((t) => t.yt_audio_id !== vid && t.id !== seedId)];
+      editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid }, list).catch(() => null);
+    } else if (editionId) {
+      await appendToRadioEdition(editionId, tracks).catch(() => {});
+    }
+    return NextResponse.json({ tracks, continuation, editionId: editionId ?? null });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }

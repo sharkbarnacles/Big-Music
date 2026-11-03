@@ -375,3 +375,14 @@ create table if not exists radio_songs (
   seen_at     timestamptz not null default now()
 );
 alter table radio_songs enable row level security;
+
+-- ── Saved radios ────────────────────────────────────────────────────
+-- Every radio you start is kept as a dated edition (kind 'radio'), listing
+-- the songs it served, so it shows in Past editions and never disappears.
+-- Several radios can share a day, so the one-per-day rule skips them.
+alter table discover_editions drop constraint if exists discover_editions_kind_check;
+alter table discover_editions add constraint discover_editions_kind_check check (kind in ('daily', 'weekly', 'releases', 'month', 'forgotten', 'radio'));
+alter table discover_editions drop constraint if exists discover_editions_kind_edition_date_key;
+create unique index if not exists discover_editions_one_per_day on discover_editions(kind, edition_date) where kind <> 'radio';
+alter table discover_editions add column if not exists seed_video_id text;
+alter table discover_editions add column if not exists playlist_id uuid references playlists(id) on delete set null;  -- set once saved as a playlist

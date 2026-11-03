@@ -126,6 +126,7 @@ export function DiscoverList({ tracks, items }: { tracks: TrackRowData[]; items:
 
 type ArchiveEdition = { id: string; kind: string; edition_date: string; title: string; subtitle: string | null; count: number };
 const WEEKLY = new Set(['weekly', 'releases', 'month', 'forgotten']);
+const RADIO_KIND = 'radio';
 
 // Past editions: a month calendar. Teal dot = a daily pick, pale dot = a weekly/monthly mix.
 export function ArchiveCalendar({ today }: { today: string }) {
@@ -182,11 +183,12 @@ export function ArchiveCalendar({ today }: { today: string }) {
           const list = byDay.get(iso) ?? [];
           const daily = list.some((e) => e.kind === 'daily');
           const mix = list.some((e) => WEEKLY.has(e.kind));
+          const radio = list.some((e) => e.kind === RADIO_KIND);
           return (
             <button
               key={iso}
               type="button"
-              className={`${list.length ? 'has' : ''}${daily ? ' daily' : ''}${mix ? ' mix' : ''}${iso === today ? ' today' : ''}`}
+              className={`${list.length ? 'has' : ''}${daily ? ' daily' : ''}${mix ? ' mix' : ''}${radio ? ' radio' : ''}${iso === today ? ' today' : ''}`}
               disabled={!list.length}
               aria-pressed={day === iso}
               aria-label={`${iso}${list.length ? `: ${list.map((e) => e.title).join(', ')}` : ''}`}
@@ -200,6 +202,7 @@ export function ArchiveCalendar({ today }: { today: string }) {
       <div className="d-legend">
         <span><i className="daily" />daily pick</span>
         <span><i className="mix" />weekly or monthly mix</span>
+        <span><i className="radio" />radio</span>
       </div>
       {day ? (
         <div className="d-picked">
@@ -266,6 +269,39 @@ export function RadioExplore({ seeds }: { seeds: { label: string; tracks: TrackR
         Or start one from any song: tap its ⋯ menu, or Start radio on the Now Playing screen. Radios keep going as long as you
         listen, and the songs play right here.
       </p>
+    </div>
+  );
+}
+
+// "Save as playlist" on a saved radio or any Discover edition's page.
+export function SaveAsPlaylist({ editionId, savedId }: { editionId: string; savedId: string | null }) {
+  const [state, setState] = useState<{ busy: boolean; id: string | null; msg: string | null }>({ busy: false, id: savedId, msg: null });
+  async function save() {
+    setState((s) => ({ ...s, busy: true, msg: null }));
+    try {
+      const res = await fetch('/api/discover/save-playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editionId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not save');
+      setState({ busy: false, id: d.playlistId, msg: `Saved as “${d.name}”` });
+    } catch (err) {
+      setState((s) => ({ ...s, busy: false, msg: (err as Error).message }));
+    }
+  }
+  return (
+    <div className="d-save">
+      <button type="button" className="chip" onClick={save} disabled={state.busy}>
+        {state.busy ? 'Saving…' : state.id ? 'Update the playlist' : 'Save as playlist'}
+      </button>
+      {state.id && (
+        <Link href={`/playlists/${state.id}`} className="muted small">
+          Open playlist ›
+        </Link>
+      )}
+      {state.msg && <span className="muted small">{state.msg}</span>}
     </div>
   );
 }

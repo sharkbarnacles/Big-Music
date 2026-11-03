@@ -5,7 +5,7 @@ import { createHubPlaylist, addToHubPlaylist } from './hubPlaylists';
 import { keepDiscoveryItem } from './keepDiscovery';
 import type { TrackRowData } from './tracks';
 
-export type EditionKind = 'daily' | 'weekly' | 'releases' | 'month' | 'forgotten';
+export type EditionKind = 'daily' | 'weekly' | 'releases' | 'month' | 'forgotten' | 'radio';
 
 export type DiscoverItem = {
   id: string;
@@ -27,6 +27,7 @@ export type Edition = {
   edition_date: string; // YYYY-MM-DD
   title: string;
   subtitle: string | null;
+  playlist_id?: string | null;
   items: DiscoverItem[];
 };
 
@@ -52,7 +53,7 @@ export function toTrack(item: DiscoverItem): TrackRowData {
 
 // The newest edition of each kind, with its songs.
 export async function latestEditions(): Promise<Partial<Record<EditionKind, Edition>>> {
-  const kinds: EditionKind[] = ['daily', 'weekly', 'releases', 'month', 'forgotten'];
+  const kinds: EditionKind[] = ['daily', 'weekly', 'releases', 'month', 'forgotten']; // radios live in Past editions
   const results = await Promise.all(
     kinds.map((kind) =>
       db()
@@ -74,7 +75,7 @@ export async function latestEditions(): Promise<Partial<Record<EditionKind, Edit
 export async function getEdition(id: string): Promise<Edition | null> {
   const { data } = await db()
     .from('discover_editions')
-    .select(`id, kind, edition_date, title, subtitle, discover_items(${ITEM_COLUMNS})`)
+    .select(`id, kind, edition_date, title, subtitle, playlist_id, discover_items(${ITEM_COLUMNS})`)
     .eq('id', id)
     .maybeSingle();
   return data ? shape(data) : null;
@@ -82,7 +83,7 @@ export async function getEdition(id: string): Promise<Edition | null> {
 
 function shape(row: any): Edition {
   const items = [...(row.discover_items ?? [])].sort((a: DiscoverItem, b: DiscoverItem) => a.position - b.position);
-  return { id: row.id, kind: row.kind, edition_date: row.edition_date, title: row.title, subtitle: row.subtitle, items };
+  return { id: row.id, kind: row.kind, edition_date: row.edition_date, title: row.title, subtitle: row.subtitle, playlist_id: row.playlist_id ?? null, items };
 }
 
 // Every edition in one month (for the archive calendar).

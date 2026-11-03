@@ -31,7 +31,7 @@ type Notice = { text: string; link?: { href: string; label: string }; action?: {
 export type QueueSource = { query: string; total: number };
 type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource; radio?: RadioOpts };
 // A radio (YouTube Music "radio" from any song): more songs are fetched as you go.
-type RadioOpts = { continuation: string | null; mode: RadioMode };
+type RadioOpts = { continuation: string | null; mode: RadioMode; editionId?: string | null };
 export type RadioMode = 'familiar' | 'mixed' | 'new';
 export const RADIO_MODE_KEY = 'mh-radio-mode';
 export function readRadioMode(): RadioMode {
@@ -145,6 +145,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [queueOpen, setQueueOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false); // the ⋯ menu on Now Playing
   const [kept, setKept] = useState(false); // the star: is this song in Discoveries?
+  const [radioEdition, setRadioEdition] = useState<string | null>(null); // the saved radio playing now
 
   const queueRef = useRef<TrackRowData[]>([]);
   const baseRef = useRef<TrackRowData[]>([]); // the list in its original order (for turning shuffle off)
@@ -736,6 +737,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const src = opts.source && opts.source.total > list.length ? opts.source : null;
     srcRef.current = null;
     radioRef.current = opts.radio ? { ...opts.radio, loading: false } : null;
+    if (!opts.radio) setRadioEdition(null);
     if (src && shuffleRef.current) {
       // Start right away with one song (tapped, or random from what's on
       // screen); the rest of the whole list follows in a shuffled order.
@@ -791,7 +793,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (queueRef.current.length - indexRef.current > 10) return;
     radio.loading = true;
     try {
-      const res = await fetch(`/api/radio?continuation=${encodeURIComponent(radio.continuation)}&mode=${radio.mode}`);
+      const res = await fetch(
+        `/api/radio?continuation=${encodeURIComponent(radio.continuation)}&mode=${radio.mode}${radio.editionId ? `&editionId=${radio.editionId}` : ''}`,
+      );
       const body = await res.json();
       if (radioRef.current !== radio) return; // something else started playing
       radio.continuation = body.continuation ?? null;
@@ -818,11 +822,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const mode = readRadioMode();
     showToast(`Starting a radio from “${track.title}”…`);
     try {
-      const res = await fetch(`/api/radio?videoId=${encodeURIComponent(videoId)}&mode=${mode}`);
+      const seed = new URLSearchParams({
+        videoId,
+        mode,
+        seedTitle: track.title,
+        seedArtist: track.artist,
+        seedImage: track.image_url ?? '',
+        seedId: /^[0-9a-f-]{36}$/i.test(track.id) ? track.id : '',
+      });
+      const res = await fetch(`/api/radio?${seed.toString()}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Radio failed');
       const rest: TrackRowData[] = (body.tracks ?? []).filter((t: TrackRowData) => t.yt_audio_id !== videoId && t.id !== track.id);
-      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode } });
+      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null } });
+      setRadioEdition(body.editionId ?? null);
     } catch (err) {
       showToast((err as Error).message || 'The radio couldn’t start. Try again in a moment.');
     }
@@ -893,10 +906,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Turns a saved radio (or any Discover edition) into one of your hub playlists.
+  const saveEditionAsPlaylist = async (editionId: string) => {
+    showToast('Saving as a playlist…');
+    try {
+      const res = await fetch('/api/discover/save-playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editionId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not save');
+      showToast(`Saved as “${d.name}”`);
+    } catch (err) {
+      showToast((err as Error).message || 'Could not save');
+    }
+  };
+
   const closePlayer = () => {
     tokenRef.current++;
     wantPlayRef.current = false;
     radioRef.current = null;
+    setRadioEdition(null);
     startWatchRef.current.forEach(clearTimeout);
     if (engineRef.current === 'youtube') ytPlayerRef.current?.pauseVideo?.();
     if (engineRef.current === 'spotify' && playingRef.current) spotifyAction('action=pause');
@@ -1200,6 +1231,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                       <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); pickPlaylist([current]); }}>Add to playlist…</button>
                       {current.yt_audio_id && (
                         <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); startRadio(current); }}>Start radio</button>
+                      )}
+                      {radioEdition && (
+                        <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); saveEditionAsPlaylist(radioEdition); }}>Save this radio as a playlist</button>
                       )}
                       <label className="switch np-switch" role="menuitemcheckbox" aria-checked={youtubeMode}>
                         <span>YouTube mode</span>

@@ -552,3 +552,9 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .np-row .picon.row-queue { width: 27px; height: 27px; }
 .np-device { text-align: center; font-size: 12px; margin-top: 16px; opacity: .8; }
 .np-toast { align-self: center; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; }
+
+/* Saved radios in the archive calendar, and "Save as playlist" */
+.d-cal button.radio { box-shadow: inset 0 -2px 0 rgba(179, 136, 255, .55); }
+.d-legend i.radio { background: var(--youtube); opacity: .7; }
+.d-save { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.d-save .chip { height: 34px; font-size: 13px; }
