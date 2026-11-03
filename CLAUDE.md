@@ -120,8 +120,8 @@ Environment variables (set in Vercel; names only, never values):
   and Home's "New playlist"). Playlist ⋯ menu (`PlaylistMenu.tsx`): rename,
   delete; songs removable (`HubTrackList.tsx`). Home chip "Mine" shows them.
   Duplicates are skipped when adding. No reordering yet.
-- `components/BottomNav.tsx`: Home, Search (= `/library?search=1`), Discover,
-  Library.
+- `components/BottomNav.tsx`: Home, Discover, Search (= `/library?search=1`),
+  Library (owner swapped Search and Discover on 2026-11-03).
 - **Discover** (owner's Lab v2 pick **P3 + T5 + W2 + M3 + A1 + E3**):
   `scripts/discover.py` run daily ~6:38 am NY by `.github/workflows/discover.yml`
   makes dated editions in `discover_editions` / `discover_items` and never
@@ -171,7 +171,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - **Chosen look: C10a + F3 + B3 + L1** = Abyss Lagoon colors (bg `#04141A`,
   text pale aqua `#BFEFF2`, muted `#7FA9B3`, accent `#3DDBD9`), Space Grotesk,
   icons-only bottom bar with a dot under the current page, song rows with
-  covers. Bottom bar order: Home, Search, Discover, Library.
+  covers. Bottom bar order: Home, Discover, Search, Library.
 - YouTube's color in the app is **purple `#B388FF`** (`--youtube`), not red;
   Spotify stays green. Shuffle icon = the long spiral in `lib/icons.ts`
   (about two turns, tail at bottom right; owner drew the shape they wanted).
