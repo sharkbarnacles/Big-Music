@@ -400,3 +400,43 @@ create table if not exists client_events (
 );
 create index if not exists client_events_at on client_events(at desc);
 alter table client_events enable row level security;
+
+-- ── Taste ──────────────────────────────────────────────────────────
+-- Your taste, per artist: how much of them you've saved, in how many of your
+-- playlists, how often you play them, and what you've kept. Used to fit
+-- radios from words to you (lib/taste.ts). Main artist = first name before , & x feat. ft.
+create or replace function taste_artists(max_rows int default 4000)
+returns table (artist_key text, artist text, songs int, playlists int, plays int, kept int, weight real)
+language sql stable as $$
+  with t as (
+    select id,
+      lower(trim(regexp_replace(split_part(regexp_replace(artist, '\s+(feat\.?|ft\.?|x|&|and)\s+.*$', '', 'i'), ',', 1), '\s+', ' ', 'g'))) as k,
+      trim(split_part(regexp_replace(artist, '\s+(feat\.?|ft\.?|x|&|and)\s+.*$', '', 'i'), ',', 1)) as name
+    from tracks
+  ),
+  s as (select k, min(name) as name, count(*)::int as songs from t where k <> '' group by k),
+  p as (select t.k, count(distinct pi.playlist_id)::int as playlists from playlist_items pi join t on t.id = pi.track_id group by t.k),
+  pl as (select t.k, count(*)::int as plays from plays join t on t.id = plays.track_id where plays.played_at > now() - interval '120 days' group by t.k),
+  kp as (select t.k, count(*)::int as kept from discover_items d join t on t.id = d.track_id where d.hearted group by t.k)
+  select s.k, s.name, s.songs, coalesce(p.playlists, 0), coalesce(pl.plays, 0), coalesce(kp.kept, 0),
+    (ln(1 + s.songs) + 1.5 * ln(1 + coalesce(p.playlists, 0)) + 1.2 * ln(1 + coalesce(pl.plays, 0)) + 1.5 * coalesce(kp.kept, 0))::real as weight
+  from s left join p using (k) left join pl using (k) left join kp using (k)
+  order by weight desc
+  limit max_rows;
+$$;
+
+-- Your own songs by some artists (keys as made by taste_artists), for mixing
+-- them into radios from words. Only songs that can play in YouTube mode.
+create or replace function library_tracks_for_artists(keys text[], per_artist int default 3)
+returns table (id uuid)
+language sql stable as $$
+  select id from (
+    select t.id, row_number() over (partition by k order by random()) as rn
+    from (
+      select id, yt_audio_id,
+        lower(trim(regexp_replace(split_part(regexp_replace(artist, '\s+(feat\.?|ft\.?|x|&|and)\s+.*$', '', 'i'), ',', 1), '\s+', ' ', 'g'))) as k
+      from tracks
+    ) t
+    where t.k = any(keys) and t.yt_audio_id is not null
+  ) x where rn <= per_artist;
+$$;

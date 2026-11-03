@@ -282,6 +282,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setIndex(i);
   };
 
+  // Pin the page behind Now Playing while it's open, so only one thing
+  // scrolls (iPhones otherwise hand a swipe to the page underneath).
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const root = document.documentElement;
+    const y = window.scrollY;
+    root.style.setProperty('--page-y', `${-y}px`);
+    root.classList.add('sheet-open');
+    return () => {
+      root.classList.remove('sheet-open');
+      root.style.removeProperty('--page-y');
+      window.scrollTo(0, y);
+    };
+  }, [sheetOpen]);
+
   // ── Surviving a restart ──────────────────────────────────────────────
   // The app can restart on its own: after an update is published, the first
   // page change loads the new version, and iOS sometimes shuts home-screen

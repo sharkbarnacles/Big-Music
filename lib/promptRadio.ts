@@ -10,6 +10,7 @@
 //    it go first; songs from playlists that mention the origin are trusted.
 // 4. Spread artists out. More comes from the next playlists as you listen.
 import { searchPlaylists, browseCollection, type WebSong } from './ytBrowse';
+import { affinity, artistKey, loadTaste, type Taste } from './taste';
 
 type Origin = { words: string[]; script?: RegExp; native?: string[] };
 // Words people use for where music is from, and how to recognise it.
@@ -62,7 +63,8 @@ const moodOf = (w: string) => Object.entries(MOODS).find(([k, syn]) => k === w |
 const FILLER = new Set(['music', 'songs', 'song', 'playlist', 'mix', 'radio', 'some', 'the', 'and', 'of', 'a', 'an', 'with', 'for', 'like', 'that', 'is', 'vibes', 'vibe', 'type', 'kind']);
 
 export type PromptState = { q: string; used: string[] };
-export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked: string[] };
+// `liked`: artists in this batch you already love (their keys), for mixing in your own songs.
+export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked: string[]; liked: string[] };
 
 function parse(q: string) {
   const lower = q.toLowerCase();
@@ -96,7 +98,11 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     queries.push(feel.slice(0, 2).join(' '));
   }
   const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 7);
-  const found = (await Promise.all(unique.map((x) => searchPlaylists(x).catch(() => [])))).flat();
+  const empty: Taste = { own: new Map(), similar: new Map() };
+  const [found, taste] = await Promise.all([
+    Promise.all(unique.map((x) => searchPlaylists(x).catch(() => []))).then((r) => r.flat()),
+    loadTaste().catch(() => empty),
+  ]);
 
   // Score each playlist by its title.
   const mentionsOrigin = (title: string) => {
@@ -123,28 +129,37 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   }
   // Look at a few more than needed: some turn out not to be what they say.
   const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, 5);
-  if (!candidates.length) return { songs: [], state: null, picked: [] };
+  if (!candidates.length) return { songs: [], state: null, picked: [], liked: [] };
 
   const lists = await Promise.all(candidates.map((p) => browseCollection(p.id, 120).catch(() => null)));
+  const inScript = (x: WebSong) => (origin?.script ? origin.script.test(`${x.title} ${x.artist}`) : false);
+  const usedNow = candidates.filter((_, i) => lists[i]).map((c) => c.id);
+  // Each playlist: does it fit the words (title score), is it really in the
+  // language you asked for, and how close is it to your taste?
+  const rated = lists
+    .map((list, i) => {
+      if (!list || !list.songs.length) return null;
+      const share = origin?.script ? list.songs.filter(inScript).length / list.songs.length : 1;
+      if (origin?.script && share < 0.3) return null;
+      const sample = list.songs.slice(0, 60);
+      const fit = sample.reduce((sum, x) => sum + affinity(taste, x.artist), 0) / sample.length;
+      return { list, share, title: candidates[i].title, score: candidates[i].score + fit * 12 };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+  const picked = rated.map((r) => r.title);
   const pool: { s: WebSong; rank: number }[] = [];
-  const picked: string[] = [];
-  const usedNow: string[] = [];
-  lists.forEach((list, i) => {
-    if (!list || !list.songs.length || picked.length >= 3) return;
-    usedNow.push(candidates[i].id);
-    const inScript = (s: WebSong) => (origin?.script ? origin.script.test(`${s.title} ${s.artist}`) : false);
-    // For a language with its own script, check the playlist really is in it.
-    const share = origin?.script ? list.songs.filter(inScript).length / list.songs.length : 1;
-    if (origin?.script && share < 0.3) return;
-    picked.push(candidates[i].title);
-    for (const s of list.songs) {
-      const mine = inScript(s);
+  for (const r of rated) {
+    for (const x of r.list.songs) {
+      const mine = inScript(x);
       // In a mostly-in-language playlist, Latin-named songs are kept (many artists use Latin
       // names); in a mixed one, only the songs in that script are.
-      if (origin?.script && !mine && share < 0.6) continue;
-      pool.push({ s, rank: candidates[i].score + (mine ? 2 : 0) + Math.random() * 3 });
+      if (origin?.script && !mine && r.share < 0.6) continue;
+      // Your taste lifts artists you love (and ones like them) towards the front.
+      pool.push({ s: x, rank: r.score + (mine ? 2 : 0) + affinity(taste, x.artist) * 5 + Math.random() * 3 });
     }
-  });
+  }
 
   // Best first, no repeats, no artist twice in a row, at most 3 per artist per batch.
   pool.sort((a, b) => b.rank - a.rank);
@@ -175,6 +190,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     songs: out.slice(0, 80),
     state: { q, used: [...used, ...usedNow] },
     picked,
+    liked: [...new Set(out.map((x) => artistKey(x.artist)).filter((k) => (taste.own.get(k) ?? 0) > 0.15))].slice(0, 12),
   };
 }
 

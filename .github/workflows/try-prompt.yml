@@ -16,8 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npx -y tsx scripts/try_prompt.mts
-        env: { PROMPTS: "${{ inputs.prompts }}" }
+      - run: npm install --no-audit --no-fund --no-save @supabase/supabase-js tsx
+      - run: npx tsx scripts/try_prompt.mts
+        env:
+          PROMPTS: "${{ inputs.prompts }}"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       - name: Save to probe-output branch
         run: |
           mv probe /tmp/probe

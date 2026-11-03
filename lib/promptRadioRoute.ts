@@ -3,6 +3,8 @@ import type { TrackRowData } from './tracks';
 import { decodeState, encodeState, promptRadio, type PromptState } from './promptRadio';
 import { appendToRadioEdition, createRadioEdition } from './radioEditions';
 import { toPlayable } from './webTracks';
+import { db } from './db';
+import { TRACK_COLUMNS } from './tracks';
 
 type Mode = 'familiar' | 'mixed' | 'new';
 
@@ -23,7 +25,24 @@ export async function runPromptRadio(opts: { q?: string; token?: string; mode: M
   const q = state?.q ?? (opts.q ?? '').trim().slice(0, 150);
   if (!q) throw new Error('Type a genre, mood or artist first.');
   const batch = await promptRadio(q, state);
-  const tracks = applyMode(await toPlayable(batch.songs), opts.mode);
+  let tracks = applyMode(await toPlayable(batch.songs), opts.mode);
+  // Familiar / Mixed: weave in a few of your own songs by artists from this batch you love.
+  if (opts.mode !== 'new' && batch.liked.length) {
+    const { data: ids } = await db().rpc('library_tracks_for_artists', { keys: batch.liked, per_artist: opts.mode === 'familiar' ? 3 : 1 });
+    const have = new Set(tracks.map((t) => t.id));
+    const idList = ((ids as any[]) ?? []).map((r) => r.id).filter((id: string) => !have.has(id)).slice(0, opts.mode === 'familiar' ? 20 : 8);
+    if (idList.length) {
+      const { data: mine } = await db().from('tracks').select(TRACK_COLUMNS).in('id', idList);
+      const own = ((mine as any[]) ?? []) as TrackRowData[];
+      const every = opts.mode === 'familiar' ? 3 : 5;
+      const out: TrackRowData[] = [];
+      tracks.forEach((t, i) => {
+        out.push(t);
+        if (i % every === every - 1 && own.length) out.push(own.shift()!);
+      });
+      tracks = [...out, ...own];
+    }
+  }
   const continuation = batch.state && batch.songs.length ? encodeState(batch.state) : null;
   let editionId = opts.editionId ?? null;
   if (!state && tracks.length) {
