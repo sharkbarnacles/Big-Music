@@ -614,7 +614,7 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .q-more .picon { width: 20px; height: 20px; }
 .q-grip {
   flex: none; width: 44px; height: 48px; display: grid; place-items: center; color: var(--muted);
-  touch-action: none; cursor: grab; margin-right: -8px;
+  touch-action: pan-y; cursor: grab; margin-right: -8px; -webkit-touch-callout: none;
 }
 .q-grip svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .q-row.lifted .q-grip { color: var(--accent); cursor: grabbing; }

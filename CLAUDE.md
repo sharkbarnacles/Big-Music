@@ -286,7 +286,8 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    **Queue cleanup (2026-11-03, after owner said it looked messy and
    dragging wasn't smooth):** Now playing pinned above Up next; flat rows with
    thin dividers (no boxes); drag only by the ≡ grip (`.q-grip`,
-   touch-action none, pointer capture, no hold delay); positions are measured
+   touch-action pan-y, 160 ms still press first so a right-thumb swipe on
+   the grips still scrolls the sheet; mouse lifts at once); positions are measured
    once at drag start and other rows slide with transforms, cleared in the
    same render as the reorder; stable row keys (WeakMap). Not yet tried on the phone.
    **Mix pages (Discovery Page Lab pick H2 + A1 + R2 + E3, 2026-11-03):**
@@ -355,3 +356,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   App Icon Lab.
   Cover jitter fix (video hides while scrolling); app icon M1+B2+N1.
   MV ↔ studio audio switch, Earlier songs in the queue, Back = real history.
+  Queue grips no longer block scrolling (short press before a song lifts).

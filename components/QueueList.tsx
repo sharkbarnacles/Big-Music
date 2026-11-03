@@ -8,11 +8,13 @@ import type { TrackRowData } from '@/lib/tracks';
 // "Up next" under the Now Playing controls (Queue Lab pick P3 + H3 + L3 + E3,
 // cleaned up 2026-11-03): the song playing now is pinned on top, then one flat
 // list with thin dividers. Songs you added sit under "Next up", the rest under
-// "From <where it's from>". Drag a song by its ≡ grip; the other songs slide
+// "From <where it's from>". Drag a song by its ≡ grip (press it for a moment first); the other songs slide
 // out of the way, and everything snaps into place when you let go. Tap a song
 // to play it; ⋯ has the other options.
 
 const SHOW = 150; // rows drawn at once (the rest still play)
+const HOLD_MS = 160; // a still press on the grip this long lifts the song
+const SLOP = 8; // moving more than this first = scrolling, not dragging
 
 type Props = {
   queue: TrackRowData[];
@@ -96,31 +98,57 @@ export default function QueueList(p: Props) {
     setD({ ...d, dy, slot: slotFor(d, dy) });
   };
 
-  const startDrag = (k: number) => (e: React.PointerEvent<HTMLElement>) => {
-    if (e.button !== 0 || dragRef.current) return;
+  // The grip needs a short, still press before a song lifts. A quick swipe
+  // that starts on a grip (easy to do with a right thumb) scrolls the page
+  // like anywhere else, instead of grabbing a song.
+  const hold = useRef<{ timer: number; k: number; x: number; y: number } | null>(null);
+  const cancelHold = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  const lift = (k: number) => {
     const list = listRef.current;
     if (!list) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture?.(e.pointerId);
     setMenu(null);
     const els = Array.from(list.querySelectorAll<HTMLElement>('[data-k]'));
     const s = propsRef.current.scroller();
     const off = s?.scrollTop ?? 0;
     const tops = els.map((el) => el.getBoundingClientRect().top + off);
     const heights = els.map((el) => el.getBoundingClientRect().height);
-    pointerY.current = e.clientY;
-    setD({ k, startY: e.clientY, startScroll: off, dy: 0, slot: k, tops, heights });
+    setD({ k, startY: pointerY.current, startScroll: off, dy: 0, slot: k, tops, heights });
     navigator.vibrate?.(8);
+  };
+  const startDrag = (k: number) => (e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0 || dragRef.current) return;
+    cancelHold();
+    pointerY.current = e.clientY;
+    // A mouse lifts straight away; a finger after a short still press.
+    if (e.pointerType === 'mouse') {
+      e.preventDefault();
+      return lift(k);
+    }
+    hold.current = {
+      k,
+      x: e.clientX,
+      y: e.clientY,
+      timer: window.setTimeout(() => {
+        hold.current = null;
+        lift(k);
+      }, HOLD_MS),
+    };
   };
 
   // While dragging, follow the finger anywhere on the screen.
   useEffect(() => {
     const move = (e: PointerEvent) => {
-      if (!dragRef.current) return;
+      const h = hold.current;
+      if (h && (Math.abs(e.clientX - h.x) > SLOP || Math.abs(e.clientY - h.y) > SLOP)) cancelHold();
       pointerY.current = e.clientY;
+      if (!dragRef.current) return;
       update(e.clientY);
     };
     const up = () => {
+      cancelHold();
       const d = dragRef.current;
       if (!d) return;
       setD(null); // rows drop their offsets in the same render as the new order
@@ -140,6 +168,7 @@ export default function QueueList(p: Props) {
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       window.removeEventListener('touchmove', touchMove);
+      cancelHold();
     };
   }, []);
 
