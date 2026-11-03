@@ -195,6 +195,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Now Playing Lab (artwork/background/title/progress/controls/options, A·G·T·B·C·O): https://claude.ai/artifact/LcYeZ1AkMCLZtxeFBuCQ1x
 - Player Icon Lab (skip S, ouroboros repeat R, row icons I, radio D, queue Q, keep K, row layout L): https://claude.ai/artifact/CeDBEAZJqHhY9bWZLxEGps
 - Queue Lab (how it opens P, button H, list look L, editing E): https://claude.ai/artifact/XHkfVmvZdjt7F4jqqc73vr
+- App Icon Lab (mark M, background B, name N): https://claude.ai/artifact/9NfsRk65axr1MmKkw21Gpu
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -296,7 +297,9 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    explainer. Discover keep buttons are hearts again (Now Playing keeps the
    star). `lib/titles.ts` splits "(feat. …)" into the artist line and drops
    "(Official Audio)"-style noise. Lab: https://claude.ai/chat/e2cba1af-352e-483c-ab48-c8223eb4ad69
-4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
+4. Polish: installable home-screen app (PWA): app has no icon or manifest
+   yet (no `public/`); App Icon Lab built, waiting on the owner's M+B+N pick
+   (then add apple-touch-icon 180, manifest 192/512, favicon, app name); reorder songs in hub playlists;
    save the current queue as a playlist.
 
 ## Session log
@@ -333,3 +336,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Queue Lab pick built: Up next under controls, playing-from header,
   grouped list, per-song ⋯ menu, hold-and-drag reorder.
   Mix page redesign (H2+A1+R2+E3) and queue cleanup (grip drag, flat list).
+  App Icon Lab.
