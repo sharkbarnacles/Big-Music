@@ -294,8 +294,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    `components/Discover.tsx` (.mix-* styles): 2×2 cover mosaic, badge + one
    meta line, Play pill + round Shuffle / Radio (seed = playing song if in the
    mix, else random) / Save as playlist, rows with a teal "via" chip, no
-   explainer. Discover keep buttons are hearts again (Now Playing keeps the
-   star). `lib/titles.ts` splits "(feat. …)" into the artist line and drops
+   explainer. Keep buttons are the soft star everywhere (owner asked; no hearts). `lib/titles.ts` splits "(feat. …)" into the artist line and drops
    "(Official Audio)"-style noise. Lab: https://claude.ai/chat/e2cba1af-352e-483c-ab48-c8223eb4ad69
    **App icon (App Icon Lab pick M1 + B2 + N1):** spiral on a deep-water
    gradient, named "Music Hub". Source `public/icon.svg` (re-export PNGs with

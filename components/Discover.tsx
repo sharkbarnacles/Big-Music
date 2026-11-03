@@ -11,8 +11,6 @@ import { readRadioMode, RADIO_MODE_KEY, usePlayer, type RadioMode } from './Play
 
 export type ItemLite = { id: string; reason: string | null; hearted: boolean };
 
-const HEART = 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z';
-
 // Reasons are stored in full ("Because you like HYUKOH"); on screen only the
 // part that matters is shown, so it fits: "HYUKOH".
 export function shortReason(reason: string | null): string | null {
@@ -20,7 +18,7 @@ export function shortReason(reason: string | null): string | null {
   return reason.replace(/^Because you (like|played) /i, '').replace(/ a lot$/i, '');
 }
 
-// The keep heart: the song goes into your "Discoveries" playlist (and your Library).
+// The keep button (soft star, same as Now Playing): the song goes into your "Discoveries" playlist (and your Library).
 export function HeartButton({ itemId, initial, small = false }: { itemId: string; initial: boolean; small?: boolean }) {
   const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -58,9 +56,7 @@ export function HeartButton({ itemId, initial, small = false }: { itemId: string
         aria-label={on ? 'Remove from Discoveries' : 'Keep in Discoveries'}
         onClick={toggle}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={on ? 'on' : undefined}>
-          <path d={HEART} />
-        </svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: on ? PLAYER_ICONS.kept : PLAYER_ICONS.keep }} />
       </button>
       {msg && (
         <span className="d-toast" role="status">
