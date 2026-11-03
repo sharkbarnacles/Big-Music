@@ -498,6 +498,9 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .sheet-art.np-art.yt { background: transparent; box-shadow: none; }
 /* In YouTube mode the player sits over the square: show the middle of its 16:9 picture. */
 .yt-host.square { overflow: hidden; }
+/* While Now Playing is scrolled, the video hides (still playing) and the cover image scrolls instead. */
+.yt-host { transition: opacity .12s; }
+.yt-host[data-tucked] { opacity: 0; pointer-events: none; }
 .yt-host.square iframe { width: 177.78% !important; max-width: none; margin-left: -38.89%; }
 
 .np-title { position: relative; display: flex; align-items: center; gap: 4px; }

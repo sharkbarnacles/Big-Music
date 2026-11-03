@@ -989,6 +989,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const host = hostRef.current;
     const art = sheet?.querySelector<HTMLElement>('.np-art');
     if (!sheet || !host || !art) return;
+    // iPhones report scroll positions late during a flick, so a fixed video moved
+    // by script lags the cover and jitters. Instead, once the sheet scrolls, the
+    // video fades out (it keeps playing) and the real cover image scrolls natively.
+    const tucked = sheet.scrollTop > 4;
+    host.toggleAttribute('data-tucked', tucked);
+    if (tucked) return;
     const top = art.getBoundingClientRect().top;
     const safe = parseFloat(getComputedStyle(sheet).paddingTop) || 0;
     host.style.setProperty('--np-top', `${top}px`);
@@ -999,6 +1005,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!host) return;
     host.style.removeProperty('--np-top');
     host.style.removeProperty('--np-clip');
+    host.removeAttribute('data-tucked');
     if (sheetOpen) requestAnimationFrame(followArt);
   }, [sheetOpen, video]);
 
@@ -1304,7 +1311,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               {/* A soft wash of the cover's colors behind the top of the screen. */}
               {current.image_url && <div className="np-wash" aria-hidden="true" style={{ backgroundImage: `url("${current.image_url}")` }} />}
               <div className={`sheet-art np-art${ytActive && video ? ' wide' : ''}${ytActive ? ' yt' : ''}`}>
-                {!ytActive && current.image_url && <img src={current.image_url} alt="" />}
+                {current.image_url && <img src={current.image_url} alt="" />}
               </div>
 
               <div className="np-title">
