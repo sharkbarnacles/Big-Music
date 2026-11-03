@@ -64,7 +64,7 @@ const moodOf = (w: string) => Object.entries(MOODS).find(([k, syn]) => k === w |
 // in English or the language itself), or the playlist drops far down.
 const STYLES: Record<string, string[]> = {
   artsy: ['existential', 'philosophical', 'introspective', 'art rock', 'art pop', 'post-punk', 'indie', 'alternative', '独立', '獨立', '后摇', '後搖', '存在主义', '另类', '另類'],
-  experimental: ['experimental', 'avant-garde', 'avant garde', 'avant', 'art rock', 'art pop', 'noise', 'post-rock', 'post rock', 'math rock', 'leftfield', 'weird', 'abstract', '实验', '實驗', '前卫', '前衛', '后摇', '後搖', '噪音', '실험', '実験', 'ทดลอง'],
+  experimental: ['experimental', 'avant-garde', 'avant garde', 'avant', 'art rock', 'art pop', 'noise', 'post-rock', 'post rock', 'math rock', 'leftfield', 'abstract', '实验音乐', '實驗音樂', '实验摇滚', '實驗搖滾', '前卫摇滚', '前衛搖滾', '前卫', '前衛', '后摇', '後搖', '噪音', '실험음악', '実験音楽'],
   grunge: ['grunge', 'grungy', 'noise rock', 'garage rock', 'shoegaze', 'sludge', 'post-punk', 'post punk', '垃圾摇滚', '垃圾搖滾', '后朋克', '後龐克', '噪音', '그런지', 'グランジ'],
   indie: ['indie', 'independent', 'underground', 'alternative', 'alt', '独立', '獨立', '地下', '인디', 'インディー', 'อินดี้', 'นอกกระแส'],
   shoegaze: ['shoegaze', 'dream pop', 'dreampop', '自赏', '自賞', '梦幻', '슈게이징'],
@@ -87,7 +87,7 @@ const RELATED: Record<string, string[]> = {
   psychedelic: ['indie', 'psych rock'],
 };
 // Words that look like a style but aren't: 实验小学 = "experimental primary school".
-const FALSE_STYLE = /实验(小学|中学|高中|班|学校)|實驗(小學|中學|班)|indie game|rock(et| band hero)/i;
+const FALSE_STYLE = /实验(小学|中学|高中|班|学校|室|动画|電影|电影|技术)|實驗(小學|中學|班|室)|indie game|rock(et| band hero)/i;
 const styleOf = (w: string) => Object.entries(STYLES).find(([k, syn]) => k === w || syn.includes(w))?.[0] ?? null;
 // Old songs: pushed down unless you ask for them.
 const OLD = /\b(classic|classics|oldies|old songs|golden|evergreen|throwback|retro|vintage|[5-9]0s|19[5-9]\d)\b|经典|經典|老歌|怀旧|懷舊|金曲|老情歌/i;
@@ -152,7 +152,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     // The same in the language itself ("华语 实验"), when there's a word for it.
     for (const k of [...styles, ...moods].slice(0, 2)) {
       const local = (STYLES[k] ?? MOODS[k] ?? []).find((w) => script?.test(w));
-      if (local) queries.push(`${origin?.native?.[0] ?? ''} ${local}`.trim(), local);
+      if (local) queries.push(`${origin?.native?.[0] ?? ''} ${local}`.trim());
     }
     queries.push(`${o} ${feel.join(' ')}`.trim());
     for (const f of scene.slice(0, 2)) queries.push(`${o} ${f}`);
@@ -182,14 +182,16 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     if (NOT_A_SONG.test(p.title.replace(/\b(mix|playlist|mixtape)\b/gi, '')) || /🎧|☕|🌙/.test(p.title)) score -= 6;
     const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(norm(w)))).length;
     const styleHits = FALSE_STYLE.test(p.title) ? 0 : styles.filter((st) => STYLES[st].some((w) => t.includes(norm(w)))).length;
+    const sceneHits = scene.filter((w) => t.includes(w)).length;
     const relatedHits = new Set(styles.flatMap((st) => RELATED[st] ?? []).filter((w) => t.includes(norm(w)))).size;
     score += Math.min(relatedHits, 3) * 3;
-    const sceneHits = scene.filter((w) => t.includes(w)).length;
     score += moodHits * 6 + styleHits * 7 + sceneHits * 3;
     // Moods and styles you asked for that the title doesn't have count against it.
-    score -= (moods.length - moodHits) * 4 + (styles.length - styleHits) * 5;
+    // Two or more close styles in the title (post-punk, shoegaze, alternative…) count as a match.
+    const styleMet = Math.min(styles.length, styleHits + (relatedHits >= 2 ? 1 : 0));
+    score -= (moods.length - moodHits) * 4 + (styles.length - styleMet) * 5;
     // You described the sound but the title matches none of it: almost certainly off.
-    if (feel.length && !moodHits && !styleHits && !sceneHits) score -= 6;
+    if (feel.length && !moodHits && !styleHits && !sceneHits && !relatedHits) score -= 6;
     // Classics and oldies only when you ask for them.
     if (!wantsOld && OLD.test(p.title)) score -= 7;
     if (/\bktv\b|卡拉ok|karaoke/i.test(p.title)) score -= 6;
