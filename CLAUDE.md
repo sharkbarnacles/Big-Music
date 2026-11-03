@@ -126,6 +126,9 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   text pale aqua `#BFEFF2`, muted `#7FA9B3`, accent `#3DDBD9`), Space Grotesk,
   icons-only bottom bar with a dot under the current page, song rows with
   covers. Bottom bar order: Home, Search, Discover, Library.
+- YouTube's color in the app is **purple `#B388FF`** (`--youtube`), not red;
+  Spotify stays green. Shuffle icon = the long spiral in `lib/icons.ts`
+  (about two turns, tail at bottom right; owner drew the shape they wanted).
 
 ## Related pages (claude.ai artifacts, owner's account)
 
@@ -135,6 +138,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Playlist Sort Lab (sort/group/switch/look for Home playlists): https://claude.ai/artifact/BHWY4jdLiPGqAH6QYXfnQM
 - Home Top Lab (header/numbers/services/messages above Playlists): https://claude.ai/artifact/Db76mHuAcsarbFNo88ztzu
 - Library Top Lab (numbers/search & filters/video finder/play row): https://claude.ai/artifact/UTVPcvWT74dmoa62gLescy
+- Discovery Lab (layout/source/why line/actions/kept songs, L·S·W·A·K): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -168,6 +172,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
    recommendations, a discovery inbox; the Discover tab is a placeholder.
+   Waiting on the owner's Discovery Lab pick (five codes, L+S+W+A+K).
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -183,3 +188,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Home Top and Library Top picks; added Artists / Music videos views and the
   spiral Shuffle. Removed the 200-song caps (scroll loads all; player
   continues through the whole list) and added hub playlists.
+- 2026-11-03: Longer spiral Shuffle icon (`lib/icons.ts`), YouTube color
+  red → purple, built the Discovery Lab.
