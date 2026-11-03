@@ -114,6 +114,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Phone setup guide: https://claude.ai/artifact/T2sSRLa1hH4cmqzvi2VDDj
 - Look Lab (colors/fonts/bars/lists): https://claude.ai/artifact/QJDbm7KfJhkio31ZTdirrB
 - Playlist Sort Lab (sort/group/switch/look for Home playlists): https://claude.ai/artifact/BHWY4jdLiPGqAH6QYXfnQM
+- Home Top Lab (header/numbers/services/messages above Playlists): https://claude.ai/artifact/Db76mHuAcsarbFNo88ztzu
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -133,6 +134,9 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    (`playlists.last_added_at`, filled on import from Spotify `added_at` /
    YouTube `publishedAt`; YouTube "Liked Music" has no date), Sort
    drop-down, All/Spotify/YouTube Music chips, rows with covers.
+   Waiting on their Home Top Lab pick (four codes like "H2 + T2 + V2 + N2")
+   to slim the top of Home. The "Connected …" message comes from the
+   `?connected=` URL parameter after sign-in.
 2. Organization (phase 3): tags, ratings, notes, smart playlists, manual fix
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
