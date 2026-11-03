@@ -186,7 +186,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Library Top Lab (numbers/search & filters/video finder/play row): https://claude.ai/artifact/UTVPcvWT74dmoa62gLescy
 - Discovery Lab v2 (page/today/weekly/monthly/archive/extras, P·T·W·M·A·E; v1 L·S·W·A·K superseded): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
 - Now Playing Lab (artwork/background/title/progress/controls/options, A·G·T·B·C·O): https://claude.ai/artifact/LcYeZ1AkMCLZtxeFBuCQ1x
-- Player Icon Lab (skip S, ouroboros repeat R, row icons I, row layout L): https://claude.ai/artifact/CeDBEAZJqHhY9bWZLxEGps
+- Player Icon Lab (skip S, ouroboros repeat R, row icons I, radio D, queue Q, keep K, row layout L): https://claude.ai/artifact/CeDBEAZJqHhY9bWZLxEGps
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -239,8 +239,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    Now Playing: owner picked **A2 + G2 + T3 + B2 + C2 + O2** in the Now
    Playing Lab (square cover, color wash, title with heart + ⋯, thin progress
    line, lighter play circle, icon row with YouTube mode/Stop in ⋯) but wants
-   sleeker icons first: waiting on their Player Icon Lab pick (S+R+I+L;
-   repeat drawn as an ouroboros). Not built into the app yet.
+   sleeker icons first. Player Icon Lab favourite so far:
+   **S13 + R20 + I5 + D8 + L2** (soft outline triangle skips, striped
+   tapering infinity snake for repeat, hairline row icons, ringed-planet
+   radio, icons only). Owner wants more space theme: added Q (queue:
+   shooting star etc.) and K (keep button replacing the heart: stars).
+   The lab's drawing code (icon-lab artifact) has the exact SVG paths to
+   copy into `lib/icons.ts`. Not built into the app yet.
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -267,3 +272,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Fixed adding Discover songs to playlists. Radio from any song.
   YouTube start without tapping the video; Now Playing Lab.
   Now Playing pick A2+G2+T3+B2+C2+O2; Player Icon Lab (ouroboros repeat).
+  Icon Lab rounds 2–4: triangles, infinity snakes (woven/striped), space
+  radio, queue and keep icons; Discover reasons shortened; nav reordered.
