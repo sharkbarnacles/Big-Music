@@ -544,5 +544,11 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 
 /* O2 + L2: one row of icons, no labels. */
 .np-row { display: flex; justify-content: space-around; align-items: center; margin-top: 22px; }
+/* Balanced by eye: the + is light, the UFO and the eye are wide and flat, so
+   each gets its own size; the eye is a touch bigger as the row's centrepiece. */
+.np-row .picon.row-plus { width: 23px; height: 23px; }
+.np-row .picon.row-radio { width: 30px; height: 30px; }
+.np-row .picon.row-video { width: 33px; height: 33px; }
+.np-row .picon.row-queue { width: 27px; height: 27px; }
 .np-device { text-align: center; font-size: 12px; margin-top: 16px; opacity: .8; }
 .np-toast { align-self: center; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; }

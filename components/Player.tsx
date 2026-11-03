@@ -1254,16 +1254,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
               <div className="np-row">
                 <button type="button" className="np-icon" aria-label="Add to playlist" title="Add to playlist" onClick={() => pickPlaylist([current])}>
-                  {picon('plus')}
+                  {picon('plus', 'row-plus')}
                 </button>
                 <button type="button" className="np-icon" aria-label="Start radio" title="Start radio" disabled={!current.yt_audio_id} onClick={() => startRadio(current)}>
-                  {picon('radio')}
+                  {picon('radio', 'row-radio')}
                 </button>
                 <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Stop watching video' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!current.video_id} onClick={toggleVideo}>
-                  {picon('video')}
+                  {picon('video', 'row-video')}
                 </button>
                 <button type="button" className="np-icon" aria-label="Show queue" title="Queue" onClick={() => setQueueOpen(true)}>
-                  {picon('queue')}
+                  {picon('queue', 'row-queue')}
                 </button>
               </div>
 
