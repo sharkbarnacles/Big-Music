@@ -475,3 +475,11 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .d-picked-row { display: flex; justify-content: space-between; gap: 10px; padding: 11px 12px; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); font-size: 14px; }
 .d-picked-row:last-child { border-bottom: 0; }
 .d-hint { margin: 0; }
+
+/* Discover → Radio: Familiar / Mixed / New dial and quick starts */
+.d-radio { display: grid; gap: 10px; }
+.d-dial { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); max-width: 360px; }
+.d-dial button { height: 34px; border: 0; border-radius: 999px; background: none; font-size: 14px; color: var(--muted); }
+.d-dial button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.d-radio-starts { display: flex; flex-wrap: wrap; gap: 8px; }
+.d-radio-starts .chip { height: 34px; font-size: 13px; }

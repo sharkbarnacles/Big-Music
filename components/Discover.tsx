@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { TrackRowData } from '@/lib/tracks';
-import { usePlayer } from './Player';
+import { readRadioMode, RADIO_MODE_KEY, usePlayer, type RadioMode } from './Player';
 
 export type ItemLite = { id: string; reason: string | null; hearted: boolean };
 
@@ -199,6 +199,59 @@ export function ArchiveCalendar({ today }: { today: string }) {
       ) : (
         <p className="muted small d-hint">{editions === null ? 'Loading…' : editions.length ? 'Tap a day to open what you got, exactly as it was.' : 'Nothing this month yet.'}</p>
       )}
+    </div>
+  );
+}
+
+// Explore: the radio dial (Familiar ↔ New) and quick ways to start a radio.
+// Any song's ⋯ menu and the Now Playing screen also have "Start radio".
+const MODES: { id: RadioMode; label: string; note: string }[] = [
+  { id: 'familiar', label: 'Familiar', note: 'Everything the radio suggests, including songs you already have.' },
+  { id: 'mixed', label: 'Mixed', note: 'Mostly new to you, with about one song in three you already have.' },
+  { id: 'new', label: 'New', note: 'Only songs that aren’t in your library.' },
+];
+
+export function RadioExplore({ seeds }: { seeds: { label: string; tracks: TrackRowData[] }[] }) {
+  const player = usePlayer();
+  const [mode, setMode] = useState<RadioMode>('mixed');
+  useEffect(() => setMode(readRadioMode()), []);
+  const choose = (m: RadioMode) => {
+    setMode(m);
+    try {
+      localStorage.setItem(RADIO_MODE_KEY, m);
+    } catch {
+      /* private browsing */
+    }
+  };
+  const start = (list: TrackRowData[]) => {
+    const playable = list.filter((t) => t.yt_audio_id);
+    if (playable.length) player.startRadio(playable[Math.floor(Math.random() * playable.length)]);
+  };
+  const usable = seeds.filter((s) => s.tracks.some((t) => t.yt_audio_id));
+  return (
+    <div className="d-radio">
+      <div className="d-dial" role="radiogroup" aria-label="Radio: familiar or new">
+        {MODES.map((m) => (
+          <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => choose(m.id)}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <p className="muted small d-hint">{MODES.find((m) => m.id === mode)?.note}</p>
+      {usable.length > 0 && (
+        <div className="d-radio-starts">
+          {usable.map((s) => (
+            <button key={s.label} type="button" className="chip" onClick={() => start(s.tracks)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0M7.5 12a4.5 4.5 0 0 1 9 0M12 12v8" /></svg>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="muted small d-hint">
+        Or start one from any song: tap its ⋯ menu, or Start radio on the Now Playing screen. Radios keep going as long as you
+        listen, and the songs play right here.
+      </p>
     </div>
   );
 }

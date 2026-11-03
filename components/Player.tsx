@@ -28,7 +28,20 @@ type Notice = { text: string; link?: { href: string; label: string }; action?: {
 // A list that's bigger than what's on screen (the whole Library, an artist…):
 // the player fetches more songs from /api/library/tracks as it goes.
 export type QueueSource = { query: string; total: number };
-type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource };
+type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource; radio?: RadioOpts };
+// A radio (YouTube Music "radio" from any song): more songs are fetched as you go.
+type RadioOpts = { continuation: string | null; mode: RadioMode };
+export type RadioMode = 'familiar' | 'mixed' | 'new';
+export const RADIO_MODE_KEY = 'mh-radio-mode';
+export function readRadioMode(): RadioMode {
+  try {
+    const v = localStorage.getItem(RADIO_MODE_KEY);
+    if (v === 'familiar' || v === 'mixed' || v === 'new') return v;
+  } catch {
+    /* private browsing */
+  }
+  return 'mixed';
+}
 type SourceState = QueueSource & { seed: string | null; next: number; loading: boolean };
 
 type PlayerApi = {
@@ -38,6 +51,7 @@ type PlayerApi = {
   playList: (list: TrackRowData[], start: number, opts?: PlayOptions) => void;
   playNext: (track: TrackRowData) => void;
   addToQueue: (track: TrackRowData) => void;
+  startRadio: (track: TrackRowData) => void;
 };
 
 const PlayerContext = createContext<PlayerApi>({
@@ -46,6 +60,7 @@ const PlayerContext = createContext<PlayerApi>({
   setYoutubeMode: () => {},
   playList: () => {},
   playNext: () => {},
+  startRadio: () => {},
   addToQueue: () => {},
 });
 export const usePlayer = () => useContext(PlayerContext);
@@ -146,6 +161,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const ytErrorsRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const srcRef = useRef<SourceState | null>(null); // where more songs come from, if anywhere
+  const radioRef = useRef<(RadioOpts & { loading: boolean }) | null>(null); // a running radio
   const [srcLeft, setSrcLeft] = useState(0); // songs not fetched yet (for "Up next")
 
   const hostRef = useRef<HTMLDivElement>(null);
@@ -643,6 +659,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     let i = Math.max(0, start);
     const src = opts.source && opts.source.total > list.length ? opts.source : null;
     srcRef.current = null;
+    radioRef.current = opts.radio ? { ...opts.radio, loading: false } : null;
     if (src && shuffleRef.current) {
       // Start right away with one song (tapped, or random from what's on
       // screen); the rest of the whole list follows in a shuffled order.
@@ -666,6 +683,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Fetches the next songs of a big list when fewer than 25 are left.
   const loadMore = async () => {
+    if (radioRef.current) return loadMoreRadio();
     const src = srcRef.current;
     if (!src || src.loading || src.next >= src.total) return;
     if (queueRef.current.length - indexRef.current > 25) return;
@@ -687,6 +705,50 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       /* try again on the next song */
     } finally {
       src.loading = false;
+    }
+  };
+
+  // A radio keeps going: when fewer than 10 songs are left, ask for more.
+  const loadMoreRadio = async () => {
+    const radio = radioRef.current;
+    if (!radio || radio.loading || !radio.continuation) return;
+    if (queueRef.current.length - indexRef.current > 10) return;
+    radio.loading = true;
+    try {
+      const res = await fetch(`/api/radio?continuation=${encodeURIComponent(radio.continuation)}&mode=${radio.mode}`);
+      const body = await res.json();
+      if (radioRef.current !== radio) return; // something else started playing
+      radio.continuation = body.continuation ?? null;
+      const have = new Set(queueRef.current.map((t) => t.id));
+      const fresh: TrackRowData[] = (body.tracks ?? []).filter((t: TrackRowData) => !have.has(t.id));
+      if (fresh.length) {
+        baseRef.current = [...baseRef.current, ...fresh];
+        setQ([...queueRef.current, ...fresh], indexRef.current);
+      }
+    } catch {
+      /* try again on the next song */
+    } finally {
+      radio.loading = false;
+    }
+  };
+
+  // Starts a radio from any song: it plays first, then songs like it.
+  const startRadio = async (track: TrackRowData) => {
+    const videoId = track.yt_audio_id;
+    if (!videoId) {
+      showToast('This song has no YouTube version yet, so a radio can’t start from it.');
+      return;
+    }
+    const mode = readRadioMode();
+    showToast(`Starting a radio from “${track.title}”…`);
+    try {
+      const res = await fetch(`/api/radio?videoId=${encodeURIComponent(videoId)}&mode=${mode}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Radio failed');
+      const rest: TrackRowData[] = (body.tracks ?? []).filter((t: TrackRowData) => t.yt_audio_id !== videoId && t.id !== track.id);
+      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode } });
+    } catch (err) {
+      showToast((err as Error).message || 'The radio couldn’t start. Try again in a moment.');
     }
   };
 
@@ -884,6 +946,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     prev: 'M19 5L9 12l10 7zM5 5v14',
     // Spiral (owner's pick for Shuffle).
     plus: 'M12 5v14M5 12h14',
+    radio: 'M4 12a8 8 0 0 1 16 0M7.5 12a4.5 4.5 0 0 1 9 0M12 12v8',
     shuffle: SPIRAL,
     repeat: 'M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3',
     down: 'M6 9l6 6 6-6',
@@ -893,7 +956,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <PlayerContext.Provider value={{ current, youtubeMode, setYoutubeMode, playList, playNext, addToQueue }}>
+    <PlayerContext.Provider value={{ current, youtubeMode, setYoutubeMode, playList, playNext, addToQueue, startRadio }}>
       {children}
 
       {/* Space so the bar never covers the end of a list. */}
@@ -1030,6 +1093,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <button type="button" className="chip" onClick={() => pickPlaylist([current])}>
                   {icon(ICON.plus)} Add to playlist
                 </button>
+                {current.yt_audio_id && (
+                  <button type="button" className="chip" onClick={() => startRadio(current)}>
+                    {icon(ICON.radio)} Start radio
+                  </button>
+                )}
                 {current.video_id && (
                   <button type="button" className={`chip${video ? ' on' : ''}`} onClick={toggleVideo}>
                     {icon(ICON.video)} {video ? 'Watching video' : 'Watch video'}

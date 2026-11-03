@@ -50,6 +50,14 @@ export default function TrackList({
             setMenuFor(null);
             pick([t]);
           }}
+          onRadio={
+            t.yt_audio_id
+              ? () => {
+                  setMenuFor(null);
+                  player.startRadio(t);
+                }
+              : undefined
+          }
           onRemove={
             onRemove
               ? () => {

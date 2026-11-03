@@ -20,6 +20,7 @@ export default function TrackRow({
   onPlayNext,
   onAddToQueue,
   onAddToPlaylist,
+  onRadio,
   onRemove,
 }: {
   track: TrackRowData;
@@ -31,6 +32,7 @@ export default function TrackRow({
   onPlayNext: () => void;
   onAddToQueue: () => void;
   onAddToPlaylist: () => void;
+  onRadio?: () => void; // only for songs with a YouTube version
   onRemove?: () => void; // only in your hub playlists
 }) {
   const spotify = sourceUrl(track, 'spotify');
@@ -77,6 +79,7 @@ export default function TrackRow({
             <button type="button" role="menuitem" onClick={onPlayNext}>Play next</button>
             <button type="button" role="menuitem" onClick={onAddToQueue}>Add to queue</button>
             <button type="button" role="menuitem" onClick={onAddToPlaylist}>Add to playlist…</button>
+            {onRadio && <button type="button" role="menuitem" onClick={onRadio}>Start radio</button>}
             {onRemove && (
               <button type="button" role="menuitem" className="danger-item" onClick={onRemove}>
                 Remove from this playlist

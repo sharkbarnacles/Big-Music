@@ -361,3 +361,17 @@ create table if not exists spotify_queue_state (
   updated_at timestamptz not null default now()
 );
 alter table spotify_queue_state enable row level security;
+
+-- ── Radio ───────────────────────────────────────────────────────────
+-- Songs met on a radio (YouTube Music "radio" from any song) that aren't in
+-- your library, so they can be kept or added to a playlist later.
+create table if not exists radio_songs (
+  video_id    text primary key,
+  title       text not null,
+  artist      text not null,
+  album       text,
+  image_url   text,
+  duration_ms integer,
+  seen_at     timestamptz not null default now()
+);
+alter table radio_songs enable row level security;

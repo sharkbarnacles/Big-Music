@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import Header from '@/components/Header';
 import PlayButtons from '@/components/PlayButtons';
-import { ArchiveCalendar, TodayGrid } from '@/components/Discover';
+import { ArchiveCalendar, RadioExplore, TodayGrid } from '@/components/Discover';
 import { latestEditions, toTrack, type Edition } from '@/lib/discover';
 
 export const dynamic = 'force-dynamic';
 
-// Your Discover pick: P3 shelves + T5 two-row Today + W2 weekly + M3 monthly + A1 calendar (+ E3, coming next).
+// Your Discover pick: P3 shelves + T5 two-row Today + W2 weekly + M3 monthly + A1 calendar + E3 radio (moods next).
 // Every list here was made once, has a date, and never changes.
 
 const NY = 'America/New_York';
@@ -113,10 +113,17 @@ export default async function DiscoverPage() {
       <section className="d-sec">
         <div className="d-sech">
           <div>
-            <h2>Explore</h2>
-            <div className="d-stamp">Radio with a Familiar ↔ New dial, and mood chips: coming next</div>
+            <h2>Radio</h2>
+            <div className="d-stamp">Plays as a queue; never changes your mixes</div>
           </div>
         </div>
+        <RadioExplore
+          seeds={[
+            { label: 'From today’s picks', tracks: dailyTracks },
+            { label: 'From this week', tracks: e.weekly ? e.weekly.items.map(toTrack) : [] },
+            { label: 'From forgotten favorites', tracks: e.forgotten ? e.forgotten.items.map(toTrack) : [] },
+          ]}
+        />
       </section>
 
       <section className="d-sec">
