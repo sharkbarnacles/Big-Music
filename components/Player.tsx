@@ -155,6 +155,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sdkDeviceRef = useRef<string | null>(null);
 
   const current = index >= 0 ? queue[index] ?? null : null;
+
+  // Count a play once you've listened to a song for 30 seconds (each time it
+  // comes up in the queue). Plays make the monthly Discover mixes.
+  const countedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!current || !playing || progress < 30_000) return;
+    const key = `${index}:${current.id}`;
+    if (countedRef.current === key) return;
+    countedRef.current = key;
+    fetch('/api/plays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackId: current.id, service: engine === 'spotify' ? 'spotify' : 'youtube' }),
+    }).catch(() => {});
+  }, [current, playing, progress, index, engine]);
   const pickPlaylist = usePlaylistPicker();
 
   const setQ = (q: TrackRowData[], i: number) => {

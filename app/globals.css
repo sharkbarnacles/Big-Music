@@ -413,3 +413,65 @@ button.danger { background: transparent; border-color: var(--danger); color: var
    (The Services button's status dots keep full color: they show connection state.) */
 .pl-chip .dot, .pl-meta .dot, .avail .dot { opacity: .5; filter: saturate(.6); }
 .pl-chip[aria-pressed="true"] .dot { opacity: .7; }
+
+/* ── Discover (P3 shelves + T5 two-row Today + mix cards + calendar) ── */
+.d-sec { display: grid; gap: 10px; margin-top: 22px; }
+.d-sech { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.d-sech h2 { margin: 0; font-size: 19px; }
+.d-stamp { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.d-stamp b { color: var(--text); font-weight: 500; }
+.d-why { font-size: 12px; color: var(--accent); opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-back { display: inline-block; margin-top: 6px; }
+
+.d-grid2 { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 98px; gap: 12px 10px;
+  overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
+.d-grid2::-webkit-scrollbar { display: none; }
+.d-tile { position: relative; width: 98px; }
+.d-tile-play { display: grid; gap: 3px; width: 98px; padding: 0; border: 0; background: none; text-align: left; color: inherit; border-radius: 0; }
+.d-cover { display: block; width: 98px; height: 98px; border-radius: 10px; overflow: hidden; background: var(--panel-2); }
+.d-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.d-tile .d-nm, .d-mix .d-nm { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-tile .d-ar { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-tile .d-why { font-size: 10.5px; }
+.d-tile.active .d-nm { color: var(--accent); }
+.d-tile .d-heart { position: absolute; top: 72px; right: 4px; }
+
+.d-heart { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--muted); }
+.d-heart svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.d-heart[aria-pressed="true"] { color: var(--accent); }
+.d-heart[aria-pressed="true"] svg { fill: currentColor; }
+.d-heart.small { width: 24px; height: 24px; background: rgba(4, 20, 26, .62); }
+.d-heart.small svg { width: 14px; height: 14px; }
+.d-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 96px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; white-space: nowrap; pointer-events: none; }
+
+.d-mixes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.d-mix { display: grid; gap: 4px; padding: 10px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); color: inherit; text-decoration: none; min-width: 0; }
+.d-mix.empty { opacity: .6; }
+.d-mix .d-nm { font-size: 15px; font-weight: 700; white-space: normal; }
+.d-mix .d-ar { font-size: 12px; color: var(--muted); }
+.d-quad { display: grid; grid-template-columns: 1fr 1fr; aspect-ratio: 1; max-width: 100%; border-radius: 11px; overflow: hidden; background: var(--panel-2); margin-bottom: 4px; }
+.d-quad img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.d-archive { display: grid; gap: 10px; }
+.d-calhead { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
+.d-arrow { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+.d-arrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.d-arrow:disabled { opacity: .35; }
+.d-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; max-width: 420px; }
+.d-dow { font-size: 10px; color: var(--muted); letter-spacing: .06em; }
+.d-cal button { aspect-ratio: 1; max-width: 100%; padding: 0; border-radius: 9px; border: 1px solid transparent; background: none; font-size: 12px; color: var(--muted); position: relative; }
+.d-cal button.has { color: var(--text); background: var(--panel); border-color: var(--line); }
+.d-cal button.today { border-color: var(--accent); }
+.d-cal button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.d-cal button:disabled { cursor: default; }
+.d-cal button.daily::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); opacity: .75; }
+.d-cal button.mix::before { content: ""; position: absolute; top: 4px; right: 4px; width: 4px; height: 4px; border-radius: 50%; background: var(--text); opacity: .6; }
+.d-legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); }
+.d-legend span { display: inline-flex; gap: 5px; align-items: center; }
+.d-legend i { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+.d-legend i.daily { background: var(--accent); } .d-legend i.mix { background: var(--text); opacity: .6; }
+.d-picked { display: grid; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
+.d-picked-row { display: flex; justify-content: space-between; gap: 10px; padding: 11px 12px; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); font-size: 14px; }
+.d-picked-row:last-child { border-bottom: 0; }
+.d-hint { margin: 0; }

@@ -1,0 +1,36 @@
+# Makes the Discover tab's lists once a day, in GitHub's cloud:
+# Daily discover every morning, Monday Discovery each week, Friday New
+# Releases, and the monthly Forgotten favorites / Month mix. Every list is
+# made once and never changed afterwards.
+#
+# Runs at about 6:40 am New York time, and any time you tap "Run workflow"
+# (GitHub app → this repo → Actions → Make Discover lists → Run workflow).
+# Uses the same two secrets as "Find music videos".
+
+name: Make Discover lists
+
+on:
+  schedule:
+    - cron: '38 11 * * *' # 11:38 UTC = 6:38 am New York in winter, 7:38 am in summer
+  workflow_dispatch:
+
+concurrency:
+  group: discover
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install libraries
+        run: pip install -r scripts/requirements.txt
+      - name: Make lists
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python scripts/discover.py

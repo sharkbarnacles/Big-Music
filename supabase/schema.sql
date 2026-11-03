@@ -268,3 +268,84 @@ alter table import_progress enable row level security;
 -- When Spotify asks the app to wait (a long "429" pause), the end time is
 -- kept here so nobody asks Spotify again before then (that can lengthen it).
 alter table import_progress add column if not exists blocked_until timestamptz;
+
+-- ── Discover (dated editions that never change) ─────────────────────
+-- Every daily / weekly / monthly list is made once by scripts/discover.py,
+-- gets a date, and is kept forever so nothing ever disappears.
+create table if not exists discover_editions (
+  id           uuid primary key default gen_random_uuid(),
+  kind         text not null check (kind in ('daily', 'weekly', 'releases', 'month', 'forgotten')),
+  edition_date date not null,
+  title        text not null,
+  subtitle     text,
+  created_at   timestamptz not null default now(),
+  unique (kind, edition_date)
+);
+create table if not exists discover_items (
+  id          uuid primary key default gen_random_uuid(),
+  edition_id  uuid not null references discover_editions(id) on delete cascade,
+  position    integer not null,
+  track_id    uuid references tracks(id) on delete set null,  -- set for library songs, and once hearted
+  yt_video_id text,
+  title       text not null,
+  artist      text not null,
+  album       text,
+  image_url   text,
+  duration_ms integer,
+  reason      text,             -- "Because you like HYUKOH"
+  match_key   text,             -- same rule as tracks.match_key; never suggest a song twice
+  hearted     boolean not null default false
+);
+create index if not exists discover_items_edition_idx on discover_items(edition_id, position);
+create index if not exists discover_items_match_key_idx on discover_items(match_key);
+-- Cache of YouTube Music artist pages (related artists, top songs, releases).
+create table if not exists discover_artists (
+  name_key    text primary key,
+  name        text not null,
+  browse_id   text,
+  data        jsonb,
+  fetched_at  timestamptz,
+  releases_scanned_at timestamptz
+);
+-- Releases seen on your artists' pages; new ones become Friday New Releases.
+create table if not exists discover_releases (
+  browse_id  text primary key,
+  artist     text not null,
+  title      text not null,
+  kind       text,
+  year       text,
+  first_seen date not null default current_date,
+  published  boolean not null default false
+);
+alter table discover_editions enable row level security;
+alter table discover_items enable row level security;
+alter table discover_artists enable row level security;
+alter table discover_releases enable row level security;
+create index if not exists plays_played_at_idx on plays(played_at);
+
+-- Library songs not played in the hub for 6 months (or ever), for Forgotten favorites.
+create or replace function forgotten_candidates(lim integer default 300)
+returns table (track_id uuid, title text, artist text, album text, image_url text, duration_ms integer,
+               yt_audio_id text, playlist text, last_added_at timestamptz, last_played timestamptz)
+language sql set search_path = public as $$
+  select t.id, t.title, t.artist, t.album, t.image_url, t.duration_ms, t.yt_audio_id,
+         (select p.name from playlist_items pi join playlists p on p.id = pi.playlist_id
+           where pi.track_id = t.id and p.service <> 'hub' order by p.last_added_at nulls first limit 1),
+         (select min(p.last_added_at) from playlist_items pi join playlists p on p.id = pi.playlist_id
+           where pi.track_id = t.id and p.service <> 'hub'),
+         (select max(pl.played_at) from plays pl where pl.track_id = t.id)
+    from tracks t
+   where t.yt_audio_id is not null
+     and not exists (select 1 from plays pl where pl.track_id = t.id and pl.played_at > now() - interval '180 days')
+   order by random()
+   limit lim;
+$$;
+
+-- Most-played songs of a month, for the Month mix.
+create or replace function month_top_tracks(month_start date, lim integer default 40)
+returns table (track_id uuid, plays bigint)
+language sql set search_path = public as $$
+  select pl.track_id, count(*) from plays pl
+   where pl.played_at >= month_start and pl.played_at < (month_start + interval '1 month')
+   group by pl.track_id order by count(*) desc limit lim;
+$$;
