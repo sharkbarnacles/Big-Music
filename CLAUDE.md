@@ -304,6 +304,17 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    **Cover jitter fix:** while the Now Playing sheet is scrolled, the YouTube
    layer gets `data-tucked` (opacity 0, still playing) and the real cover
    `<img>` (now always inside `.np-art`) scrolls natively.
+   **Video / studio switch (2026-11-03):** `lib/ytRadio.ts` reads each radio
+   entry's counterpart (musicVideoType ATV = studio audio, OMV/UGC = video);
+   radios play studio audio with `video_id` = the MV. `/api/youtube/versions`
+   (player `findVersions`, once per song per session, in the background)
+   fills the missing version, saves it for library songs, and for video-only
+   uploads runs a YouTube Music songs search (`searchStudioSong`, title must
+   match). An MV standing in for the song switches to studio audio in the
+   first 8 s. Eye works for any YouTube song (same id → view change only).
+   Not yet confirmed from Vercel or on the phone.
+   **Queue history:** "Earlier" section above Now playing (last 3 / Show all);
+   Back uses `historyRef` (songs you were on, newest last).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -343,3 +354,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Mix page redesign (H2+A1+R2+E3) and queue cleanup (grip drag, flat list).
   App Icon Lab.
   Cover jitter fix (video hides while scrolling); app icon M1+B2+N1.
+  MV ↔ studio audio switch, Earlier songs in the queue, Back = real history.
