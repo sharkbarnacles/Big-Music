@@ -440,3 +440,80 @@ language sql stable as $$
     where t.k = any(keys) and t.yt_audio_id is not null
   ) x where rn <= per_artist;
 $$;
+
+-- ── Artist profiles (deeper taste) ─────────────────────────────────
+-- What the hub knows about each artist, filled by scripts/tag_artists.py
+-- (MusicBrainz, free, no key): solo or group, vocal gender, where they're
+-- from, genres and tags. `priority`: higher is fetched sooner.
+create table if not exists artist_profiles (
+  artist_key  text primary key,
+  name        text not null,
+  status      text not null default 'pending' check (status in ('pending', 'found', 'not_found', 'error')),
+  priority    real not null default 0,
+  mbid        text,
+  kind        text,
+  voice       text check (voice in ('male', 'female', 'mixed')),
+  country     text,
+  area        text,
+  script      text,
+  genres      text[] not null default '{}',
+  tags        text[] not null default '{}',
+  checked_at  timestamptz,
+  created_at  timestamptz not null default now()
+);
+create index if not exists artist_profiles_queue on artist_profiles(status, priority desc);
+alter table artist_profiles enable row level security;
+
+-- Your own settings for how mixes are made. 'voice': per language, which
+-- vocals to favour, e.g. {"thai":"male","chinese":"male"}.
+create table if not exists taste_settings (
+  key        text primary key,
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table taste_settings enable row level security;
+insert into taste_settings (key, value) values ('voice', '{"thai": "male", "chinese": "male"}')
+on conflict (key) do nothing;
+
+create or replace function queue_taste_artists(max_rows int default 9000)
+returns int language sql as $$
+  with ins as (
+    insert into artist_profiles (artist_key, name, priority)
+    select artist_key, artist, 100 + weight from taste_artists(max_rows)
+    on conflict (artist_key) do update set priority = greatest(artist_profiles.priority, excluded.priority)
+    returning 1
+  ) select count(*)::int from ins;
+$$;
+
+create or replace function taste_tags(max_rows int default 80)
+returns table (tag text, weight real, artists int)
+language sql stable as $$
+  with t as (select artist_key, weight from taste_artists(6000)),
+  x as (
+    select unnest(p.genres || p.tags) as tag, t.weight
+    from artist_profiles p join t using (artist_key)
+    where p.status = 'found'
+  )
+  select tag, sum(weight)::real, count(*)::int from x group by tag order by 2 desc limit max_rows;
+$$;
+
+-- For the "Your taste" page: where your music is from and whose voices,
+-- weighted by how much you love each artist, plus tagging progress.
+create or replace function taste_overview()
+returns jsonb language sql stable as $$
+  with t as (select artist_key, weight from taste_artists(6000)),
+  p as (select p.*, t.weight from artist_profiles p join t using (artist_key) where p.status = 'found'),
+  lang as (
+    select case
+      when p.script = 'thai' or p.country = 'TH' then 'Thai'
+      when p.script = 'hangul' or p.country = 'KR' then 'Korean'
+      when p.script = 'kana' or p.country = 'JP' then 'Japanese'
+      when p.script = 'han' or p.country in ('CN','TW','HK','MO') then 'Chinese'
+      else 'Other' end as lang, p.voice, p.weight from p
+  )
+  select jsonb_build_object(
+    'progress', (select jsonb_object_agg(status, n) from (select status, count(*) n from artist_profiles group by status) s),
+    'countries', (select coalesce(jsonb_agg(x order by w desc), '[]') from (select coalesce(country, '?') as country, round(sum(weight)::numeric, 1) as w, count(*) as n from p where country is not null group by 1 order by 2 desc limit 12) x),
+    'voices', (select coalesce(jsonb_agg(x), '[]') from (select lang, voice, round(sum(weight)::numeric, 1) as w, count(*) as n from lang where voice is not null group by 1, 2) x)
+  );
+$$;

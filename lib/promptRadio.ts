@@ -10,7 +10,7 @@
 //    it go first; songs from playlists that mention the origin are trusted.
 // 4. Spread artists out. More comes from the next playlists as you listen.
 import { searchPlaylists, browseCollection, type WebSong } from './ytBrowse';
-import { affinity, artistKey, loadTaste, type Taste } from './taste';
+import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste } from './taste';
 
 type Origin = { words: string[]; script?: RegExp; native?: string[] };
 // Words people use for where music is from, and how to recognise it.
@@ -118,7 +118,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     queries.push(feel.slice(0, 2).join(' '));
   }
   const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 7);
-  const empty: Taste = { own: new Map(), similar: new Map() };
+  const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {} };
   const [found, taste] = await Promise.all([
     Promise.all(unique.map((x) => searchPlaylists(x).catch(() => []))).then((r) => r.flat()),
     loadTaste().catch(() => empty),
@@ -172,6 +172,11 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
   const picked = rated.map((r) => r.title);
+  // Profiles of the artists in these playlists (genres, tags, vocals), from the tagging job.
+  const names = rated.flatMap((r) => r.list.songs.map((x) => x.artist));
+  const profiles = await loadProfiles(names.map(artistKey)).catch(() => new Map());
+  // Artists the hub doesn't know yet get tagged later, so the next radios fit better.
+  queueArtists(names.filter((n) => !profiles.has(artistKey(n)))).catch(() => {});
   const pool: { s: WebSong; rank: number }[] = [];
   for (const r of rated) {
     for (const x of r.list.songs) {
@@ -185,7 +190,11 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       // Asked for a language with its own script: your taste only lifts songs in it
       // (so a favourite from elsewhere doesn't slip into a Thai radio).
       const lift = origin?.script && !mine ? 0 : affinity(taste, x.artist) * 5;
-      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + Math.random() * 3 });
+      // Deeper taste: how well the artist's genres/tags fit yours, and your vocal
+      // preference for this language (a gentle lift, never a filter).
+      const prof = profiles.get(artistKey(x.artist));
+      const deep = tagFit(taste, prof) * 4 + voiceFit(taste, songLanguage(`${x.title} ${x.artist}`, prof), prof) * 2.5;
+      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + deep + Math.random() * 3 });
     }
   }
 

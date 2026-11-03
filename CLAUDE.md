@@ -391,6 +391,20 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    on focusing smaller ones, and the zoom stayed), and `.np-wash` is a
    screen-sized clipping frame with the scaled cover in `::before` (the
    scaled wash was ~1% wider than the screen).
+   **Deeper taste (2026-11-03):** `scripts/tag_artists.py` (hourly
+   `tag-artists.yml`, ~50 min/run, MusicBrainz 1 req/s, ~8 artists/min)
+   fills `artist_profiles` (kind, voice from gender / group members / tags,
+   country, area, script of library titles, genres, tags), queue =
+   `queue_taste_artists()` (favourites first, priority 100+weight) plus
+   radio artists (`queueArtists`, priority 50). SQL `taste_tags()`,
+   `taste_overview()`. `lib/taste.ts`: `tags`, `voice` prefs
+   (`taste_settings` key 'voice', owner's: thai + chinese → male, a gentle
+   lift, never a filter; English neutral), `tagFit`, `songLanguage`,
+   `voiceFit`. promptRadio adds tagFit×4 + voiceFit×2.5. Page `/taste`
+   (link "Your taste ›" by Discover → Radio): progress, vocal preferences
+   (VoicePrefs, `/api/taste/settings`), top artists, genres, countries,
+   voices per language. MusicBrainz tags have little mood info; Last.fm
+   tags (free key in a GitHub secret) would add moods later if wanted.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -441,3 +455,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Taste profile + real-artists-only word radios; Now Playing scroll no longer leaks to the page.
   Time bar no longer freezes after touching it on iPhone.
   Zoomed-in pages fixed (16px text boxes, clipped colour wash).
+  Deeper taste: MusicBrainz artist tagging job, vocal preference per language, Your taste page.

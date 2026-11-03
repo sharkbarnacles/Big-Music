@@ -706,3 +706,32 @@ svg.planet .planet-body { fill: var(--panel-2); }
 /* Search everywhere: keep every section to the screen width (long titles cut off instead of widening the page). */
 .web-results, .web-sec { grid-template-columns: minmax(0, 1fr); }
 .web-results > *, .web-sec > * { min-width: 0; }
+
+/* ── Your taste ─────────────────────────────────────────────────────── */
+.t-lede { margin: 4px 0 0; max-width: 62ch; }
+.t-sec { display: grid; gap: 10px; margin-top: 22px; min-width: 0; }
+.t-sec h2 { margin: 0; font-size: 19px; }
+.t-sec > p { margin: -4px 0 0; }
+.t-progress { display: grid; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); font-size: 14px; }
+.t-bar { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; min-width: 0; }
+.t-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.t-voice { display: grid; gap: 8px; }
+.t-voice-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 14px; }
+.t-dial button { padding: 6px 0; font-size: 13px; }
+.t-artists { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+.t-artists li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.t-artists a { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-artists .small { flex: none; }
+.t-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.t-tag { font-size: 13px; padding: 4px 10px; border-radius: 999px; color: var(--accent); background: rgba(61, 219, 217, calc(var(--w) * .22)); opacity: calc(.45 + var(--w) * .55); }
+.t-rows { display: grid; gap: 8px; }
+.t-row { display: grid; grid-template-columns: 118px minmax(0, 1fr) 72px; align-items: center; gap: 10px; font-size: 14px; }
+.t-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.t-split { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--panel-2); }
+.t-split i, .t-legend i { display: block; height: 100%; }
+.t-split .m, .t-legend .m { background: var(--accent); }
+.t-split .x, .t-legend .x { background: var(--muted); }
+.t-split .f, .t-legend .f { background: var(--youtube); }
+.t-legend { display: flex; gap: 14px; }
+.t-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.t-legend i { width: 8px; height: 8px; border-radius: 50%; }

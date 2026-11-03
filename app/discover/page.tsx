@@ -117,6 +117,7 @@ export default async function DiscoverPage() {
             <h2>Radio</h2>
             <div className="d-stamp">Plays as a queue; never changes your mixes</div>
           </div>
+          <Link href="/taste" className="muted small">Your taste ›</Link>
         </div>
         <RadioExplore
           seeds={[
