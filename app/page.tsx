@@ -57,8 +57,17 @@ export default async function Home({
         <div><b>{playlists.length}</b><span className="muted small">playlists</span></div>
       </div>
 
-      <h2>Services</h2>
-      <div className="grid">
+      {/* Folded away once both services are connected; tap the line to open it. */}
+      <details className="card collapsible services" open={!(spotify && youtube)}>
+        <summary>
+          <span className="services-title">Services</span>
+          <span className="services-status small muted">
+            <span className="dot spotify" style={{ opacity: spotify ? 1 : 0.3 }} />
+            <span className="dot youtube" style={{ opacity: youtube ? 1 : 0.3 }} />
+            {spotify && youtube ? 'Both connected' : 'Needs attention'}
+          </span>
+        </summary>
+      <div className="grid" style={{ marginTop: 14 }}>
         {SERVICES.map((s) => {
           const conn = connections[s.id];
           return (
@@ -83,6 +92,7 @@ export default async function Home({
           );
         })}
       </div>
+      </details>
 
       {SERVICES.map((s) => {
         const list = playlists.filter((p) => p.service === s.id);

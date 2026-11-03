@@ -21,6 +21,8 @@
 
 body {
   margin: 0;
+  /* keep the page clear of the iPhone's clock and battery icons */
+  padding-top: env(safe-area-inset-top);
   background: var(--bg);
   color: var(--text);
   font: 15px/1.5 var(--font-sans, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -272,3 +274,10 @@ select {
   .item .end .dur { display: none; }
   .ctrl.huge { width: 64px; height: 64px; }
 }
+
+/* Services box on Home */
+details.services { margin-top: 28px; }
+details.services summary { gap: 12px; }
+.services-title { font-size: 17px; font-weight: 700; flex: 1; }
+.services-status { display: inline-flex; align-items: center; gap: 2px; }
+.services-status .dot { margin-right: 4px; }
