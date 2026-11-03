@@ -381,3 +381,21 @@ details.services summary { gap: 12px; }
 
 /* Artist rows: round photos */
 .item .artist-pic { border-radius: 50%; }
+
+/* ── Hub playlists ───────────────────────────────────────────────────── */
+.dot.hub { background: var(--accent); }
+.pl-new { gap: 6px; height: 34px; font-size: 14px; }
+.pl-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.row-menu .danger-item, .row-menu .danger-item:hover { color: var(--danger); }
+button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.picker-what { margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-new { display: flex; gap: 8px; }
+.picker-new input { flex: 1; min-width: 0; }
+.picker-list { max-height: 45vh; overflow-y: auto; }
+.picker-row {
+  width: 100%; justify-content: flex-start; text-align: left; gap: 12px;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 8px 0;
+}
+.picker-row:hover { border-color: var(--line); }
+.picker-row .main { display: flex; flex-direction: column; }
+.more-loader { min-height: 56px; display: flex; align-items: center; justify-content: center; padding: 12px 0; }

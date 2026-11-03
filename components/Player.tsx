@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { usePlaylistPicker } from './PlaylistPicker';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
 
 // ── How playback works ────────────────────────────────────────────────
@@ -23,7 +24,11 @@ type Repeat = 'off' | 'all' | 'one';
 type Choice = { engine: Engine; id: string } | { engine: 'lookup' };
 type Notice = { text: string; link?: { href: string; label: string }; action?: { label: string; run: () => void } };
 
-type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean };
+// A list that's bigger than what's on screen (the whole Library, an artist…):
+// the player fetches more songs from /api/library/tracks as it goes.
+export type QueueSource = { query: string; total: number };
+type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource };
+type SourceState = QueueSource & { seed: string | null; next: number; loading: boolean };
 
 type PlayerApi = {
   current: TrackRowData | null;
@@ -82,6 +87,8 @@ async function spotifyAction(query: string): Promise<{ ok: boolean; message?: st
   }
 }
 
+const newSeed = () => Math.random().toString(36).slice(2, 10);
+
 function shuffled<T>(items: T[]): T[] {
   const a = items.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -137,6 +144,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const pollingRef = useRef(false);
   const ytErrorsRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const srcRef = useRef<SourceState | null>(null); // where more songs come from, if anywhere
+  const [srcLeft, setSrcLeft] = useState(0); // songs not fetched yet (for "Up next")
 
   const hostRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<any>(null);
@@ -145,6 +154,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sdkDeviceRef = useRef<string | null>(null);
 
   const current = index >= 0 ? queue[index] ?? null : null;
+  const pickPlaylist = usePlaylistPicker();
 
   const setQ = (q: TrackRowData[], i: number) => {
     queueRef.current = q;
@@ -491,6 +501,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const toggleShuffle = () => {
     const cur = queueRef.current[indexRef.current];
+    const src = srcRef.current;
+    if (src) {
+      // Big list: fetch the rest in the new order instead of shuffling what's loaded.
+      shuffleRef.current = !shuffleRef.current;
+      setShuffle(shuffleRef.current);
+      if (shuffleRef.current) {
+        srcRef.current = { ...src, seed: newSeed(), next: 0, loading: false };
+        setQ(cur ? [cur] : [], cur ? 0 : -1);
+      } else {
+        const base = baseRef.current;
+        const at = cur ? base.indexOf(cur) : -1;
+        srcRef.current = { ...src, seed: null, next: at >= 0 ? base.length : 0, loading: false };
+        setQ(at >= 0 ? base : cur ? [cur] : [], at >= 0 ? at : cur ? 0 : -1);
+      }
+      setSrcLeft(srcRef.current.total - srcRef.current.next);
+      loadMore();
+      resyncSpotify();
+      return;
+    }
     if (!shuffleRef.current) {
       const rest = cur ? baseRef.current.filter((t) => t !== cur) : baseRef.current;
       const q = cur ? [cur, ...shuffled(rest)] : shuffled(rest);
@@ -546,14 +575,53 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     let q = baseRef.current;
     let i = Math.max(0, start);
-    if (shuffleRef.current) {
+    const src = opts.source && opts.source.total > list.length ? opts.source : null;
+    srcRef.current = null;
+    if (src && shuffleRef.current) {
+      // Start right away with one song (tapped, or random from what's on
+      // screen); the rest of the whole list follows in a shuffled order.
+      const first = list[start >= 0 ? start : Math.floor(Math.random() * list.length)];
+      srcRef.current = { ...src, seed: newSeed(), next: 0, loading: false };
+      q = [first];
+      i = 0;
+    } else if (src) {
+      srcRef.current = { ...src, seed: null, next: list.length, loading: false };
+    } else if (shuffleRef.current) {
       const first = start >= 0 ? list[start] : null;
       const rest = first ? q.filter((_, j) => j !== start) : q;
       q = first ? [first, ...shuffled(rest)] : shuffled(rest);
       i = 0;
     }
     setQ(q, i);
+    setSrcLeft(srcRef.current ? srcRef.current.total - srcRef.current.next : 0);
     playAt(i);
+    loadMore();
+  };
+
+  // Fetches the next songs of a big list when fewer than 25 are left.
+  const loadMore = async () => {
+    const src = srcRef.current;
+    if (!src || src.loading || src.next >= src.total) return;
+    if (queueRef.current.length - indexRef.current > 25) return;
+    src.loading = true;
+    try {
+      const url = `/api/library/tracks?${src.query}&offset=${src.next}&limit=200${src.seed ? `&seed=${src.seed}` : ''}`;
+      const res = await fetch(url);
+      const body = await res.json();
+      if (srcRef.current !== src) return; // something else started playing
+      const got: TrackRowData[] = body.tracks ?? [];
+      src.next = got.length ? src.next + got.length : src.total;
+      if (typeof body.total === 'number') src.total = body.total;
+      const have = new Set(queueRef.current.map((t) => t.id));
+      const fresh = got.filter((t) => !have.has(t.id));
+      if (!src.seed) baseRef.current = [...baseRef.current, ...got];
+      setQ([...queueRef.current, ...fresh], indexRef.current);
+      setSrcLeft(src.total - src.next);
+    } catch {
+      /* try again on the next song */
+    } finally {
+      src.loading = false;
+    }
   };
 
   const playNext = (track: TrackRowData) => {
@@ -596,6 +664,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlay(false);
     setNotice(null);
     setSheetOpen(false);
+    srcRef.current = null;
+    setSrcLeft(0);
     setQ([], -1);
   };
 
@@ -608,6 +678,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // ── Background work ─────────────────────────────────────────────────
 
   // Remember the YouTube mode switch; load YouTube's library early.
+  // Keep big lists topped up as songs go by.
+  useEffect(() => {
+    loadMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
   useEffect(() => {
     try {
       // On unless you've switched it off on this device.
@@ -741,6 +817,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     next: 'M5 5l10 7-10 7zM19 5v14',
     prev: 'M19 5L9 12l10 7zM5 5v14',
     // Spiral (owner's pick for Shuffle).
+    plus: 'M12 5v14M5 12h14',
     shuffle: 'M12 12a1.5 1.5 0 0 1 1.5 1.5a3 3 0 0 1-3 3a4.5 4.5 0 0 1-4.5-4.5a6 6 0 0 1 6-6a7.5 7.5 0 0 1 7.5 7.5',
     repeat: 'M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3',
     down: 'M6 9l6 6 6-6',
@@ -884,6 +961,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               </div>
 
               <div className="sheet-options">
+                <button type="button" className="chip" onClick={() => pickPlaylist([current])}>
+                  {icon(ICON.plus)} Add to playlist
+                </button>
                 {current.video_id && (
                   <button type="button" className={`chip${video ? ' on' : ''}`} onClick={toggleVideo}>
                     {icon(ICON.video)} {video ? 'Watching video' : 'Watch video'}
@@ -927,7 +1007,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <span className="sub">{current.artist}</span>
               </div>
               <div className="queue-label">
-                Up next{shuffle ? ' · shuffled' : ''} · {Math.max(0, queue.length - index - 1)} songs
+                Up next{shuffle ? ' · shuffled' : ''} · {Math.max(0, queue.length - index - 1 + srcLeft).toLocaleString()} songs
               </div>
               {queue.slice(index + 1, index + 151).map((t, k) => {
                 const j = index + 1 + k;
@@ -943,7 +1023,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   </div>
                 );
               })}
-              {queue.length - index - 1 > 150 && <p className="muted small">…and {queue.length - index - 151} more</p>}
+              {queue.length - index - 1 + srcLeft > 150 && (
+                <p className="muted small">…and {(queue.length - index - 151 + srcLeft).toLocaleString()} more</p>
+              )}
             </div>
           )}
         </div>

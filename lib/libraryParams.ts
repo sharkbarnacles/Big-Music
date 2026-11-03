@@ -17,3 +17,27 @@ export function libraryHref(p: LibraryParams, change: Partial<LibraryParams> = {
   const s = qs.toString();
   return s ? `/library?${s}` : '/library';
 }
+
+// What a song list is made of, so the app can fetch more of it (scrolling,
+// or the player continuing past the songs already on screen).
+export type TrackQuery = { q?: string; videos?: boolean; both?: boolean; artist?: string | null; sort?: string };
+
+export function trackQueryString(t: TrackQuery): string {
+  const qs = new URLSearchParams();
+  if (t.q) qs.set('q', t.q);
+  if (t.videos) qs.set('videos', '1');
+  if (t.both) qs.set('both', '1');
+  if (t.artist) qs.set('artist', t.artist);
+  if (t.sort) qs.set('sort', t.sort);
+  return qs.toString();
+}
+
+export function parseTrackQuery(qs: URLSearchParams): TrackQuery {
+  return {
+    q: qs.get('q') ?? undefined,
+    videos: qs.get('videos') === '1',
+    both: qs.get('both') === '1',
+    artist: qs.get('artist'),
+    sort: qs.get('sort') ?? undefined,
+  };
+}

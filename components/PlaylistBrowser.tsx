@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { usePlaylistPicker } from './PlaylistPicker';
 
 // Playlists on Home (Playlist Sort Lab pick S1 + G3 + K1 + P1):
 // one mixed list, newest first by default, a "Sort" drop-down, and chips to
-// show only Spotify or only YouTube Music playlists.
+// show only your hub playlists ("Mine"), Spotify or YouTube Music.
+// "New playlist" makes a playlist inside the hub.
 
 export type PlaylistCard = {
   id: string;
-  service: 'spotify' | 'youtube';
+  service: 'spotify' | 'youtube' | 'hub';
   name: string;
   image_url: string | null;
   count: number;
@@ -17,7 +19,7 @@ export type PlaylistCard = {
 };
 
 type Sort = 'recent' | 'az' | 'size';
-type Show = 'all' | 'spotify' | 'youtube';
+type Show = 'all' | 'hub' | 'spotify' | 'youtube';
 
 const SORTS: { id: Sort; label: string; short: string }[] = [
   { id: 'recent', label: 'Recently updated', short: 'Recent' },
@@ -26,6 +28,7 @@ const SORTS: { id: Sort; label: string; short: string }[] = [
 ];
 const SHOWS: { id: Show; label: string }[] = [
   { id: 'all', label: 'All' },
+  { id: 'hub', label: 'Mine' },
   { id: 'spotify', label: 'Spotify' },
   { id: 'youtube', label: 'YouTube Music' },
 ];
@@ -45,6 +48,7 @@ export default function PlaylistBrowser({ playlists }: { playlists: PlaylistCard
   const [sort, setSort] = useState<Sort>('recent');
   const [show, setShow] = useState<Show>('all');
   const [menuOpen, setMenuOpen] = useState(false);
+  const newPlaylist = usePlaylistPicker();
 
   // Remember your last choice on this phone.
   useEffect(() => {
@@ -84,7 +88,10 @@ export default function PlaylistBrowser({ playlists }: { playlists: PlaylistCard
     <section className="playlists">
       <div className="pl-head">
         <h2>Playlists</h2>
-        <span className="small muted">{list.length} shown</span>
+        <button type="button" className="pl-new" onClick={() => newPlaylist([])}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          New playlist
+        </button>
       </div>
 
       <div className="pl-sort">
@@ -137,7 +144,7 @@ export default function PlaylistBrowser({ playlists }: { playlists: PlaylistCard
               <div className="title">{p.name}</div>
               <div className="sub pl-meta">
                 <span className={`dot ${p.service}`} />
-                {p.service === 'spotify' ? 'Spotify' : 'YouTube'} · {p.count.toLocaleString()} songs
+                {p.service === 'spotify' ? 'Spotify' : p.service === 'youtube' ? 'YouTube' : 'Music Hub'} · {p.count.toLocaleString()} songs
                 {sort === 'recent' && p.last_added_at ? ` · ${ago(p.last_added_at)}` : ''}
               </div>
             </div>

@@ -9,7 +9,7 @@ function formatDuration(ms: number | null): string {
 }
 
 // One song in a list. Tap it to play; the ⋯ button opens Play next,
-// Add to queue, the music video, and links to Spotify / YouTube.
+// Add to queue, Add to playlist, the music video, and links to Spotify / YouTube.
 export default function TrackRow({
   track,
   active,
@@ -19,6 +19,8 @@ export default function TrackRow({
   onMenu,
   onPlayNext,
   onAddToQueue,
+  onAddToPlaylist,
+  onRemove,
 }: {
   track: TrackRowData;
   active: boolean;
@@ -28,6 +30,8 @@ export default function TrackRow({
   onMenu: (open: boolean) => void;
   onPlayNext: () => void;
   onAddToQueue: () => void;
+  onAddToPlaylist: () => void;
+  onRemove?: () => void; // only in your hub playlists
 }) {
   const spotify = sourceUrl(track, 'spotify');
   const youtube = sourceUrl(track, 'youtube');
@@ -72,6 +76,12 @@ export default function TrackRow({
           <div className="row-menu" role="menu">
             <button type="button" role="menuitem" onClick={onPlayNext}>Play next</button>
             <button type="button" role="menuitem" onClick={onAddToQueue}>Add to queue</button>
+            <button type="button" role="menuitem" onClick={onAddToPlaylist}>Add to playlist…</button>
+            {onRemove && (
+              <button type="button" role="menuitem" className="danger-item" onClick={onRemove}>
+                Remove from this playlist
+              </button>
+            )}
             {track.video_id && (
               <button type="button" role="menuitem" onClick={() => { onMenu(false); onVideo(); }}>
                 Watch music video

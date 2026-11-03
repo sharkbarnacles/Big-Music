@@ -196,3 +196,51 @@ language sql stable set search_path = public as $$
 $$;
 revoke execute on function artist_summary(text, boolean, integer) from public, anon, authenticated;
 grant execute on function artist_summary(text, boolean, integer) to service_role;
+
+-- ── Whole-library paging and hub playlists ──────────────────────────
+-- Playlists you make inside the hub have service = 'hub'.
+alter table playlists drop constraint if exists playlists_service_check, add constraint playlists_service_check check (service in ('spotify', 'youtube', 'hub'));
+
+-- One page of the Library (any filter, any order). `seed` gives a shuffled
+-- order that stays the same while paging. Also returns how many match.
+create or replace function library_page(
+  q text default null, only_videos boolean default false, both_services boolean default false,
+  main_artist text default null, sort_by text default 'artist', seed text default null,
+  off_n integer default 0, lim_n integer default 200)
+returns table(id uuid, total bigint)
+language sql stable set search_path = public as $$
+  select t.id, count(*) over () as total
+    from tracks t
+   where (q is null or t.title ilike '%' || q || '%' or t.artist ilike '%' || q || '%' or t.album ilike '%' || q || '%')
+     and (not only_videos or t.video_id is not null)
+     and (not both_services or (select count(distinct s.service) from track_sources s where s.track_id = t.id) > 1)
+     and (main_artist is null or lower(trim((regexp_split_to_array(t.artist, '\s*(,|&|\s+x\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*', 'i'))[1])) = lower(main_artist))
+   order by
+     case when seed is not null then md5(t.id::text || seed) end,
+     case when sort_by = 'recent' then t.created_at end desc,
+     case when sort_by = 'video' then t.video_id is null end,
+     case when sort_by = 'title' then lower(t.title) end,
+     lower(t.artist), lower(t.title), t.id
+   offset off_n limit lim_n;
+$$;
+revoke execute on function library_page(text, boolean, boolean, text, text, text, integer, integer) from public, anon, authenticated;
+grant execute on function library_page(text, boolean, boolean, text, text, text, integer, integer) to service_role;
+
+-- Artists in pages (off_n) so every artist can be shown (replaces artist_summary).
+create or replace function artist_page(search text default null, by_name boolean default false, off_n integer default 0, limit_n integer default 200)
+returns table(artist text, songs bigint, videos bigint, image_url text)
+language sql stable set search_path = public as $$
+  with t as (
+    select trim((regexp_split_to_array(artist, '\s*(,|&|\s+x\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*', 'i'))[1]) as a,
+           video_id, image_url
+      from tracks
+  )
+  select a, count(*), count(video_id), (array_agg(image_url) filter (where image_url is not null))[1]
+    from t
+   where a <> '' and (search is null or a ilike '%' || search || '%')
+   group by a
+   order by case when by_name then null else count(*) end desc nulls last, lower(a)
+   offset off_n limit limit_n;
+$$;
+revoke execute on function artist_page(text, boolean, integer, integer) from public, anon, authenticated;
+grant execute on function artist_page(text, boolean, integer, integer) to service_role;

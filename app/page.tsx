@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 type PlaylistRow = {
   id: string;
-  service: 'spotify' | 'youtube';
+  service: 'spotify' | 'youtube' | 'hub';
   name: string;
   image_url: string | null;
   imported_at: string;

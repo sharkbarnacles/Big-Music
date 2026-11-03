@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk } from 'next/font/google';
 import { Suspense } from 'react';
 import BottomNav from '@/components/BottomNav';
+import { PlaylistPickerProvider } from '@/components/PlaylistPicker';
 import { PlayerProvider } from '@/components/Player';
 import './globals.css';
 
@@ -28,12 +29,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={spaceGrotesk.variable}>
       <body>
-        <PlayerProvider>
-          {children}
-          <Suspense fallback={null}>
-            <BottomNav />
-          </Suspense>
-        </PlayerProvider>
+        <PlaylistPickerProvider>
+          <PlayerProvider>
+            {children}
+            <Suspense fallback={null}>
+              <BottomNav />
+            </Suspense>
+          </PlayerProvider>
+        </PlaylistPickerProvider>
       </body>
     </html>
   );
