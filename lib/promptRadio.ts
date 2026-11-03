@@ -204,7 +204,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   }
   // Look at a few more than needed: some turn out not to be what they say.
   const ranked = [...scored.values()].sort((a, b) => b.score - a.score);
-  const candidates = ranked.slice(0, 7);
+  const candidates = ranked.slice(0, 8);
   const debug = process.env.PROMPT_DEBUG ? [`queries: ${unique.join(' | ')}`, ...ranked.slice(0, 14).map((c) => `${c.score.toFixed(1)}  ${c.title}`)] : undefined;
   if (!candidates.length) return { songs: [], state: null, picked: [], liked: [] };
 
@@ -217,7 +217,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   const usedNow = candidates.filter((_, i) => lists[i]).map((c) => c.id);
   // Each playlist: does it fit the words (title score), is it really in the
   // language you asked for, and how close is it to your taste?
-  const rated = lists
+  const valid = lists
     .map((list, i) => {
       if (!list) return null;
       list.songs = list.songs.filter(isRealSong);
@@ -228,9 +228,19 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       const fit = sample.reduce((sum, x) => sum + affinity(taste, x.artist), 0) / sample.length;
       return { list, share, title: candidates[i].title, score: candidates[i].score + fit * 12 };
     })
-    .filter((x): x is NonNullable<typeof x> => x !== null)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+  // You described a sound: real playlists for a niche style share artists with
+  // each other; one that shares none with the others is probably an impostor
+  // (e.g. mainstream pop under an "experimental" title).
+  if ((styles.length || moods.length) && valid.length >= 3) {
+    const sets = valid.map((v) => new Set(v.list.songs.map((x) => artistKey(x.artist))));
+    valid.forEach((v, i) => {
+      let shared = 0;
+      for (const k of sets[i]) if (sets.some((other, j) => j !== i && other.has(k))) shared++;
+      v.score += Math.min(shared, 6) * 1.5 - (shared === 0 ? 8 : 0);
+    });
+  }
+  const rated = valid.sort((a, b) => b.score - a.score).slice(0, 3);
   const picked = rated.map((r) => r.title);
   // Profiles of the artists in these playlists (genres, tags, vocals), from the tagging job.
   const names = rated.flatMap((r) => r.list.songs.map((x) => x.artist));
