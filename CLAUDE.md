@@ -263,8 +263,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    adding to playlists. No DB errors found. Added `app/error.tsx` (a failed
    page no longer takes down the layout/player), made the cover wash cheap
    (small element scaled up, no full-screen blur), and the picker only
-   refreshes Home/playlist pages. Ask the owner whether it still happens and
-   what exactly they see (music stops? blank page? app reloads?).
+   refreshes Home/playlist pages. Then found a definite cause: Library
+   search was a plain `<form method=get>` (full reload → player lost); now
+   `next/form`. Player bar + Now Playing are wrapped in
+   `components/SafeBoundary.tsx`. No other full reloads in the code (all
+   links are next/link). Remaining possible cause: iOS reloading the app
+   under memory pressure (YouTube iframe + many cover images). Ask the
+   owner whether it still happens and exactly what they see.
    Queue: owner dislikes the two clashing queue buttons and the full-page
    queue; waiting on their Queue Lab pick (P+H+L+E).
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
@@ -300,3 +305,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Built the Now Playing redesign + chosen icons; keep star everywhere.
   Stability fixes (error.tsx, lighter wash, fewer refreshes); V9 eye.
   Radios saved to Past editions + Save as playlist; Queue Lab.
+  Player crash fix: in-app search form (was reloading), SafeBoundary.
