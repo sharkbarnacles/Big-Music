@@ -16,7 +16,8 @@ export type ItemLite = { id: string; reason: string | null; hearted: boolean };
 // part that matters is shown, so it fits: "HYUKOH".
 export function shortReason(reason: string | null): string | null {
   if (!reason) return null;
-  return reason.replace(/^Because you (like|played) /i, '').replace(/ a lot$/i, '');
+  // "From “Liked Songs”" (Forgotten favorites) → "“Liked Songs”", so the chip reads "via “Liked Songs”".
+  return reason.replace(/^Because you (like|played) /i, '').replace(/^From /i, '').replace(/ a lot$/i, '');
 }
 
 // The keep button (soft star, same as Now Playing): the song goes into your "Discoveries" playlist (and your Library).
