@@ -1,6 +1,7 @@
 'use client';
 
 import { sourceUrl, type TrackRowData } from '@/lib/tracks';
+import { smallCover } from '@/lib/img';
 
 function formatDuration(ms: number | null): string {
   if (!ms) return '';
@@ -41,7 +42,7 @@ export default function TrackRow({
   return (
     <div className={`item${active ? ' active' : ''}`}>
       <button type="button" className="row-play" onClick={onPlay} aria-label={`Play ${track.title} by ${track.artist}`}>
-        {track.image_url ? <img src={track.image_url} alt="" loading="lazy" /> : <div className="ph" />}
+        {track.image_url ? <img src={smallCover(track.image_url)} alt="" loading="lazy" decoding="async" /> : <div className="ph" />}
         <div className="main">
           <div className="title">{track.title}</div>
           <div className="sub">

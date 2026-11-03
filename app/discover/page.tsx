@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import PlayButtons from '@/components/PlayButtons';
 import { ArchiveCalendar, RadioExplore, TodayGrid } from '@/components/Discover';
 import { latestEditions, toTrack, type Edition } from '@/lib/discover';
+import { smallCover } from '@/lib/img';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ function MixCard({ edition, fallback }: { edition?: Edition; fallback: { title: 
     <Link href={`/discover/${edition.id}`} className="d-mix">
       <span className="d-quad" aria-hidden="true">
         {covers.map((c, i) => (
-          <img key={i} src={c} alt="" loading="lazy" />
+          <img key={i} src={smallCover(c)} alt="" loading="lazy" decoding="async" />
         ))}
       </span>
       <span className="d-nm">{edition.title}</span>

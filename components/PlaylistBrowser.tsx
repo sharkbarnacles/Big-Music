@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
+import { smallCover } from '@/lib/img';
 
 // Playlists on Home (Playlist Sort Lab pick S1 + G3 + K1 + P1):
 // one mixed list, newest first by default, a "Sort" drop-down, and chips to
@@ -144,7 +145,7 @@ export default function PlaylistBrowser({ playlists }: { playlists: PlaylistCard
       <div className="list">
         {list.map((p) => (
           <Link className="item pl-row" key={p.id} href={`/playlists/${p.id}`}>
-            {p.image_url ? <img src={p.image_url} alt="" loading="lazy" /> : <div className="ph" />}
+            {p.image_url ? <img src={smallCover(p.image_url)} alt="" loading="lazy" decoding="async" /> : <div className="ph" />}
             <div className="main">
               <div className="title">{p.name}</div>
               <div className="sub pl-meta">

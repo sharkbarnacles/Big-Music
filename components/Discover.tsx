@@ -8,6 +8,7 @@ import { SPIRAL } from '@/lib/icons';
 import { artistLine, splitTitle } from '@/lib/titles';
 import type { TrackRowData } from '@/lib/tracks';
 import { readRadioMode, RADIO_MODE_KEY, usePlayer, type RadioMode } from './Player';
+import { smallCover } from '@/lib/img';
 
 export type ItemLite = { id: string; reason: string | null; hearted: boolean };
 
@@ -80,7 +81,7 @@ export function TodayGrid({ tracks, items }: { tracks: TrackRowData[]; items: It
             onClick={() => player.playList(tracks, i, { noShuffle: true, from: 'Daily discover' })}
             aria-label={`Play ${t.title} by ${t.artist}`}
           >
-            <span className="d-cover">{t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : null}</span>
+            <span className="d-cover">{t.image_url ? <img src={smallCover(t.image_url, 'tile')} alt="" loading="lazy" decoding="async" /> : null}</span>
             <span className="d-nm">{splitTitle(t.title).title}</span>
             <span className="d-ar">{t.artist}</span>
             {items[i].reason && (
@@ -114,7 +115,7 @@ export function DiscoverList({ tracks, items, from }: { tracks: TrackRowData[]; 
               onClick={() => player.playList(tracks, i, { noShuffle: true, from })}
               aria-label={`Play ${t.title} by ${t.artist}`}
             >
-              {t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : <div className="ph" />}
+              {t.image_url ? <img src={smallCover(t.image_url)} alt="" loading="lazy" decoding="async" /> : <div className="ph" />}
               <div className="main">
                 <div className="title">
                   {active && <span className="eq" aria-hidden="true"><i /><i /><i /></span>}
@@ -142,7 +143,7 @@ export function Mosaic({ images }: { images: (string | null)[] }) {
   while (four.length < 4) four.push('');
   return (
     <div className="mix-mosaic" aria-hidden="true">
-      {four.map((src, i) => (src ? <img key={i} src={src} alt="" /> : <span key={i} />))}
+      {four.map((src, i) => (src ? <img key={i} src={smallCover(src)} alt="" decoding="async" /> : <span key={i} />))}
     </div>
   );
 }

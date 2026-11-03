@@ -6,7 +6,9 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
 import QueueList from './QueueList';
 import SafeBoundary from './SafeBoundary';
+import { clientLog } from '@/lib/clientLog';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
+import { smallCover } from '@/lib/img';
 
 // ── How playback works ────────────────────────────────────────────────
 // The hub owns the queue: which songs, in what order, shuffle and repeat.
@@ -155,6 +157,49 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const historyRef = useRef<TrackRowData[]>([]); // songs you were on before, newest last (for Back)
   const ytIdRef = useRef<string | null>(null); // the YouTube video loaded right now
   const versionsAskedRef = useRef(new Set<string>()); // songs already asked about
+
+  // Crash log. Errors anywhere in the app are noted, and so is a restart that
+  // happens while music was playing: iOS shutting the home-screen app down
+  // (usually for memory) looks exactly like that.
+  useEffect(() => {
+    try {
+      const last = JSON.parse(localStorage.getItem('mh-alive') || 'null');
+      if (last?.playing && Date.now() - last.at < 90_000) {
+        const nav = (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type;
+        clientLog('restart-while-playing', `was on ${last.page}`, { secondsAgo: Math.round((Date.now() - last.at) / 1000), nav, song: last.song, sheet: last.sheet, images: last.images });
+      }
+    } catch {
+      /* private browsing */
+    }
+    const onError = (e: ErrorEvent) => clientLog('error', `${e.message} @ ${e.filename}:${e.lineno}`, { stack: String(e.error?.stack ?? '').slice(0, 1500) });
+    const onRejection = (e: PromiseRejectionEvent) => clientLog('rejection', String(e.reason?.stack ?? e.reason).slice(0, 1500));
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    // Every few seconds: am I playing, and where? (read on the next start)
+    const beat = window.setInterval(() => {
+      try {
+        const t = queueRef.current[indexRef.current];
+        localStorage.setItem(
+          'mh-alive',
+          JSON.stringify({
+            at: Date.now(),
+            playing: playingRef.current,
+            page: location.pathname + location.search,
+            song: t ? `${t.title} — ${t.artist}` : null,
+            sheet: Boolean(document.querySelector('.sheet')),
+            images: document.images.length,
+          }),
+        );
+      } catch {
+        /* private browsing */
+      }
+    }, 5000);
+    return () => {
+      window.clearInterval(beat);
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, []);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [device, setDevice] = useState<string | null>(null);
@@ -1233,16 +1278,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           zIndex: 41,
           borderRadius: 14,
         }
-      : ytActive && !sheetOpen && video
-        ? {
-            left: 0,
-            right: 0,
-            bottom: `calc(var(--nav-h) + ${BAR_HEIGHT + 16}px + env(safe-area-inset-bottom))`,
-            width: '100%',
-            aspectRatio: '16 / 9',
-            maxHeight: '45vh',
-          }
-        : ytActive && !sheetOpen
+      // The music video only shows big inside Now Playing (owner's wish); with
+      // the sheet closed it stays the small square in the bar.
+      : ytActive && !sheetOpen
           ? {
               // over the artwork square in the floating player card
               left: 'calc(max(10px, env(safe-area-inset-left)) + 9px)',
@@ -1298,9 +1336,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Space so the bar never covers the end of a list. */}
-      {current && <div aria-hidden="true" style={{ height: BAR_HEIGHT + 24 + (video && ytActive ? 240 : 0) }} />}
+      {current && <div aria-hidden="true" style={{ height: BAR_HEIGHT + 24 + 0 }} />}
 
-      <div ref={hostRef} className={`yt-host${ytActive && sheetOpen && !video ? ' square' : ''}`} style={hostStyle} />
+      <div ref={hostRef} className={`yt-host${ytActive && (!sheetOpen || !video) ? ' square' : ''}`} style={hostStyle} />
 
       {(toast || notice) && !sheetOpen && (
         <div className="player-float" style={{ bottom: `calc(var(--nav-h) + ${current ? BAR_HEIGHT + 16 : 10}px + env(safe-area-inset-bottom))` }}>
@@ -1338,7 +1376,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           {ytActive ? (
             <div className="player-art-slot" />
           ) : current.image_url ? (
-            <img className="player-art" src={current.image_url} alt="" />
+            <img className="player-art" src={smallCover(current.image_url)} alt="" />
           ) : (
             <div className="player-art" />
           )}

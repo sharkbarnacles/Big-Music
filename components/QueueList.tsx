@@ -4,6 +4,7 @@ import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
 import { splitTitle } from '@/lib/titles';
 import { useEffect, useRef, useState } from 'react';
 import type { TrackRowData } from '@/lib/tracks';
+import { smallCover } from '@/lib/img';
 
 // "Up next" under the Now Playing controls (Queue Lab pick P3 + H3 + L3 + E3,
 // cleaned up 2026-11-03): the song playing now is pinned on top, then one flat
@@ -227,7 +228,7 @@ export default function QueueList(p: Props) {
         style={dy ? { transform: `translate3d(0, ${dy}px, 0)` } : undefined}
       >
         <button type="button" className="q-play" onClick={() => !dragRef.current && p.onPlay(j)} aria-label={`Play ${t.title} by ${t.artist}`}>
-          {t.image_url ? <img src={t.image_url} alt="" loading="lazy" draggable={false} /> : <span className="ph" />}
+          {t.image_url ? <img src={smallCover(t.image_url)} alt="" loading="lazy" decoding="async" draggable={false} /> : <span className="ph" />}
           <span className="q-text">
             <span className="title">{splitTitle(t.title).title}</span>
             <span className="sub">{t.artist}</span>
@@ -296,7 +297,7 @@ export default function QueueList(p: Props) {
             return (
               <div key={`e-${keyOf(t)}`} className="q-row past">
                 <button type="button" className="q-play" onClick={() => p.onPlay(j)} aria-label={`Go back to ${t.title} by ${t.artist}`}>
-                  {t.image_url ? <img src={t.image_url} alt="" loading="lazy" draggable={false} /> : <span className="ph" />}
+                  {t.image_url ? <img src={smallCover(t.image_url)} alt="" loading="lazy" decoding="async" draggable={false} /> : <span className="ph" />}
                   <span className="q-text">
                     <span className="title">{splitTitle(t.title).title}</span>
                     <span className="sub">{t.artist}</span>
@@ -312,7 +313,7 @@ export default function QueueList(p: Props) {
           <div className="q-group">Now playing</div>
           <div className="q-row current">
             <span className="q-play">
-              {now.image_url ? <img src={now.image_url} alt="" draggable={false} /> : <span className="ph" />}
+              {now.image_url ? <img src={smallCover(now.image_url)} alt="" decoding="async" draggable={false} /> : <span className="ph" />}
               <span className="q-text">
                 <span className="title">
                   <span className="eq" aria-hidden="true"><i /><i /><i /></span>

@@ -316,6 +316,17 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    Not yet confirmed from Vercel or on the phone.
    **Queue history:** "Earlier" section above Now playing (last 3 / Show all);
    Back uses `historyRef` (songs you were on, newest last).
+   **Crash work (2026-11-03, owner: player still "crashes" on page changes):**
+   likely iOS killing the home-screen app for memory: every list loaded the
+   640px Spotify cover. `lib/img.ts` `smallCover()` now swaps in 300px
+   Spotify / sized Google / mqdefault YouTube images everywhere small (Now
+   Playing keeps full size). Crash log: table `client_events` via
+   `/api/client-log` (`lib/clientLog.ts`): window errors, page errors
+   (`app/error.tsx`), SafeBoundary glitches, and `restart-while-playing`
+   (localStorage `mh-alive` heartbeat every 5 s). Check with
+   `select * from client_events order by at desc limit 50;`
+   The wide music-video panel above the mini player is gone (owner didn't
+   want it); with the sheet closed the video is the small square in the bar.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -357,3 +368,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Cover jitter fix (video hides while scrolling); app icon M1+B2+N1.
   MV ↔ studio audio switch, Earlier songs in the queue, Back = real history.
   Queue grips no longer block scrolling (short press before a song lifts).
+  Smaller covers in lists (crash suspect), crash log, no video panel over the bar.

@@ -386,3 +386,17 @@ alter table discover_editions drop constraint if exists discover_editions_kind_e
 create unique index if not exists discover_editions_one_per_day on discover_editions(kind, edition_date) where kind <> 'radio';
 alter table discover_editions add column if not exists seed_video_id text;
 alter table discover_editions add column if not exists playlist_id uuid references playlists(id) on delete set null;  -- set once saved as a playlist
+
+-- ── Crash log ──────────────────────────────────────────────────────
+-- Notes the app sends about itself: errors, and restarts that happened
+-- while music was playing (iOS shutting the home-screen app down).
+create table if not exists client_events (
+  id         bigint generated always as identity primary key,
+  at         timestamptz not null default now(),
+  kind       text not null,
+  message    text,
+  page       text,
+  detail     jsonb
+);
+create index if not exists client_events_at on client_events(at desc);
+alter table client_events enable row level security;

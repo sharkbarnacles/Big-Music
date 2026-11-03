@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { createContext, useContext, useState } from 'react';
 import type { HubPlaylist } from '@/lib/hubPlaylists';
+import { smallCover } from '@/lib/img';
 
 // The "Add to playlist" panel. Any part of the app can open it with
 // usePlaylistPicker()(songs). With no songs it just makes a new, empty
@@ -121,7 +122,7 @@ export function PlaylistPickerProvider({ children }: { children: React.ReactNode
                 {lists?.length === 0 && <p className="small muted">No hub playlists yet. Make one above.</p>}
                 {lists?.map((p) => (
                   <button type="button" className="item pl-row picker-row" key={p.id} onClick={() => addTo(p)} disabled={busy}>
-                    {p.image_url ? <img src={p.image_url} alt="" /> : <div className="ph" />}
+                    {p.image_url ? <img src={smallCover(p.image_url)} alt="" loading="lazy" decoding="async" /> : <div className="ph" />}
                     <span className="main">
                       <span className="title">{p.name}</span>
                       <span className="sub">{p.count.toLocaleString()} songs</span>

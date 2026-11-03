@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 import type { ArtistRow } from '@/lib/libraryQuery';
 import MoreLoader from './MoreLoader';
+import { smallCover } from '@/lib/img';
 
 // Every artist, loading more as you scroll. Tap one to see their songs.
 export default function ArtistList({ initial, query }: { initial: ArtistRow[]; query: string }) {
@@ -37,7 +38,7 @@ export default function ArtistList({ initial, query }: { initial: ArtistRow[]; q
     <div className="list">
       {artists.map((a) => (
         <Link className="item" key={a.artist} href={`/library?artist=${encodeURIComponent(a.artist)}`}>
-          {a.image_url ? <img src={a.image_url} alt="" loading="lazy" className="artist-pic" /> : <div className="ph artist-pic" />}
+          {a.image_url ? <img src={smallCover(a.image_url)} alt="" loading="lazy" decoding="async" className="artist-pic" /> : <div className="ph artist-pic" />}
           <div className="main">
             <div className="title">{a.artist}</div>
             <div className="sub">

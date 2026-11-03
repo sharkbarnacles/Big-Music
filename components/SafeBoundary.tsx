@@ -1,6 +1,7 @@
 'use client';
 
 import { Component, type ReactNode } from 'react';
+import { clientLog } from '@/lib/clientLog';
 
 // Catches a glitch inside part of the player's screen (Now Playing, the bar)
 // so only that part resets. The music, the queue and the YouTube player live
@@ -12,6 +13,7 @@ export default class SafeBoundary extends Component<{ children: ReactNode; onRes
   }
   componentDidCatch(error: unknown) {
     console.error('Player screen error:', error);
+    clientLog('player-glitch', String((error as Error)?.stack ?? error).slice(0, 1500));
   }
   render() {
     if (!this.state.failed) return this.props.children;
