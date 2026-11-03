@@ -1,0 +1,19 @@
+# Temporary: checks that YouTube Music's radio request works without login.
+name: Radio probe (temporary)
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          V=dQw4w9WgXcQ
+          curl -sS https://music.youtube.com/youtubei/v1/next?prettyPrint=false \
+            -H 'Content-Type: application/json' -H 'Origin: https://music.youtube.com' \
+            -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' \
+            -d "{\"context\":{\"client\":{\"clientName\":\"WEB_REMIX\",\"clientVersion\":\"1.20251015.03.00\",\"hl\":\"en\",\"gl\":\"US\"}},\"videoId\":\"$V\",\"playlistId\":\"RDAMVM$V\",\"isAudioOnly\":true,\"enablePersistentPlaylistPanel\":true,\"tunerSettingValue\":\"AUTOMIX_SETTING_NORMAL\"}" > r.json
+          jq -c '.contents.singleColumnMusicWatchNextResultsRenderer.tabbedRenderer.watchNextTabbedResultsRenderer.tabs[0].tabRenderer.content.musicQueueRenderer.content.playlistPanelRenderer | {n: (.contents|length), cont: (.continuations[0]|keys), first: [.contents[0:3][] | (.playlistPanelVideoRenderer // .playlistPanelVideoWrapperRenderer.primaryRenderer.playlistPanelVideoRenderer) | {v:.videoId, t:.title.runs[0].text, by:[.longBylineText.runs[].text]|join(""), len:.lengthText.runs[0].text, thumb:(.thumbnail.thumbnails|last|.url)}]}' r.json
+          C=$(jq -r '.contents.singleColumnMusicWatchNextResultsRenderer.tabbedRenderer.watchNextTabbedResultsRenderer.tabs[0].tabRenderer.content.musicQueueRenderer.content.playlistPanelRenderer.continuations[0].nextRadioContinuationData.continuation' r.json)
+          curl -sS https://music.youtube.com/youtubei/v1/next?prettyPrint=false \
+            -H 'Content-Type: application/json' -H 'Origin: https://music.youtube.com' \
+            -d "{\"context\":{\"client\":{\"clientName\":\"WEB_REMIX\",\"clientVersion\":\"1.20251015.03.00\",\"hl\":\"en\",\"gl\":\"US\"}},\"continuation\":\"$C\",\"enablePersistentPlaylistPanel\":true,\"isAudioOnly\":true}" > c.json
+          jq -c '{keys: keys, cont: (.continuationContents|keys), n: (.continuationContents.playlistPanelContinuation.contents|length)}' c.json
