@@ -304,6 +304,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json().catch(() => ({}));
       if (token !== tokenRef.current) return;
+      if (!res.ok && data.error === 'no_device') {
+        // Spotify is asleep: wake it up for you and let the server start the music.
+        wakeSpotify(token, { ids, positionMs, deviceId: sdkDeviceRef.current, repeatOne: repeatRef.current === 'one' });
+        return;
+      }
       if (!res.ok) {
         setPlay(false);
         const href = sourceUrl(list[i], 'spotify');
@@ -325,6 +330,51 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (token === tokenRef.current) setBusy(false);
     }
+  };
+
+  // Opens the Spotify app (that's what wakes it up on a phone) and asks the
+  // server to start the music as soon as Spotify appears. The request is sent
+  // with keepalive, so it finishes even if the hub goes into the background,
+  // and the songs keep playing in Spotify with the phone locked.
+  const wakeSpotify = (token: number, body: Record<string, unknown>) => {
+    setBusy(true);
+    setNotice({
+      text: 'Waking Spotify… your music starts in a few seconds. You can lock your phone.',
+      link: { href: 'spotify:', label: 'Open Spotify' },
+    });
+    fetch('/api/play/spotify', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, wait: true }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (token !== tokenRef.current) return;
+        if (!ok) {
+          setPlay(false);
+          setNotice({
+            text: d.message ?? 'Spotify didn’t wake up. Open the Spotify app, then press Play again.',
+            action: { label: 'Use YouTube mode', run: () => setYoutubeMode(true) },
+          });
+          return;
+        }
+        setNotice(null);
+        setDevice(d.device ?? null);
+        setPlay(true);
+        posRef.current = { ms: Number(body.positionMs) || 0, at: Date.now() };
+        setTimeout(() => pollSpotify(), 1500);
+      })
+      .catch(() => {
+        /* the hub was in the background; the next check catches up */
+      })
+      .finally(() => {
+        if (token === tokenRef.current) setBusy(false);
+      });
+    // Opening Spotify is what makes it show up as a player.
+    setTimeout(() => {
+      window.location.href = 'spotify:';
+    }, 150);
   };
 
   const startYouTube = (id: string, startMs: number) => {

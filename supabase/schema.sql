@@ -349,3 +349,15 @@ language sql set search_path = public as $$
    where pl.played_at >= month_start and pl.played_at < (month_start + interval '1 month')
    group by pl.track_id order by count(*) desc limit lim;
 $$;
+
+-- ── Spotify queue handoff ───────────────────────────────────────────
+-- Spotify's apps ignore a list of songs handed over at once, but they do
+-- follow their own queue. The hub plays the first song and adds the rest
+-- to Spotify's queue; it remembers what it added so leftovers can be
+-- skipped next time (Spotify has no "clear queue").
+create table if not exists spotify_queue_state (
+  id         integer primary key default 1 check (id = 1),
+  queued     text[] not null default '{}',
+  updated_at timestamptz not null default now()
+);
+alter table spotify_queue_state enable row level security;
