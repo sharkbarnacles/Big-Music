@@ -1,0 +1,27 @@
+name: Try radio from words
+# Manual: runs lib/promptRadio.ts on some prompts and saves the picks to the
+# side branch `probe-output` (never main).
+on:
+  workflow_dispatch:
+    inputs:
+      prompts:
+        description: Prompts separated by |
+        default: niche underground chill thai
+permissions:
+  contents: write
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npx -y tsx scripts/try_prompt.mts
+        env: { PROMPTS: "${{ inputs.prompts }}" }
+      - name: Save to probe-output branch
+        run: |
+          mv probe /tmp/probe
+          git config user.name "probe" && git config user.email "probe@users.noreply.github.com"
+          git checkout --orphan probe-output
+          git rm -rq --cached . && rm -rf ./* .vercel 2>/dev/null; true
+          cp /tmp/probe/* . && git add *.json && git commit -qm "probe" && git push -f origin probe-output
