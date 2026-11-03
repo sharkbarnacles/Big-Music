@@ -59,6 +59,13 @@ Environment variables (set in Vercel; names only, never values):
   (Next loads the new version with a full reload), so batch app changes
   into fewer pushes. The player survives it (`savePlayer`/`restorePlayer`,
   localStorage `mh-player`): the queue comes back paused, Play resumes.
+- **Vercel Hobby limits deploys per day** (hit on 2026-11-03 after ~60
+  deploys: "Deployment rate limited — retry in 24 hours"; the live site
+  stays on the last good deploy). Batch changes. A commit pushed while
+  limited is not retried: after the reset, push any real app change
+  (notes-only commits are skipped by vercel.json). Pending since the limit:
+  goth/emo/metal/visual kei styles + style-fit lift (commits d046afe,
+  321b273, 1541ea6).
 - Database changes: the Supabase connector (apply_migration / execute_sql) on
   project `dvcjjcuqmhwdahhaafuy`, **and** append the same SQL to
   `supabase/schema.sql` (kept re-runnable with `if not exists`).
