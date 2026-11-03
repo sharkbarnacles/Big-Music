@@ -305,3 +305,52 @@ details.services summary { gap: 12px; }
 .pl-row img, .pl-row .ph { width: 52px; height: 52px; border-radius: 8px; }
 .pl-meta { display: flex; align-items: center; gap: 6px; }
 .pl-meta .dot { width: 7px; height: 7px; margin: 0; flex: none; }
+
+/* ── Header (Home Top Lab H2 + V3) ─────────────────────────────────── */
+.top-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0 6px; }
+.brand-small { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.top-actions { display: flex; gap: 8px; }
+.round-btn { position: relative; width: 42px; height: 42px; padding: 0; border-radius: 50%; }
+.round-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.status-dots { position: absolute; top: -1px; right: -2px; display: flex; gap: 2px; }
+.status-dots .dot { width: 8px; height: 8px; margin: 0; box-shadow: 0 0 0 2px var(--bg); }
+
+/* Panel that slides up from the bottom (Services, Account) */
+.panel-back { position: fixed; inset: 0; z-index: 44; background: rgba(0, 0, 0, 0.55); border: 0; border-radius: 0; padding: 0; }
+.panel-back:hover { border: 0; }
+.panel-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+  max-height: 85vh; overflow-y: auto;
+  display: grid; gap: 12px;
+  padding: 10px max(18px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: var(--raised); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0;
+}
+@media (min-width: 640px) { .panel-sheet { left: 50%; right: auto; width: 520px; transform: translateX(-50%); } }
+.panel-grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 4px; }
+.panel-sheet h3 { margin: 0; font-size: 18px; }
+.svc-card { display: grid; gap: 10px; padding: 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); }
+.svc-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; }
+.svc-top b { display: inline-flex; align-items: center; }
+.svc-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.svc-acts > div { display: contents; }
+.panel-wide { width: 100%; height: 46px; font-weight: 600; }
+
+/* One line of library numbers (T2) */
+.lib-line { margin: 8px 0 4px; font-size: 14px; color: var(--muted); }
+.lib-line b { color: var(--text); font-weight: 600; }
+
+/* Messages that pop up and fade (N2) */
+.flash-toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 46;
+  bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: 8px; max-width: calc(100% - 32px);
+  padding: 10px 16px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line);
+  font-size: 14px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  animation: flash-in 0.25s ease-out;
+}
+.flash-toast svg { width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.flash-toast.error { border-color: var(--danger); color: var(--danger); border-radius: 14px; }
+.flash-toast button { border: 0; background: none; padding: 2px 4px; color: inherit; }
+@keyframes flash-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .flash-toast { animation: none; } }
+.pl-head h2 { margin-top: 18px; }
