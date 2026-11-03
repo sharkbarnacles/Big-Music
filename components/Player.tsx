@@ -4,6 +4,7 @@ import { SPIRAL } from '@/lib/icons';
 import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
+import SafeBoundary from './SafeBoundary';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
 
 // ── How playback works ────────────────────────────────────────────────
@@ -1159,6 +1160,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
+      <SafeBoundary onReset={() => setSheetOpen(false)}>
       {current && !sheetOpen && (
         <div className="player-bar" role="region" aria-label="Player" style={{ height: BAR_HEIGHT }}>
           <div className="player-progress" aria-hidden="true">
@@ -1358,6 +1360,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           )}
         </div>
       )}
+      </SafeBoundary>
     </PlayerContext.Provider>
   );
 }

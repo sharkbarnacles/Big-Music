@@ -558,3 +558,8 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .d-legend i.radio { background: var(--youtube); opacity: .7; }
 .d-save { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
 .d-save .chip { height: 34px; font-size: 13px; }
+
+/* Shown if part of the player's screen hits a glitch (music keeps playing). */
+.safe-boundary { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); z-index: 45;
+  display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 14px;
+  background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; }

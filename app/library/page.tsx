@@ -1,3 +1,4 @@
+import Form from 'next/form';
 import Link from 'next/link';
 import ArtistList from '@/components/ArtistList';
 import FilterMenu from '@/components/FilterMenu';
@@ -167,7 +168,9 @@ function Title({
 function SearchRow({ params, placeholder }: { params: LibraryParams; placeholder: string }) {
   return (
     <div className="search-row">
-      <form method="get" action="/library" className="search-form" role="search">
+      {/* next/form searches inside the app; a plain <form> reloaded the whole page,
+          which threw away the player and stopped the music. */}
+      <Form action="/library" className="search-form" role="search">
         {params.search && <input type="hidden" name="search" value="1" />}
         {params.view !== 'songs' && <input type="hidden" name="view" value={params.view} />}
         {params.sort !== defaultSort(params.view) && <input type="hidden" name="sort" value={params.sort} />}
@@ -180,7 +183,7 @@ function SearchRow({ params, placeholder }: { params: LibraryParams; placeholder
           autoFocus={params.search}
           aria-label={placeholder}
         />
-      </form>
+      </Form>
       <FilterMenu params={params} />
     </div>
   );
