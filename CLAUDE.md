@@ -78,8 +78,15 @@ Environment variables (set in Vercel; names only, never values):
   - **Spotify** (switch YouTube mode off): Spotify Connect remote control via
     `app/api/play/spotify` and `app/api/player/spotify`; on computers the
     Spotify Web Playback SDK plays in the tab (`app/api/spotify/token`).
-- `components/TrackList.tsx` / `TrackRow.tsx`: song lists with Play, Shuffle,
-  the YouTube mode switch, row menu (Play next, Add to queue, video, links).
+- `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
+  next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
+  in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
+  switch is only in the Now Playing sheet.
+- Library page (`app/library/page.tsx`): views Songs / Artists / Music videos
+  and sort/filter chosen from the drop-down `components/FilterMenu.tsx`
+  (address settings in `lib/libraryParams.ts`). Artists come from the SQL
+  function `artist_summary` (main artist = first name before , & x feat. ft.);
+  `?artist=Name` shows one artist's songs.
 - `components/BottomNav.tsx`: Home, Search (= `/library?search=1`), Discover
   (placeholder), Library.
 - Background finder: `scripts/find_videos.py` (ytmusicapi, unofficial) run by
@@ -139,9 +146,12 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    "MUSIC HUB" label with round Services (two status dots) and Account
    buttons opening bottom panels (`components/Header.tsx` → `HeaderBar.tsx`,
    used on every page), one line of numbers, pop-up messages that fade
-   (`components/FlashToast.tsx`). Waiting on their Library Top Lab pick
-   (like "T2 + F3 + V2 + A1") to slim the top of the Library page. The "Connected …" message comes from the
+   (`components/FlashToast.tsx`). The "Connected …" message comes from the
    `?connected=` URL parameter after sign-in.
+   Library top uses their Library Top Lab pick **T2 + F2 + V4 + A3** with
+   changes they asked for: filter button opens a drop-down (not a panel),
+   Artists and Music videos views, Shuffle drawn as a spiral. Video finder
+   button removed from the page (the background finder does the work).
 2. Organization (phase 3): tags, ratings, notes, smart playlists, manual fix
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
@@ -157,4 +167,6 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   queue, YouTube mode, Spotify Connect), made YouTube mode the default after
   Spotify's album issue; ran the design labs and applied the chosen look;
   added this file. Services box on Home now folds; status-bar strip for the
-  home-screen app; built the Playlist Sort Lab.
+  home-screen app; built the Playlist Sort Lab. Applied the Playlist Sort,
+  Home Top and Library Top picks; added Artists / Music videos views and the
+  spiral Shuffle.
