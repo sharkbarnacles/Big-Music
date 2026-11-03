@@ -89,6 +89,14 @@ Environment variables (set in Vercel; names only, never values):
   - **Spotify** (switch YouTube mode off): Spotify Connect remote control via
     `app/api/play/spotify` and `app/api/player/spotify`; on computers the
     Spotify Web Playback SDK plays in the tab (`app/api/spotify/token`).
+    **Queue handoff (2026-11-03):** plays the first song alone, then adds up
+    to 30 more to Spotify's own queue (Spotify follows its queue in order and
+    keeps playing with the phone locked); leftovers from the last handoff
+    (`spotify_queue_state`) are skipped with next. No device → the player
+    opens `spotify:` and a keepalive POST with `wait:true` polls devices
+    server-side for 45 s, then starts. Untested on the phone yet (Spotify
+    time-out until 2026-11-04 08:31 UTC). Discoveries have no Spotify IDs, so
+    they still need YouTube mode.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -237,3 +245,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   source dots. Discovery research + Lab v2.
   Spotify pause handling + hourly resume job. Discover stage 1 (daily job,
   dated editions, hearts, archive calendar, play counting).
+  Self-hosting research (declined). Spotify queue handoff + auto-wake.
