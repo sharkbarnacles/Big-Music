@@ -293,14 +293,18 @@ details.services summary { gap: 12px; }
 .playlists { margin-top: 8px; }
 .pl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .pl-head h2 { margin-bottom: 10px; }
-.pl-sort { position: relative; display: inline-block; }
-.pl-sort-btn { height: 36px; gap: 6px; font-size: 14px; }
+.pl-controls-wrap { position: relative; margin: 10px 0 6px; }
+.pl-controls { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.pl-controls::-webkit-scrollbar { display: none; }
+.pl-sort-btn { flex: none; height: 32px; padding: 0 11px 0 8px; gap: 4px; font-size: 13px; }
+.pl-sort-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); }
+.pl-divider { flex: none; width: 1px; height: 20px; background: var(--line); }
 .pl-menu { left: 0; right: auto; top: calc(100% + 6px); }
 .row-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
 .row-menu button[aria-checked="true"]::after { content: "✓"; float: right; }
-.pl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
-.pl-chip { height: 34px; gap: 6px; font-size: 14px; }
-.pl-chip .dot { width: 8px; height: 8px; margin: 0; }
+.pl-chips { display: flex; flex-wrap: nowrap; gap: 6px; }
+.pl-chip { flex: none; height: 32px; padding: 0 11px; gap: 5px; font-size: 13px; white-space: nowrap; }
+.pl-chip .dot { width: 7px; height: 7px; margin: 0; }
 .pl-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .pl-row img, .pl-row .ph { width: 52px; height: 52px; border-radius: 8px; }
 .pl-meta { display: flex; align-items: center; gap: 6px; }

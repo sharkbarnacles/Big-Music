@@ -6,7 +6,7 @@ import { usePlaylistPicker } from './PlaylistPicker';
 
 // Playlists on Home (Playlist Sort Lab pick S1 + G3 + K1 + P1):
 // one mixed list, newest first by default, a "Sort" drop-down, and chips to
-// show only your hub playlists ("Mine"), Spotify or YouTube Music.
+// show only your hub playlists ("Mine"), Spotify or YouTube.
 // "New playlist" makes a playlist inside the hub.
 
 export type PlaylistCard = {
@@ -30,7 +30,7 @@ const SHOWS: { id: Show; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'hub', label: 'Mine' },
   { id: 'spotify', label: 'Spotify' },
-  { id: 'youtube', label: 'YouTube Music' },
+  { id: 'youtube', label: 'YouTube' },
 ];
 const KEY = 'musichub.playlistView';
 
@@ -94,16 +94,30 @@ export default function PlaylistBrowser({ playlists }: { playlists: PlaylistCard
         </button>
       </div>
 
-      <div className="pl-sort">
-        <button
-          type="button"
-          className="pl-sort-btn"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          <span className="muted">Sort:</span> {current.short} ▾
-        </button>
+      {/* Sort and the service chips share one line (it scrolls sideways on very narrow phones). */}
+      <div className="pl-controls-wrap">
+        <div className="pl-controls">
+          <button
+            type="button"
+            className="pl-sort-btn"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label={`Sort: ${current.short}`}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg>
+            {current.short}
+          </button>
+          <span className="pl-divider" aria-hidden="true" />
+          <div className="pl-chips" role="group" aria-label="Show playlists from">
+            {SHOWS.map((s) => (
+              <button key={s.id} type="button" className="pl-chip" aria-pressed={show === s.id} onClick={() => setShow(s.id)}>
+                {s.id !== 'all' && <span className={`dot ${s.id}`} />}
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {menuOpen && (
           <>
             <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
@@ -125,15 +139,6 @@ export default function PlaylistBrowser({ playlists }: { playlists: PlaylistCard
             </div>
           </>
         )}
-      </div>
-
-      <div className="pl-chips" role="group" aria-label="Show playlists from">
-        {SHOWS.map((s) => (
-          <button key={s.id} type="button" className="pl-chip" aria-pressed={show === s.id} onClick={() => setShow(s.id)}>
-            {s.id !== 'all' && <span className={`dot ${s.id}`} />}
-            {s.label}
-          </button>
-        ))}
       </div>
 
       <div className="list">
