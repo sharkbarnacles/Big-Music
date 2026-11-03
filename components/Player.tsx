@@ -1288,6 +1288,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               width: 48,
               height: 48,
               borderRadius: 6,
+              // Still playing, but hidden: at this size YouTube shows its own
+              // spinner and buttons, so the bar shows the cover picture instead.
+              opacity: 0,
+              pointerEvents: 'none',
             }
           : { left: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' };
 
@@ -1373,9 +1377,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           <div className="player-progress" aria-hidden="true">
             <span style={{ width: `${pct}%` }} />
           </div>
-          {ytActive ? (
-            <div className="player-art-slot" />
-          ) : current.image_url ? (
+          {current.image_url ? (
             <img className="player-art" src={smallCover(current.image_url)} alt="" />
           ) : (
             <div className="player-art" />
