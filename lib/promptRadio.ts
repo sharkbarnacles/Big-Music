@@ -45,7 +45,7 @@ const ORIGINS: Origin[] = [
 // title counts as matching if it has any of the mood's usual words.
 const MOODS: Record<string, string[]> = {
   chill: ['chill', 'chilled', 'relax', 'calm', 'mellow', 'soft', 'lofi', 'lo-fi', 'easy', 'ชิล', '잔잔', '칠', 'まったり', '放松', '轻松', '慵懒', '放鬆'],
-  dark: ['dark', 'existential', 'gloomy', 'bleak', 'melancholic', 'brooding', 'nihilist', '丧', '致郁', '暗黑', '存在主义', '黑暗', '頹', '颓'],
+  dark: ['dark', 'gloomy', 'bleak', 'melancholic', 'brooding', 'nihilist', '致郁', '暗黑', '黑暗', '頹', '颓'],
   sad: ['sad', 'heartbreak', 'broken', 'melancholy', 'cry', 'เศร้า', '이별', '슬픈', '伤感', '傷感', '悲伤'],
   happy: ['happy', 'feel good', 'upbeat', 'sunny', 'cheerful'],
   aggressive: ['aggressive', 'hard', 'heavy', 'metal', 'intense', 'angry', 'rage', 'hardcore'],
@@ -63,6 +63,7 @@ const moodOf = (w: string) => Object.entries(MOODS).find(([k, syn]) => k === w |
 // Styles: like moods, they must show up in a playlist's title (or a synonym,
 // in English or the language itself), or the playlist drops far down.
 const STYLES: Record<string, string[]> = {
+  artsy: ['existential', 'philosophical', 'introspective', 'art rock', 'art pop', 'post-punk', 'indie', 'alternative', '独立', '獨立', '后摇', '後搖', '存在主义', '另类', '另類'],
   experimental: ['experimental', 'avant-garde', 'avant garde', 'avant', 'art rock', 'art pop', 'noise', 'post-rock', 'post rock', 'math rock', 'leftfield', 'weird', 'abstract', '实验', '實驗', '前卫', '前衛', '后摇', '後搖', '噪音', '실험', '実験', 'ทดลอง'],
   grunge: ['grunge', 'grungy', 'alt rock', 'alternative rock', 'noise rock', 'garage', 'shoegaze', 'sludge', 'post-punk', 'punk', '垃圾摇滚', '摇滚', '搖滾', '朋克', '后朋克', '그런지', 'グランジ'],
   indie: ['indie', 'independent', 'underground', 'alternative', 'alt', '独立', '獨立', '地下', '인디', 'インディー', 'อินดี้', 'นอกกระแส'],
@@ -77,6 +78,16 @@ const STYLES: Record<string, string[]> = {
   metal: ['metal', 'metalcore', 'heavy', '金属', '메탈'],
   pop: ['pop'],
 };
+// Related styles to also search for: they fill the same corner when the exact word is rare.
+const RELATED: Record<string, string[]> = {
+  experimental: ['indie', 'post-rock', 'art rock'],
+  artsy: ['indie', 'art rock', 'post-rock'],
+  grunge: ['indie rock', 'alternative rock', 'shoegaze'],
+  shoegaze: ['dream pop', 'indie'],
+  psychedelic: ['indie', 'psych rock'],
+};
+// Words that look like a style but aren't: 实验小学 = "experimental primary school".
+const FALSE_STYLE = /实验(小学|中学|高中|班|学校)|實驗(小學|中學|班)|indie game|rock(et| band hero)/i;
 const styleOf = (w: string) => Object.entries(STYLES).find(([k, syn]) => k === w || syn.includes(w))?.[0] ?? null;
 // Old songs: pushed down unless you ask for them.
 const OLD = /\b(classic|classics|oldies|old songs|golden|evergreen|throwback|retro|vintage|[5-9]0s|19[5-9]\d)\b|经典|經典|老歌|怀旧|懷舊|金曲|老情歌/i;
@@ -107,7 +118,7 @@ const norm = (t: string) => t.toLowerCase().normalize('NFKC');
 
 // Not a song by an artist: hour-long mixes, "lofi beats" compilations, and
 // the AI music channels that flood these searches.
-const NOT_A_SONG = /\b(mix|mixtape|playlist|compilation|nonstop|non-stop|1 ?hour|2 ?hours|\d+ ?hrs?|hours? of|full album|beats to|lofi beats|lo-fi beats|study music|sleep music|relaxing music|background music|type beat|bgm)\b|🎧|🎶|🎵|☕|🌙|✨|🌧/i;
+const NOT_A_SONG = /動態歌詞|动态歌词|拼音歌詞|高音質|lyrics? video|\blyrics?\b|\bcover\b|翻唱|抖音|tiktok|\b8d\b|nightcore|sped up|slowed|\b(mix|mixtape|playlist|compilation|nonstop|non-stop|1 ?hour|2 ?hours|\d+ ?hrs?|hours? of|full album|beats to|lofi beats|lo-fi beats|study music|sleep music|relaxing music|background music|type beat|bgm)\b|🎧|🎶|🎵|☕|🌙|✨|🌧/i;
 export function isRealSong(s: WebSong): boolean {
   if (s.durationMs && (s.durationMs > 12 * 60_000 || s.durationMs < 60_000)) return false;
   if (NOT_A_SONG.test(s.title)) return false;
@@ -128,6 +139,7 @@ function curated(songs: WebSong[]): boolean {
 export async function promptRadio(q: string, state: PromptState | null): Promise<PromptBatch> {
   const { origin, originWord, feel, moods, styles, scene, wantsOld } = parse(q);
   const used = new Set(state?.used ?? []);
+  const script = origin?.script;
   const o = originWord ?? '';
 
   // Searches: the words as typed, then origin + each feel word, then the native name.
@@ -135,9 +147,9 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   if (o) {
     // Styles and moods first: they decide what the radio sounds like.
     for (const st of styles.slice(0, 2)) queries.push(`${o} ${st}`, `${st} ${o} music`);
+    for (const rel of styles.flatMap((st) => RELATED[st] ?? []).slice(0, 2)) queries.push(`${o} ${rel}`);
     for (const m of moods.slice(0, 2)) queries.push(`${o} ${m}`, `${m} ${o} songs`);
     // The same in the language itself ("华语 实验"), when there's a word for it.
-    const script = origin?.script;
     for (const k of [...styles, ...moods].slice(0, 2)) {
       const local = (STYLES[k] ?? MOODS[k] ?? []).find((w) => script?.test(w));
       if (local) queries.push(`${origin?.native?.[0] ?? ''} ${local}`.trim(), local);
@@ -148,7 +160,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   } else if (feel.length > 1) {
     queries.push(feel.slice(0, 2).join(' '));
   }
-  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 9);
+  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 11);
   const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {} };
   const [found, taste] = await Promise.all([
     Promise.all(unique.map((x) => searchPlaylists(x).catch(() => []))).then((r) => r.flat()),
@@ -169,7 +181,9 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     let score = hasOrigin ? 5 : 0;
     if (NOT_A_SONG.test(p.title.replace(/\b(mix|playlist|mixtape)\b/gi, '')) || /🎧|☕|🌙/.test(p.title)) score -= 6;
     const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(norm(w)))).length;
-    const styleHits = styles.filter((st) => STYLES[st].some((w) => t.includes(norm(w)))).length;
+    const styleHits = FALSE_STYLE.test(p.title) ? 0 : styles.filter((st) => STYLES[st].some((w) => t.includes(norm(w)))).length;
+    const relatedHits = styles.flatMap((st) => RELATED[st] ?? []).filter((w) => t.includes(w) || (STYLES[styleOf(w) ?? '']?.some((x) => script && x.length < 5 && script.test(x) && t.includes(x)))).length;
+    score += Math.min(relatedHits, 2) * 3;
     const sceneHits = scene.filter((w) => t.includes(w)).length;
     score += moodHits * 6 + styleHits * 7 + sceneHits * 3;
     // Moods and styles you asked for that the title doesn't have count against it.
