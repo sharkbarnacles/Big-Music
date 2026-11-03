@@ -176,13 +176,16 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   for (const r of rated) {
     for (const x of r.list.songs) {
       const mine = inScript(x);
-      // In a mostly-in-language playlist, Latin-named songs are kept (many artists use Latin
-      // names); in a mixed one, only the songs in that script are.
-      if (origin?.script && !mine && r.share < 0.6) continue;
+      // Only an almost entirely in-language playlist keeps Latin-named songs
+      // (many artists use Latin names); otherwise just the songs in that script.
+      if (origin?.script && !mine && r.share < 0.85) continue;
       // Your taste lifts artists you love (and ones like them) towards the front.
       // Official releases first; anyone's uploads last.
       const official = x.release === 'song' ? 2 : x.release === 'video' ? 1 : x.release === 'upload' ? -3 : 0;
-      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + affinity(taste, x.artist) * 5 + Math.random() * 3 });
+      // Asked for a language with its own script: your taste only lifts songs in it
+      // (so a favourite from elsewhere doesn't slip into a Thai radio).
+      const lift = origin?.script && !mine ? 0 : affinity(taste, x.artist) * 5;
+      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + Math.random() * 3 });
     }
   }
 

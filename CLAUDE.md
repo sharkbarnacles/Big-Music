@@ -371,6 +371,18 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    continuations are `p:<base64 state>` through `/api/radio`. Player
    `startPromptRadio(words)`. Test prompts from GitHub with the manual
    workflow `try-prompt.yml` (results on branch `probe-output`).
+   **Taste-aware word radios (2026-11-03):** SQL `taste_artists()` (songs
+   saved, distinct playlists ×1.5, plays in 120 days, kept) → `lib/taste.ts`
+   (`loadTaste` cached 30 min, similar artists from discover_artists.related
+   at 0.6×; `affinity()`). promptRadio picks playlists by title score +
+   taste overlap ×12, lifts songs by affinity ×5 (only in-script songs for
+   scripted origins), and returns `liked` artists; Familiar/Mixed weave in
+   your own songs by them (SQL `library_tracks_for_artists`). Real songs
+   only (`isRealSong`: no >12 min / <1 min, no mix/compilation/lofi-beats
+   titles or 🎧-style emoji; `curated()` drops one-channel playlists, i.e.
+   AI catalogues; `release` song/video/upload ranks official first).
+   **One scroller in Now Playing:** `.sheet` has overscroll-behavior:
+   contain, and the page behind is pinned (`html.sheet-open`, `--page-y`).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -418,3 +430,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Crash = deploy restarts: player now comes back after a restart; notes-only commits skip deploys.
   Radio from words + idea chips, planet icon on Discover, Search Everywhere layout fix.
   Word radios rebuilt from matching playlists (origin/language + mood aware), tested on 9 prompts.
+  Taste profile + real-artists-only word radios; Now Playing scroll no longer leaks to the page.
