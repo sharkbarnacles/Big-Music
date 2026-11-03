@@ -18,6 +18,9 @@ the code.
   options (C1–C10, B1–B7 …) that combine live, answered with a code like
   "C10a + F3 + B3 + L1". Same format as their earlier Glottozoid labs.
 - They want everything free (free tiers only, no card on Google Cloud).
+- They use the app as an **iPhone home-screen web app** (standalone, not
+  Safari): mind the status bar (`env(safe-area-inset-*)`, the fixed strip
+  `body::before` in globals.css) and test layouts with that in mind.
 
 ## What the app is
 
@@ -110,6 +113,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Project plan: https://claude.ai/artifact/H53DjcL69ExgnrmYNjnEee
 - Phone setup guide: https://claude.ai/artifact/T2sSRLa1hH4cmqzvi2VDDj
 - Look Lab (colors/fonts/bars/lists): https://claude.ai/artifact/QJDbm7KfJhkio31ZTdirrB
+- Playlist Sort Lab (sort/group/switch/look for Home playlists): https://claude.ai/artifact/BHWY4jdLiPGqAH6QYXfnQM
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -124,6 +128,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 ## Next steps (owner's plan)
 
 1. Fix anything the owner reports about the new look / player on iPhone.
+   Waiting on their pick from the Playlist Sort Lab (four codes like
+   "S1 + G3 + K1 + P1") to build Home's playlist sorting/grouping. Real
+   "recently updated" needs a stored date per playlist (e.g. newest item
+   added_at from Spotify / publishedAt from YouTube) — not stored yet.
 2. Organization (phase 3): tags, ratings, notes, smart playlists, manual fix
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
@@ -138,4 +146,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Vercel, Spotify and Google from the owner's phone; built playback (hub
   queue, YouTube mode, Spotify Connect), made YouTube mode the default after
   Spotify's album issue; ran the design labs and applied the chosen look;
-  added this file.
+  added this file. Services box on Home now folds; status-bar strip for the
+  home-screen app; built the Playlist Sort Lab.
