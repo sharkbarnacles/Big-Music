@@ -1,6 +1,7 @@
 import ActionButton from '@/components/ActionButton';
 import Header from '@/components/Header';
-import TrackRow, { TRACK_COLUMNS, type TrackRowData } from '@/components/TrackRow';
+import TrackList from '@/components/TrackList';
+import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { db, fetchAllRows } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -100,10 +101,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 
       {error && <div className="notice error">{error}</div>}
 
-      <div className="list" style={{ marginTop: 16 }}>
-        {tracks.map((t) => (
-          <TrackRow key={t.id} track={t} />
-        ))}
+      <div style={{ marginTop: 16 }}>
+        <TrackList tracks={tracks} />
         {tracks.length === 0 && <p className="muted">No songs match. Import a service from the home page, or change the filters.</p>}
       </div>
     </main>

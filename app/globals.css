@@ -113,3 +113,54 @@ select {
   .stats { gap: 18px; }
   .item .end .dur { display: none; }
 }
+
+/* ── Song rows you can tap ─────────────────────────────────────────── */
+.row-play {
+  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
+  background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit;
+  text-align: left; cursor: pointer; border-radius: 8px;
+}
+.row-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.item.active .title { color: var(--accent); font-weight: 600; }
+button.badge { background: transparent; cursor: pointer; font: inherit; font-size: 11px; line-height: 1.5; }
+
+/* ── Player bar ────────────────────────────────────────────────────── */
+.player-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: content-box;
+  background: #15161a; border-top: 1px solid var(--line);
+}
+.player-art, .player-art-slot { width: 48px; height: 48px; border-radius: 6px; flex: none; object-fit: cover; background: var(--panel-2); }
+.player-art-slot { background: #000; }
+.player-text { flex: 1; min-width: 0; }
+.player-text .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-text .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-controls { display: flex; align-items: center; gap: 2px; flex: none; }
+.ctrl {
+  width: 40px; height: 44px; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--text); display: inline-flex; align-items: center; justify-content: center;
+}
+.ctrl svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ctrl.primary { width: 44px; background: var(--accent); color: #fff; }
+.ctrl.primary svg { fill: currentColor; }
+.ctrl:hover { color: var(--accent); }
+.ctrl.primary:hover { color: #fff; filter: brightness(1.1); }
+.player-notice {
+  position: absolute; left: 12px; right: 12px; bottom: calc(100% + 8px);
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px;
+}
+.player-notice span { flex: 1; }
+.player-notice a { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.player-notice button { border: 0; background: transparent; color: var(--muted); padding: 4px 6px; }
+
+/* The YouTube player: tiny square in the bar, or a wide panel for videos. */
+.yt-host { position: fixed; z-index: 21; overflow: hidden; background: #000; }
+.yt-host iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+@media (max-width: 600px) {
+  .player-controls .ctrl { width: 36px; }
+  .player-controls .ctrl.primary { width: 44px; }
+}

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
-import TrackRow, { TRACK_COLUMNS, type TrackRowData } from '@/components/TrackRow';
+import TrackList from '@/components/TrackList';
+import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { db, fetchAllRows } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -40,10 +41,8 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
       {playlist.description && <p className="muted">{playlist.description}</p>}
       {error && <div className="notice error">{error}</div>}
 
-      <div className="list" style={{ marginTop: 20 }}>
-        {tracks.map((t, i) => (
-          <TrackRow key={`${t.id}-${i}`} track={t} />
-        ))}
+      <div style={{ marginTop: 20 }}>
+        <TrackList tracks={tracks} />
       </div>
     </main>
   );

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { PlayerProvider } from '@/components/Player';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -15,7 +16,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PlayerProvider>{children}</PlayerProvider>
+      </body>
     </html>
   );
 }
