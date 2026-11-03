@@ -6,6 +6,8 @@ import { SESSION_COOKIE, verifySessionToken } from './lib/session';
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === '/login' || pathname === '/api/login') return NextResponse.next();
+  // The app icon and name must load before login (iPhone fetches them for the home screen).
+  if (/^\/(apple-icon|icon)(-\d+)?\.png$|^\/icon\.svg$|^\/manifest\.webmanifest$/.test(pathname)) return NextResponse.next();
   // Background jobs prove who they are with a signature instead (see the route).
   if (pathname.startsWith('/api/jobs/')) return NextResponse.next();
 
