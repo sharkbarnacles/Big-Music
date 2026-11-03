@@ -3,6 +3,7 @@
 // Pieces of the Discover tab that react to taps (playing, hearts, the archive calendar).
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { PLAYER_ICONS } from '@/lib/playerIcons';
 import type { TrackRowData } from '@/lib/tracks';
 import { readRadioMode, RADIO_MODE_KEY, usePlayer, type RadioMode } from './Player';
 
@@ -17,7 +18,7 @@ export function shortReason(reason: string | null): string | null {
   return reason.replace(/^Because you (like|played) /i, '').replace(/ a lot$/i, '');
 }
 
-// Heart = keep: the song goes into your "Discoveries" playlist (and your Library).
+// The keep star (it used to be a heart): the song goes into your "Discoveries" playlist (and your Library).
 export function HeartButton({ itemId, initial, small = false }: { itemId: string; initial: boolean; small?: boolean }) {
   const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -55,9 +56,7 @@ export function HeartButton({ itemId, initial, small = false }: { itemId: string
         aria-label={on ? 'Remove from Discoveries' : 'Keep in Discoveries'}
         onClick={toggle}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d={HEART} />
-        </svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: on ? PLAYER_ICONS.kept : PLAYER_ICONS.keep }} />
       </button>
       {msg && (
         <span className="d-toast" role="status">
