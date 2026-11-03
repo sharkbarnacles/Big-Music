@@ -239,11 +239,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    Now Playing: owner picked **A2 + G2 + T3 + B2 + C2 + O2** in the Now
    Playing Lab (square cover, color wash, title with heart + ⋯, thin progress
    line, lighter play circle, icon row with YouTube mode/Stop in ⋯) but wants
-   sleeker icons first. Player Icon Lab favourite so far:
-   **S13 + R20 + I5 + D8 + L2** (soft outline triangle skips, striped
-   tapering infinity snake for repeat, hairline row icons, ringed-planet
-   radio, icons only). Owner wants more space theme: added Q (queue:
-   shooting star etc.) and K (keep button replacing the heart: stars).
+   sleeker icons first. Player Icon Lab pick (2026-11-03):
+   **S13 + R11 + I5 + D16 + Q15 + V2 + K3 + L2** = soft outline triangle
+   skips, woven tapering infinity snake for repeat (drawn ~1/3 bigger than
+   the spiral so they look balanced), hairline row icons with a plain +,
+   UFO with beam for radio, constellation for queue, eye for video, soft
+   star replacing the heart (solid when kept), icons only. Owner asked for
+   beam texture options (D21–D27, no outlines) and may swap D16 for one.
    The lab's drawing code (icon-lab artifact) has the exact SVG paths to
    copy into `lib/icons.ts`. Not built into the app yet.
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
@@ -274,3 +276,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Now Playing pick A2+G2+T3+B2+C2+O2; Player Icon Lab (ouroboros repeat).
   Icon Lab rounds 2–4: triangles, infinity snakes (woven/striped), space
   radio, queue and keep icons; Discover reasons shortened; nav reordered.
+  Icon Lab: queue/constellation, eye video, UFO radio + beam textures,
+  balanced spiral vs snake. Pick S13+R11+I5+D16+Q15+V2+K3+L2.
