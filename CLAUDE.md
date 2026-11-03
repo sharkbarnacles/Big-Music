@@ -329,6 +329,19 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    want it); with the sheet closed the YouTube player sits hidden (opacity 0,
    still playing) behind the bar, which shows the cover picture.
    Discover chips read "via “Playlist”" (shortReason drops "From ").
+   **Search everywhere (2026-11-03):** Search has "Your library" /
+   "Everywhere" (`/library?search=1&where=web`). `lib/ytBrowse.ts` (WEB_REMIX
+   search with ytmusicapi filters: songs, artists, albums, community +
+   featured playlists; browse VL…/MPRE…/UC…, playlist continuations up to
+   500) → `components/WebResults.tsx` and `app/web/[kind]/[id]/page.tsx`.
+   `lib/webTracks.ts` `toPlayable()` maps to library songs or `yt:` songs
+   (upserted to `radio_songs`, so keep/add-to-playlist saves them). Parsers
+   were written against real answers: run the manual workflow
+   `probe-ytm.yml` (REST dispatch: `gh api -X POST
+   repos/sharkbarnacles/Big-Music/actions/workflows/probe-ytm.yml/dispatches
+   -f ref=main -f 'inputs[q]=…'`), then `git fetch origin probe-output`
+   (artifact downloads are blocked from the sandbox). Spotify playlist
+   search not added (Spotify time-out; Dev Mode search capped at 10).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -372,3 +385,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Queue grips no longer block scrolling (short press before a song lifts).
   Smaller covers in lists (crash suspect), crash log, no video panel over the bar.
   'via' chips without 'From'; mini player shows the cover, not the tiny YouTube player.
+  Search Everywhere: YouTube Music songs/artists/albums/playlists + pages.
