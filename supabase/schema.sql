@@ -176,3 +176,23 @@ grant execute on function fill_yt_audio_from_sources() to service_role;
 
 -- When a song was last added to each playlist (for sorting by "Recently updated").
 alter table playlists add column if not exists last_added_at timestamptz;
+
+-- Artists for the Library's Artists view: main artist (first name in the
+-- credits), with how many songs and music videos each has.
+create or replace function artist_summary(search text default null, by_name boolean default false, limit_n integer default 300)
+returns table(artist text, songs bigint, videos bigint, image_url text)
+language sql stable set search_path = public as $$
+  with t as (
+    select trim((regexp_split_to_array(artist, '\s*(,|&|\s+x\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*', 'i'))[1]) as a,
+           video_id, image_url
+      from tracks
+  )
+  select a, count(*), count(video_id), (array_agg(image_url) filter (where image_url is not null))[1]
+    from t
+   where a <> '' and (search is null or a ilike '%' || search || '%')
+   group by a
+   order by case when by_name then null else count(*) end desc nulls last, lower(a)
+   limit limit_n;
+$$;
+revoke execute on function artist_summary(text, boolean, integer) from public, anon, authenticated;
+grant execute on function artist_summary(text, boolean, integer) to service_role;

@@ -1,15 +1,27 @@
-import ActionButton from '@/components/ActionButton';
+import Link from 'next/link';
+import FilterMenu from '@/components/FilterMenu';
 import Header from '@/components/Header';
+import PlayButtons from '@/components/PlayButtons';
 import TrackList from '@/components/TrackList';
-import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { db, fetchAllRows } from '@/lib/db';
+import { defaultSort, libraryHref, type LibraryParams, type LibraryView } from '@/lib/libraryParams';
+import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 
 export const dynamic = 'force-dynamic';
 
-const PAGE_SIZE = 200;
-const SEARCH_BATCH = 40; // 40 searches × 100 units = 4,000 of the 10,000 daily quota
+// Library (Library Top Lab pick T2 + F2 + V4 + A3, with a drop-down filter
+// menu and Artists / Music videos views): title with round Shuffle and Play,
+// one line of numbers, search box with a filter button, then the list.
 
-type Params = { q?: string; video?: string; both?: string; sort?: string; search?: string };
+const PAGE_SIZE = 200;
+
+type Params = { q?: string; view?: string; sort?: string; both?: string; search?: string; artist?: string };
+type ArtistRow = { artist: string; songs: number; videos: number; image_url: string | null };
+
+// The main artist of a credit like "A, B feat. C" (same rule as the
+// artist_summary database function).
+const mainArtist = (credit: string) =>
+  credit.split(/\s*(?:,|&|\s+x\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*/i)[0].trim().toLowerCase();
 
 async function count(filter?: (q: any) => any): Promise<number> {
   let query = db().from('tracks').select('id', { count: 'exact', head: true });
@@ -19,93 +31,150 @@ async function count(filter?: (q: any) => any): Promise<number> {
 }
 
 export default async function LibraryPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const { q = '', video = '', both, sort = 'artist', search: searchTab } = await searchParams;
+  const sp = await searchParams;
+  const view: LibraryView = sp.view === 'artists' || sp.view === 'videos' ? sp.view : 'songs';
+  const params: LibraryParams = {
+    q: sp.q ?? '',
+    view,
+    sort: sp.sort ?? defaultSort(view),
+    both: sp.both === '1',
+    search: sp.search === '1',
+  };
+  const artist = sp.artist?.trim() || null;
   // Remove characters that have special meaning in the database filter.
-  const search = q.replace(/[,()%*\\]/g, ' ').trim();
+  const search = params.q.replace(/[,()%*\\]/g, ' ').trim();
 
+  const [total, withVideo] = await Promise.all([count(), count((x) => x.not('video_id', 'is', null))]);
+
+  // ── Artists view ──
+  if (view === 'artists' && !artist) {
+    const { data, error } = await db().rpc('artist_summary', {
+      search: search || null,
+      by_name: params.sort === 'name',
+      limit_n: 300,
+    });
+    const artists = (data ?? []) as ArtistRow[];
+    return (
+      <main className="wrap">
+        <Header />
+        <Title title="Artists" />
+        <p className="lib-line">
+          <b>{total.toLocaleString()}</b> songs · <b>{withVideo.toLocaleString()}</b> videos
+        </p>
+        <SearchRow params={params} placeholder="Search artists" />
+        {error && <div className="notice error">{error.message}</div>}
+        <div className="list" style={{ marginTop: 12 }}>
+          {artists.map((a) => (
+            <Link className="item" key={a.artist} href={`/library?artist=${encodeURIComponent(a.artist)}`}>
+              {a.image_url ? <img src={a.image_url} alt="" loading="lazy" className="artist-pic" /> : <div className="ph artist-pic" />}
+              <div className="main">
+                <div className="title">{a.artist}</div>
+                <div className="sub">
+                  {Number(a.songs).toLocaleString()} songs{Number(a.videos) ? ` · ${Number(a.videos).toLocaleString()} videos` : ''}
+                </div>
+              </div>
+              <span className="muted" aria-hidden="true">›</span>
+            </Link>
+          ))}
+          {artists.length === 0 && <p className="muted">No artists match.</p>}
+          {artists.length === 300 && <p className="small muted">Showing 300 artists; search to find others.</p>}
+        </div>
+      </main>
+    );
+  }
+
+  // ── One artist's songs ──
+  if (artist) {
+    const pattern = artist.replace(/[%_\\]/g, (c) => `\\${c}`);
+    const { rows, error } = await fetchAllRows<TrackRowData>(
+      (from, to) =>
+        db().from('tracks').select(TRACK_COLUMNS).ilike('artist', `${pattern}%`).order('title').range(from, to) as any,
+      5000,
+    );
+    const tracks = rows.filter((t) => mainArtist(t.artist) === artist.toLowerCase());
+    const videos = tracks.filter((t) => t.video_id).length;
+    return (
+      <main className="wrap">
+        <Header />
+        <Link href={libraryHref({ ...params, view: 'artists', sort: 'most', q: '' })} className="small muted back-link">
+          ‹ Artists
+        </Link>
+        <Title title={artist} tracks={tracks} />
+        <p className="lib-line">
+          <b>{tracks.length.toLocaleString()}</b> songs{videos ? <> · <b>{videos}</b> videos</> : null}
+        </p>
+        {error && <div className="notice error">{error}</div>}
+        <div style={{ marginTop: 8 }}>
+          <TrackList tracks={tracks} />
+        </div>
+      </main>
+    );
+  }
+
+  // ── Songs and Music videos ──
   const buildQuery = (from: number, to: number): PromiseLike<any> => {
     let query: any = db().from('tracks').select(TRACK_COLUMNS);
     if (search) query = query.or(`title.ilike.%${search}%,artist.ilike.%${search}%,album.ilike.%${search}%`);
-    if (video === 'yes') query = query.not('video_id', 'is', null);
-    if (video === 'no') query = query.eq('video_status', 'none');
-    if (video === 'unchecked') query = query.is('video_status', null);
-    if (sort === 'video') query = query.order('video_id', { ascending: true, nullsFirst: false });
+    if (view === 'videos') query = query.not('video_id', 'is', null);
+    if (params.sort === 'recent') query = query.order('created_at', { ascending: false });
+    if (params.sort === 'video') query = query.order('video_id', { ascending: true, nullsFirst: false });
+    if (params.sort === 'title') query = query.order('title').order('artist');
     return query.order('artist').order('title').range(from, to);
   };
-
   // "Both services" has to look through every song, so it reads all pages.
-  const [{ rows, error }, total, withVideo, noVideo, unchecked] = await Promise.all([
-    both
-      ? fetchAllRows<TrackRowData>(buildQuery)
-      : buildQuery(0, PAGE_SIZE - 1).then((r: any) => ({ rows: (r.data ?? []) as TrackRowData[], error: r.error?.message ?? null })),
-    count(),
-    count((x) => x.not('video_id', 'is', null)),
-    count((x) => x.eq('video_status', 'none')),
-    count((x) => x.is('video_status', null)),
-  ]);
+  const { rows, error } = params.both
+    ? await fetchAllRows<TrackRowData>(buildQuery)
+    : await buildQuery(0, PAGE_SIZE - 1).then((r: any) => ({ rows: (r.data ?? []) as TrackRowData[], error: r.error?.message ?? null }));
   let tracks = rows;
-  if (both) tracks = tracks.filter((t) => t.track_sources.length > 1).slice(0, PAGE_SIZE);
+  if (params.both) tracks = tracks.filter((t) => new Set(t.track_sources.map((s) => s.service)).size > 1).slice(0, PAGE_SIZE);
+  const isVideos = view === 'videos';
 
   return (
     <main className="wrap">
       <Header />
-      <h1>Library</h1>
-
-      <div className="stats">
-        <div><b>{total}</b><span className="muted small">songs</span></div>
-        <div><b>{withVideo}</b><span className="muted small">with music video</span></div>
-        <div><b>{noVideo}</b><span className="muted small">no video found</span></div>
-        <div><b>{unchecked}</b><span className="muted small">not checked yet</span></div>
-      </div>
-
-      <form method="get" className="filters">
-        {searchTab === '1' && <input type="hidden" name="search" value="1" />}
-        <input type="search" name="q" defaultValue={q} placeholder="Search title, artist or album" autoFocus={searchTab === '1'} aria-label="Search your library" />
-        <select name="video" defaultValue={video} aria-label="Music video filter">
-          <option value="">All songs</option>
-          <option value="yes">Has music video</option>
-          <option value="no">No music video</option>
-          <option value="unchecked">Not checked yet</option>
-        </select>
-        <select name="sort" defaultValue={sort} aria-label="Sort">
-          <option value="artist">Sort: artist</option>
-          <option value="video">Sort: videos first</option>
-        </select>
-        <label>
-          <input type="checkbox" name="both" value="1" defaultChecked={Boolean(both)} />
-          On both services
-        </label>
-        <button type="submit">Apply</button>
-      </form>
-      {tracks.length === PAGE_SIZE && (
-        <div className="small muted">Showing the first {PAGE_SIZE}; search or filter to narrow down.</div>
-      )}
-
-      {unchecked > 0 && (
-        // Collapsed by default: tap the line to open it.
-        <details className="card collapsible" style={{ marginTop: 16 }}>
-          <summary className="small muted">
-            Checking {unchecked.toLocaleString()} songs for music videos
-          </summary>
-          <div className="small muted" style={{ margin: '10px 0' }}>
-            The video finder runs automatically every night in GitHub and checks a few thousand songs
-            each time. To check some right now, use YouTube’s official search:
-            {` ${SEARCH_BATCH} songs per tap, using ${(SEARCH_BATCH * 100).toLocaleString()} of your 10,000 daily quota units.`}
-          </div>
-          <ActionButton
-            url={`/api/videos/find?limit=${SEARCH_BATCH}`}
-            label={`Find videos for ${SEARCH_BATCH} songs`}
-            busyLabel="Searching YouTube…"
-          />
-        </details>
-      )}
-
+      <Title title={isVideos ? 'Music videos' : 'Library'} tracks={tracks} video={isVideos} />
+      <p className="lib-line">
+        <b>{total.toLocaleString()}</b> songs · <b>{withVideo.toLocaleString()}</b> videos
+      </p>
+      <SearchRow params={params} placeholder={isVideos ? 'Search music videos' : 'Search title, artist or album'} />
       {error && <div className="notice error">{error}</div>}
-
-      <div style={{ marginTop: 16 }}>
-        <TrackList tracks={tracks} />
-        {tracks.length === 0 && <p className="muted">No songs match. Import a service from the home page, or change the filters.</p>}
+      <div style={{ marginTop: 8 }}>
+        <TrackList tracks={tracks} video={isVideos} />
+        {tracks.length === 0 && <p className="muted">No songs match. Try another search or filter.</p>}
+        {tracks.length === PAGE_SIZE && <p className="small muted">Showing the first {PAGE_SIZE}; search to find more.</p>}
       </div>
     </main>
+  );
+}
+
+function Title({ title, tracks, video = false }: { title: string; tracks?: TrackRowData[]; video?: boolean }) {
+  return (
+    <div className="page-title">
+      <h1>{title}</h1>
+      {tracks && <PlayButtons tracks={tracks} video={video} />}
+    </div>
+  );
+}
+
+// Search box with the filter button; keeps the current view and sort.
+function SearchRow({ params, placeholder }: { params: LibraryParams; placeholder: string }) {
+  return (
+    <div className="search-row">
+      <form method="get" action="/library" className="search-form" role="search">
+        {params.search && <input type="hidden" name="search" value="1" />}
+        {params.view !== 'songs' && <input type="hidden" name="view" value={params.view} />}
+        {params.sort !== defaultSort(params.view) && <input type="hidden" name="sort" value={params.sort} />}
+        {params.both && <input type="hidden" name="both" value="1" />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={params.q}
+          placeholder={placeholder}
+          autoFocus={params.search}
+          aria-label={placeholder}
+        />
+      </form>
+      <FilterMenu params={params} />
+    </div>
   );
 }

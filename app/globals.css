@@ -354,3 +354,30 @@ details.services summary { gap: 12px; }
 @keyframes flash-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .flash-toast { animation: none; } }
 .pl-head h2 { margin-top: 18px; }
+
+/* ── Page title with round Shuffle / Play (Library Top Lab A3) ───────── */
+.page-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.page-title h1 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-wrap: balance; }
+.play-buttons { display: flex; gap: 8px; flex: none; }
+.round-btn.play { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.round-btn.play svg { fill: currentColor; stroke: none; margin-left: 2px; }
+.back-link { display: inline-block; margin-top: 10px; }
+
+/* ── Search box + drop-down filter (Library Top Lab F2) ──────────────── */
+.search-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.search-form { flex: 1; min-width: 0; }
+.search-form input { width: 100%; }
+.filter-menu { position: relative; flex: none; }
+.filter-btn { position: relative; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.filter-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.filter-count {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+  background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+}
+.filter-drop { right: 0; left: auto; top: calc(100% + 6px); min-width: 230px; max-height: 70vh; overflow-y: auto; }
+.menu-label { display: block; padding: 10px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.row-menu a[aria-checked="true"] { color: var(--accent); font-weight: 600; }
+.row-menu a[aria-checked="true"]::after { content: "✓"; float: right; }
+
+/* Artist rows: round photos */
+.item .artist-pic { border-radius: 50%; }

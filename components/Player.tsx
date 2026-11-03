@@ -740,7 +740,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     pause: 'M8 5v14M16 5v14',
     next: 'M5 5l10 7-10 7zM19 5v14',
     prev: 'M19 5L9 12l10 7zM5 5v14',
-    shuffle: 'M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5',
+    // Spiral (owner's pick for Shuffle).
+    shuffle: 'M12 12a1.5 1.5 0 0 1 1.5 1.5a3 3 0 0 1-3 3a4.5 4.5 0 0 1-4.5-4.5a6 6 0 0 1 6-6a7.5 7.5 0 0 1 7.5 7.5',
     repeat: 'M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3',
     down: 'M6 9l6 6 6-6',
     queue: 'M3 6h13M3 12h13M3 18h9M17 15l5 3-5 3z',

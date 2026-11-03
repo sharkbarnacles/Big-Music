@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
+import PlayButtons from '@/components/PlayButtons';
 import TrackList from '@/components/TrackList';
 import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { db, fetchAllRows } from '@/lib/db';
@@ -32,7 +33,10 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
   return (
     <main className="wrap">
       <Header />
-      <h1>{playlist.name}</h1>
+      <div className="page-title">
+        <h1>{playlist.name}</h1>
+        <PlayButtons tracks={tracks} />
+      </div>
       <div className="muted small">
         <span className={`dot ${playlist.service}`} />
         {playlist.service === 'spotify' ? 'Spotify' : 'YouTube Music'} · {tracks.length} songs · imported{' '}
@@ -41,7 +45,7 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
       {playlist.description && <p className="muted">{playlist.description}</p>}
       {error && <div className="notice error">{error}</div>}
 
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: 14 }}>
         <TrackList tracks={tracks} />
       </div>
     </main>
