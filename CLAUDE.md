@@ -146,6 +146,13 @@ Environment variables (set in Vercel; names only, never values):
   fetches continuations when <10 songs are left. Dial Familiar/Mixed/New in
   localStorage `mh-radio-mode`. Entry points: song ⋯ menu, Now Playing chip,
   Discover → Radio quick starts. Mood chips not built yet.
+  **Saved radios (owner's wish):** every radio started is a `discover_editions`
+  row with kind 'radio' (several per day allowed via a partial unique index),
+  created by `/api/radio` on start (seed song first) and appended on each
+  continuation (`lib/radioEditions.ts`). They show in Past editions (purple
+  underline). "Save as playlist" on every edition page and in the Now Playing
+  ⋯ menu while a radio plays (`/api/discover/save-playlist`, stores
+  `playlist_id`; saving again adds new songs).
 - Background finder: `scripts/find_videos.py` (ytmusicapi, unofficial) run by
   `.github/workflows/find-videos.yml` every 3 hours and on demand. Fills
   `tracks.yt_audio_id` (YouTube version for YouTube mode) and
@@ -187,6 +194,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Discovery Lab v2 (page/today/weekly/monthly/archive/extras, P·T·W·M·A·E; v1 L·S·W·A·K superseded): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
 - Now Playing Lab (artwork/background/title/progress/controls/options, A·G·T·B·C·O): https://claude.ai/artifact/LcYeZ1AkMCLZtxeFBuCQ1x
 - Player Icon Lab (skip S, ouroboros repeat R, row icons I, radio D, queue Q, keep K, row layout L): https://claude.ai/artifact/CeDBEAZJqHhY9bWZLxEGps
+- Queue Lab (how it opens P, button H, list look L, editing E): https://claude.ai/artifact/XHkfVmvZdjt7F4jqqc73vr
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -257,6 +265,8 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    (small element scaled up, no full-screen blur), and the picker only
    refreshes Home/playlist pages. Ask the owner whether it still happens and
    what exactly they see (music stops? blank page? app reloads?).
+   Queue: owner dislikes the two clashing queue buttons and the full-page
+   queue; waiting on their Queue Lab pick (P+H+L+E).
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -289,3 +299,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   balanced spiral vs snake. Pick S13+R11+I5+D16+Q15+V2+K3+L2.
   Built the Now Playing redesign + chosen icons; keep star everywhere.
   Stability fixes (error.tsx, lighter wash, fewer refreshes); V9 eye.
+  Radios saved to Past editions + Save as playlist; Queue Lab.
