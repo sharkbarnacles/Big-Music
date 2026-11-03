@@ -12,14 +12,14 @@
 import { searchPlaylists, browseCollection, type WebSong } from './ytBrowse';
 import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste } from './taste';
 
-type Origin = { words: string[]; script?: RegExp; native?: string[] };
+type Origin = { words: string[]; script?: RegExp; notScript?: RegExp; native?: string[] };
 // Words people use for where music is from, and how to recognise it.
 const ORIGINS: Origin[] = [
   { words: ['thai', 'thailand', 'tpop', 't-pop'], script: /[฀-๿]/, native: ['เพลงไทย', 'เพลงไทย ชิล'] },
   { words: ['korean', 'korea', 'kpop', 'k-pop', 'k-indie', 'khiphop', 'k-hiphop', 'krnb', 'k-rnb'], script: /[가-힯]/, native: ['한국 인디', '국내 음악'] },
   { words: ['japanese', 'japan', 'jpop', 'j-pop', 'j-rock', 'jrock', 'city pop', 'citypop', 'vocaloid', 'anime'], script: /[぀-ヿ]/, native: ['邦楽', 'シティポップ'] },
-  { words: ['chinese', 'china', 'mandarin', 'cpop', 'c-pop', 'mandopop', 'taiwanese', 'taiwan'], script: /[一-鿿]/, native: ['华语', '中文歌'] },
-  { words: ['cantonese', 'cantopop', 'hong kong', 'hk'], script: /[一-鿿]/, native: ['廣東歌'] },
+  { words: ['chinese', 'china', 'mandarin', 'cpop', 'c-pop', 'mandopop', 'taiwanese', 'taiwan'], script: /[一-鿿]/, notScript: /[\u3040-\u30FF\uAC00-\uD7AF]/, native: ['华语', '中文歌'] },
+  { words: ['cantonese', 'cantopop', 'hong kong', 'hk'], script: /[一-鿿]/, notScript: /[\u3040-\u30FF\uAC00-\uD7AF]/, native: ['廣東歌'] },
   { words: ['vietnamese', 'vietnam', 'vpop', 'v-pop'], script: /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i, native: ['nhạc việt', 'nhạc chill'] },
   { words: ['indonesian', 'indonesia', 'indo'], native: ['lagu indonesia', 'indie indonesia'] },
   { words: ['malaysian', 'malaysia', 'malay'], native: ['lagu melayu'] },
@@ -65,7 +65,7 @@ const moodOf = (w: string) => Object.entries(MOODS).find(([k, syn]) => k === w |
 const STYLES: Record<string, string[]> = {
   artsy: ['existential', 'philosophical', 'introspective', 'art rock', 'art pop', 'post-punk', 'indie', 'alternative', '独立', '獨立', '后摇', '後搖', '存在主义', '另类', '另類'],
   experimental: ['experimental', 'avant-garde', 'avant garde', 'avant', 'art rock', 'art pop', 'noise', 'post-rock', 'post rock', 'math rock', 'leftfield', 'weird', 'abstract', '实验', '實驗', '前卫', '前衛', '后摇', '後搖', '噪音', '실험', '実験', 'ทดลอง'],
-  grunge: ['grunge', 'grungy', 'alt rock', 'alternative rock', 'noise rock', 'garage', 'shoegaze', 'sludge', 'post-punk', 'punk', '垃圾摇滚', '摇滚', '搖滾', '朋克', '后朋克', '그런지', 'グランジ'],
+  grunge: ['grunge', 'grungy', 'noise rock', 'garage rock', 'shoegaze', 'sludge', 'post-punk', 'post punk', '垃圾摇滚', '垃圾搖滾', '后朋克', '後龐克', '噪音', '그런지', 'グランジ'],
   indie: ['indie', 'independent', 'underground', 'alternative', 'alt', '独立', '獨立', '地下', '인디', 'インディー', 'อินดี้', 'นอกกระแส'],
   shoegaze: ['shoegaze', 'dream pop', 'dreampop', '自赏', '自賞', '梦幻', '슈게이징'],
   psychedelic: ['psychedelic', 'psych', 'trippy', '迷幻', '사이키델릭'],
@@ -192,6 +192,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     if (feel.length && !moodHits && !styleHits && !sceneHits) score -= 6;
     // Classics and oldies only when you ask for them.
     if (!wantsOld && OLD.test(p.title)) score -= 7;
+    if (/\bktv\b|卡拉ok|karaoke/i.test(p.title)) score -= 6;
     // Asked for no origin: a playlist about a particular country is off-topic.
     if (!origin && ORIGINS.some((x) => x.words.some((w) => new RegExp(`\\b${w}\\b`).test(t)))) score -= 4;
     if (/\b(mix|radio)\b/.test(t)) score -= 0.5;
@@ -202,7 +203,11 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   if (!candidates.length) return { songs: [], state: null, picked: [], liked: [] };
 
   const lists = await Promise.all(candidates.map((p) => browseCollection(p.id, 120).catch(() => null)));
-  const inScript = (x: WebSong) => (origin?.script ? origin.script.test(`${x.title} ${x.artist}`) : false);
+  // In the language's script (and, for Chinese, not Japanese or Korean, which share characters).
+  const inScript = (x: WebSong) => {
+    const t = `${x.title} ${x.artist}`;
+    return origin?.script ? origin.script.test(t) && !origin.notScript?.test(t) : false;
+  };
   const usedNow = candidates.filter((_, i) => lists[i]).map((c) => c.id);
   // Each playlist: does it fit the words (title score), is it really in the
   // language you asked for, and how close is it to your taste?
