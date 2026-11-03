@@ -297,9 +297,15 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    explainer. Discover keep buttons are hearts again (Now Playing keeps the
    star). `lib/titles.ts` splits "(feat. …)" into the artist line and drops
    "(Official Audio)"-style noise. Lab: https://claude.ai/chat/e2cba1af-352e-483c-ab48-c8223eb4ad69
-4. Polish: installable home-screen app (PWA): app has no icon or manifest
-   yet (no `public/`); App Icon Lab built, waiting on the owner's M+B+N pick
-   (then add apple-touch-icon 180, manifest 192/512, favicon, app name); reorder songs in hub playlists;
+   **App icon (App Icon Lab pick M1 + B2 + N1):** spiral on a deep-water
+   gradient, named "Music Hub". Source `public/icon.svg` (re-export PNGs with
+   rsvg-convert): `app/apple-icon.png` (180), `app/icon.png`, `app/favicon.ico`,
+   `public/icon-192/512.png`, `app/manifest.ts`; middleware lets these through
+   before login. Owner must delete + re-add the home-screen app to see it.
+   **Cover jitter fix:** while the Now Playing sheet is scrolled, the YouTube
+   layer gets `data-tucked` (opacity 0, still playing) and the real cover
+   `<img>` (now always inside `.np-art`) scrolls natively.
+4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
 ## Session log
@@ -337,3 +343,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   grouped list, per-song ⋯ menu, hold-and-drag reorder.
   Mix page redesign (H2+A1+R2+E3) and queue cleanup (grip drag, flat list).
   App Icon Lab.
+  Cover jitter fix (video hides while scrolling); app icon M1+B2+N1.
