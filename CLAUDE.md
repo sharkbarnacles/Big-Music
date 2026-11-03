@@ -416,6 +416,18 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    tagged with the style +3; and a consensus check: with a style/mood, a
    playlist sharing no artists with the other candidates −8. `PROMPT_DEBUG=1`
    (set in try-prompt.yml) returns the queries and scored titles.
+   **More styles (owner's taste, 2026-11-03):** goth/gothic rock/darkwave,
+   post-punk, emo, screamo, metal (metalcore, death metal…), visual kei,
+   industrial, cottagecore, plus moods dreamy / soft (dainty, feminine) /
+   whimsical, each with native terms (KR/JP/CN/TH/ES/FR/RU) and RELATED
+   neighbours. `parse()` now matches whole phrases ("visual kei",
+   "melodic metalcore") before single words. With a style asked, a
+   favourite is only lifted if tagged with it (untagged ×0.3). No language
+   named → a mix is fine (country playlists −1, was −4). Owner's languages:
+   main English + Korean; branches Japanese, Chinese, Thai, Filipino,
+   Spanish, French, Russian (`taste_settings` 'languages'); Daily discover's
+   `weighted_seeds` weights artists ×1 main, ×0.35 branch, ×0.5 other
+   (language from title script or MusicBrainz country).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -468,3 +480,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Zoomed-in pages fixed (16px text boxes, clipped colour wash).
   Deeper taste: MusicBrainz artist tagging job, vocal preference per language, Your taste page.
   Style-aware word radios (experimental/grunge/indie… in English and natively), consensus check, no oldies unless asked.
+  Goth/emo/metal/visual kei/cottagecore… styles; Daily discover leans English + Korean.
