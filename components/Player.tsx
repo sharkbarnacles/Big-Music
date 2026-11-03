@@ -110,7 +110,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<Repeat>('off');
-  const [youtubeMode, setYoutubeModeState] = useState(false);
+  const [youtubeMode, setYoutubeModeState] = useState(true); // YouTube-first by default
   const [video, setVideo] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -127,7 +127,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playingRef = useRef(false);
   const shuffleRef = useRef(false);
   const repeatRef = useRef<Repeat>('off');
-  const ytModeRef = useRef(false);
+  const ytModeRef = useRef(true);
   const videoRef = useRef(false);
   const posRef = useRef({ ms: 0, at: 0 }); // last known Spotify position
   const draggingRef = useRef(false);
@@ -610,7 +610,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Remember the YouTube mode switch; load YouTube's library early.
   useEffect(() => {
     try {
-      const on = localStorage.getItem(YT_MODE_KEY) === '1';
+      // On unless you've switched it off on this device.
+      const on = localStorage.getItem(YT_MODE_KEY) !== '0';
       ytModeRef.current = on;
       setYoutubeModeState(on);
     } catch {
