@@ -186,6 +186,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Library Top Lab (numbers/search & filters/video finder/play row): https://claude.ai/artifact/UTVPcvWT74dmoa62gLescy
 - Discovery Lab v2 (page/today/weekly/monthly/archive/extras, P·T·W·M·A·E; v1 L·S·W·A·K superseded): https://claude.ai/artifact/1heSnxpkV4WHijeGHv54FH
 - Now Playing Lab (artwork/background/title/progress/controls/options, A·G·T·B·C·O): https://claude.ai/artifact/LcYeZ1AkMCLZtxeFBuCQ1x
+- Player Icon Lab (skip S, ouroboros repeat R, row icons I, row layout L): https://claude.ai/artifact/CeDBEAZJqHhY9bWZLxEGps
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -235,6 +236,11 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    and first lists made 2026-11-03. Next: E3 radio tuner + mood chips (could
    precompute a candidate pool and YouTube mood playlists in discover.py),
    optional ListenBrainz scrobbling (needs owner's LB account token).
+   Now Playing: owner picked **A2 + G2 + T3 + B2 + C2 + O2** in the Now
+   Playing Lab (square cover, color wash, title with heart + ⋯, thin progress
+   line, lighter play circle, icon row with YouTube mode/Stop in ⋯) but wants
+   sleeker icons first: waiting on their Player Icon Lab pick (S+R+I+L;
+   repeat drawn as an ouroboros). Not built into the app yet.
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -260,3 +266,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Self-hosting research (declined). Spotify queue handoff + auto-wake.
   Fixed adding Discover songs to playlists. Radio from any song.
   YouTube start without tapping the video; Now Playing Lab.
+  Now Playing pick A2+G2+T3+B2+C2+O2; Player Icon Lab (ouroboros repeat).
