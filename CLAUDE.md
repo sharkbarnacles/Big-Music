@@ -115,6 +115,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Look Lab (colors/fonts/bars/lists): https://claude.ai/artifact/QJDbm7KfJhkio31ZTdirrB
 - Playlist Sort Lab (sort/group/switch/look for Home playlists): https://claude.ai/artifact/BHWY4jdLiPGqAH6QYXfnQM
 - Home Top Lab (header/numbers/services/messages above Playlists): https://claude.ai/artifact/Db76mHuAcsarbFNo88ztzu
+- Library Top Lab (numbers/search & filters/video finder/play row): https://claude.ai/artifact/UTVPcvWT74dmoa62gLescy
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -135,7 +136,8 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    YouTube `publishedAt`; YouTube "Liked Music" has no date), Sort
    drop-down, All/Spotify/YouTube Music chips, rows with covers.
    Waiting on their Home Top Lab pick (four codes like "H2 + T2 + V2 + N2")
-   to slim the top of Home. The "Connected …" message comes from the
+   to slim the top of Home, and their Library Top Lab pick (like
+   "T2 + F3 + V2 + A1") to slim the top of the Library page. The "Connected …" message comes from the
    `?connected=` URL parameter after sign-in.
 2. Organization (phase 3): tags, ratings, notes, smart playlists, manual fix
    for wrong song matches.
