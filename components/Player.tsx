@@ -1,5 +1,6 @@
 'use client';
 
+import { SPIRAL } from '@/lib/icons';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
@@ -818,7 +819,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     prev: 'M19 5L9 12l10 7zM5 5v14',
     // Spiral (owner's pick for Shuffle).
     plus: 'M12 5v14M5 12h14',
-    shuffle: 'M12 12a1.5 1.5 0 0 1 1.5 1.5a3 3 0 0 1-3 3a4.5 4.5 0 0 1-4.5-4.5a6 6 0 0 1 6-6a7.5 7.5 0 0 1 7.5 7.5',
+    shuffle: SPIRAL,
     repeat: 'M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3',
     down: 'M6 9l6 6 6-6',
     queue: 'M3 6h13M3 12h13M3 18h9M17 15l5 3-5 3z',

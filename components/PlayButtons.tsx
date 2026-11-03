@@ -1,11 +1,8 @@
 'use client';
 
 import type { TrackRowData } from '@/lib/tracks';
+import { SPIRAL } from '@/lib/icons';
 import { usePlayer, type QueueSource } from './Player';
-
-// The spiral used for Shuffle everywhere in the app.
-export const SPIRAL =
-  'M12 12a1.5 1.5 0 0 1 1.5 1.5a3 3 0 0 1-3 3a4.5 4.5 0 0 1-4.5-4.5a6 6 0 0 1 6-6a7.5 7.5 0 0 1 7.5 7.5';
 
 // Round Shuffle (spiral) and Play buttons for the top of a list.
 // With `video`, songs that have a music video play it. With `source`, they

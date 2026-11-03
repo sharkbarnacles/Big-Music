@@ -11,7 +11,7 @@
   --accent: #3DDBD9;    /* the playing song, Play button, progress */
   --on-accent: #04141A; /* text on top of the accent */
   --spotify: #1ed760;
-  --youtube: #ff4e45;
+  --youtube: #B388FF;   /* soft purple (was YouTube red) to suit the Abyss colors */
   --danger: #ff8a8a;
   --radius: 14px;
   --nav-h: 64px;        /* height of the bottom bar, without the iPhone home-bar space */
