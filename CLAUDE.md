@@ -71,6 +71,12 @@ Environment variables (set in Vercel; names only, never values):
   `lib/importers/youtube.ts` → `lib/library.ts` (merges duplicates by a
   simplified "artist|title" key; playlists and items; include/skip choices in
   `source_playlists`; YouTube playlists import only if ≥70% Music category).
+  **Spotify import runs in rounds** (Vercel stops requests at 5 min; the
+  first import silently stopped at 243 playlists): each POST does ~4 min,
+  saves `import_progress`, returns `{done:false, processed, total}`, and
+  `components/ImportButton.tsx` keeps calling until done; a new press within
+  6 h resumes. Playlists whose Spotify `snapshot_id` matches
+  `source_playlists.snapshot` are skipped (Liked Songs uses "count|newest").
 - Playback: `components/Player.tsx` (big file; the hub owns the queue,
   shuffle, repeat, Now Playing sheet, queue view). Engines:
   - **YouTube** (default, "YouTube mode"): embedded YouTube IFrame player.
@@ -143,7 +149,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 
 ## Current state
 
-- Library imported: ~22,900 songs, 305 playlists (Spotify + YouTube Music).
+- Library imported: ~22,900 songs, 305 playlists (Spotify + YouTube Music),
+  but **Spotify was incomplete** (243 of the owner's several thousand) and
+  playlist dates were missing, so Home's "Recently updated" sort did nothing.
+  Owner asked to re-run Import for Spotify (rounds) and YouTube (dates).
 - Background finder is still filling YouTube versions (started 2026-11-03,
   expected to cover the library within about a day). Check progress:
   `select count(*) filter (where yt_audio_id is not null), count(*) filter (where yt_audio_status is null) from tracks;`
@@ -190,3 +199,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   continues through the whole list) and added hub playlists.
 - 2026-11-03: Longer spiral Shuffle icon (`lib/icons.ts`), YouTube color
   red → purple, built the Discovery Lab.
+  Spotify import now resumable in rounds with unchanged-playlist skipping.
