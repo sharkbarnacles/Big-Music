@@ -2,7 +2,7 @@
 // GitHub job), each with a date, and never change afterwards.
 import { db } from './db';
 import { createHubPlaylist, addToHubPlaylist } from './hubPlaylists';
-import { saveTracks } from './library';
+import { keepDiscoveryItem } from './keepDiscovery';
 import type { TrackRowData } from './tracks';
 
 export type EditionKind = 'daily' | 'weekly' | 'releases' | 'month' | 'forgotten';
@@ -120,30 +120,7 @@ export async function setHeart(itemId: string, on: boolean): Promise<{ hearted: 
   const playlistId = await discoveriesPlaylist();
 
   let trackId: string | null = item.track_id;
-  if (on && !trackId) {
-    if (!item.yt_video_id) throw new Error('This song has no YouTube version to keep.');
-    const map = await saveTracks([
-      {
-        service: 'youtube',
-        externalId: item.yt_video_id,
-        url: `https://music.youtube.com/watch?v=${item.yt_video_id}`,
-        title: item.title,
-        artist: item.artist,
-        album: item.album,
-        durationMs: item.duration_ms,
-        isrc: null,
-        imageUrl: item.image_url,
-      },
-    ]);
-    trackId = map.get(item.yt_video_id) ?? null;
-    if (!trackId) throw new Error('Could not save the song.');
-    // It plays in YouTube mode straight away, from the same video.
-    await db()
-      .from('tracks')
-      .update({ yt_audio_id: item.yt_video_id, yt_audio_status: 'found', yt_audio_source: 'library', yt_audio_checked_at: new Date().toISOString() })
-      .eq('id', trackId)
-      .is('yt_audio_id', null);
-  }
+  if (on && !trackId) trackId = await keepDiscoveryItem(itemId);
 
   if (on && trackId) await addToHubPlaylist(playlistId, [trackId]);
   if (!on && trackId) await db().from('playlist_items').delete().eq('playlist_id', playlistId).eq('track_id', trackId);

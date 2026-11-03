@@ -1,6 +1,7 @@
 // Playlists you make inside the hub (playlists.service = 'hub').
 // Imports never touch them: they only replace Spotify / YouTube playlists.
 import { chunk, db, fetchAllRows } from './db';
+import { resolveTrackIds } from './keepDiscovery';
 
 export type HubPlaylist = { id: string; name: string; count: number; image_url: string | null };
 
@@ -52,8 +53,10 @@ export async function deleteHubPlaylist(id: string) {
 }
 
 // Adds songs to the end. Songs already in the playlist are skipped.
-export async function addToHubPlaylist(id: string, trackIds: string[]): Promise<{ added: number; skipped: number }> {
+export async function addToHubPlaylist(id: string, ids: string[]): Promise<{ added: number; skipped: number }> {
   const playlist = await requireHub(id);
+  // Songs from Discover are saved to your library first (they have "disc:…" IDs until then).
+  const trackIds = await resolveTrackIds(ids);
   const { rows, error } = await fetchAllRows<{ position: number; track_id: string }>((from, to) =>
     db().from('playlist_items').select('position, track_id').eq('playlist_id', id).order('position').range(from, to),
   );
