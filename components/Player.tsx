@@ -700,15 +700,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ? {
             left: 0,
             right: 0,
-            bottom: `calc(${BAR_HEIGHT}px + env(safe-area-inset-bottom))`,
+            bottom: `calc(var(--nav-h) + ${BAR_HEIGHT + 16}px + env(safe-area-inset-bottom))`,
             width: '100%',
             aspectRatio: '16 / 9',
             maxHeight: '45vh',
           }
         : ytActive && !sheetOpen
           ? {
-              left: 12,
-              bottom: `calc(${(BAR_HEIGHT - 48) / 2}px + env(safe-area-inset-bottom))`,
+              // over the artwork square in the floating player card
+              left: 'calc(max(10px, env(safe-area-inset-left)) + 9px)',
+              bottom: `calc(var(--nav-h) + ${8 + (BAR_HEIGHT - 48) / 2}px + env(safe-area-inset-bottom))`,
               width: 48,
               height: 48,
               borderRadius: 6,
@@ -757,7 +758,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       <div ref={hostRef} className="yt-host" style={hostStyle} />
 
       {(toast || notice) && !sheetOpen && (
-        <div className="player-float" style={{ bottom: `calc(${current ? BAR_HEIGHT + 10 : 16}px + env(safe-area-inset-bottom))` }}>
+        <div className="player-float" style={{ bottom: `calc(var(--nav-h) + ${current ? BAR_HEIGHT + 16 : 10}px + env(safe-area-inset-bottom))` }}>
           {notice ? (
             <div className="player-notice">
               <span>{notice.text}</span>

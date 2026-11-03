@@ -46,10 +46,6 @@ export default function TrackRow({
       </button>
       <div className="end">
         <span className="dur">{formatDuration(track.duration_ms)}</span>
-        <span className="avail" aria-label={[spotify && 'On Spotify', youtube && 'On YouTube'].filter(Boolean).join(', ')}>
-          {spotify && <span className="dot spotify" />}
-          {youtube && <span className="dot youtube" />}
-        </span>
         {track.video_id && (
           <button type="button" className="icon-btn video" aria-label={`Watch the music video for ${track.title}`} onClick={onVideo}>
             <svg viewBox="0 0 24 24" aria-hidden="true">

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 200;
 const SEARCH_BATCH = 40; // 40 searches × 100 units = 4,000 of the 10,000 daily quota
 
-type Params = { q?: string; video?: string; both?: string; sort?: string };
+type Params = { q?: string; video?: string; both?: string; sort?: string; search?: string };
 
 async function count(filter?: (q: any) => any): Promise<number> {
   let query = db().from('tracks').select('id', { count: 'exact', head: true });
@@ -19,7 +19,7 @@ async function count(filter?: (q: any) => any): Promise<number> {
 }
 
 export default async function LibraryPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const { q = '', video = '', both, sort = 'artist' } = await searchParams;
+  const { q = '', video = '', both, sort = 'artist', search: searchTab } = await searchParams;
   // Remove characters that have special meaning in the database filter.
   const search = q.replace(/[,()%*\\]/g, ' ').trim();
 
@@ -49,7 +49,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   return (
     <main className="wrap">
       <Header />
-      <h1>All songs</h1>
+      <h1>Library</h1>
 
       <div className="stats">
         <div><b>{total}</b><span className="muted small">songs</span></div>
@@ -59,7 +59,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       </div>
 
       <form method="get" className="filters">
-        <input type="search" name="q" defaultValue={q} placeholder="Search title, artist or album" />
+        {searchTab === '1' && <input type="hidden" name="search" value="1" />}
+        <input type="search" name="q" defaultValue={q} placeholder="Search title, artist or album" autoFocus={searchTab === '1'} aria-label="Search your library" />
         <select name="video" defaultValue={video} aria-label="Music video filter">
           <option value="">All songs</option>
           <option value="yes">Has music video</option>
