@@ -1,10 +1,14 @@
 name: Probe YouTube Music
+# Manual: saves YouTube Music's raw answers to the side branch `probe-output`
+# (never main), so the hub's parsers can be written against real data.
 on:
   workflow_dispatch:
     inputs:
       q:
         description: Search words
         default: matryoshka hachi
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -14,5 +18,10 @@ jobs:
         with: { node-version: 20 }
       - run: node scripts/probe_ytm.mjs
         env: { Q: "${{ inputs.q }}" }
-      - uses: actions/upload-artifact@v4
-        with: { name: probe, path: probe/, retention-days: 3 }
+      - name: Save to probe-output branch
+        run: |
+          mv probe /tmp/probe
+          git config user.name "probe" && git config user.email "probe@users.noreply.github.com"
+          git checkout --orphan probe-output
+          git rm -rq --cached . && rm -rf ./*
+          cp /tmp/probe/* . && git add *.json && git commit -qm "probe" && git push -f origin probe-output
