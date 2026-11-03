@@ -84,9 +84,20 @@ Environment variables (set in Vercel; names only, never values):
   switch is only in the Now Playing sheet.
 - Library page (`app/library/page.tsx`): views Songs / Artists / Music videos
   and sort/filter chosen from the drop-down `components/FilterMenu.tsx`
-  (address settings in `lib/libraryParams.ts`). Artists come from the SQL
-  function `artist_summary` (main artist = first name before , & x feat. ft.);
-  `?artist=Name` shows one artist's songs.
+  (address settings in `lib/libraryParams.ts`). **Whole library, no caps:**
+  SQL `library_page` (any filter/order; `seed` = stable shuffled order) and
+  `artist_page` (main artist = first name before , & x feat. ft.), read via
+  `lib/libraryQuery.ts` and `/api/library/tracks|artists`. Lists load 200 at
+  a time as you scroll (`LibraryList`, `ArtistList`, `MoreLoader`). The player
+  takes a `source` ({query, total}) and fetches more songs when <25 remain,
+  so Play/Shuffle cover the whole list. `?artist=Name` shows one artist.
+- **Hub playlists** (`playlists.service = 'hub'`, imports never touch them):
+  `lib/hubPlaylists.ts`, `/api/hub-playlists` (+ `/[id]`, `/[id]/items`).
+  "Add to playlist…" panel = `components/PlaylistPicker.tsx` (context in
+  layout; opened from song ⋯ menus, Now Playing, a playlist's ⋯ "Add all",
+  and Home's "New playlist"). Playlist ⋯ menu (`PlaylistMenu.tsx`): rename,
+  delete; songs removable (`HubTrackList.tsx`). Home chip "Mine" shows them.
+  Duplicates are skipped when adding. No reordering yet.
 - `components/BottomNav.tsx`: Home, Search (= `/library?search=1`), Discover
   (placeholder), Library.
 - Background finder: `scripts/find_videos.py` (ytmusicapi, unofficial) run by
@@ -95,6 +106,7 @@ Environment variables (set in Vercel; names only, never values):
   `tracks.video_id` (official music video). On-demand fallback in the app:
   `lib/videos.ts` → official YouTube search (100 quota units each, ~90/day).
 
+Unused old function: `artist_summary` (replaced by `artist_page`).
 Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 `source_playlists`, `connections`; unused so far: `tags`, `track_tags`,
 `ratings`, `plays`. See `supabase/schema.sql`.
@@ -156,8 +168,8 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    for wrong song matches.
 3. Discovery (phase 4): Last.fm "similar", ListenBrainz scrobbling and
    recommendations, a discovery inbox; the Discover tab is a placeholder.
-4. Polish: installable home-screen app (PWA), Library paging beyond 200 rows
-   (Play/Shuffle on the Library page currently use only the 200 shown).
+4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
+   save the current queue as a playlist.
 
 ## Session log
 
@@ -169,4 +181,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   added this file. Services box on Home now folds; status-bar strip for the
   home-screen app; built the Playlist Sort Lab. Applied the Playlist Sort,
   Home Top and Library Top picks; added Artists / Music videos views and the
-  spiral Shuffle.
+  spiral Shuffle. Removed the 200-song caps (scroll loads all; player
+  continues through the whole list) and added hub playlists.
