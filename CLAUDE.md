@@ -134,7 +134,15 @@ Environment variables (set in Vercel; names only, never values):
   HeartButton, DiscoverList, ArchiveCalendar), `lib/discover.ts`. Heart =
   `saveTracks` + add to hub playlist "Discoveries". Discoveries play with id
   `disc:<item id>` until hearted. The player POSTs `/api/plays` after 30 s.
-  **E3 (radio with Familiar↔New dial + mood chips) not built yet.**
+  **Radio (E3, 2026-11-03):** `lib/ytRadio.ts` sends YouTube Music's own
+  "next" request (WEB_REMIX client, `RDAMVM<videoId>`, no login; probed OK
+  from GitHub's servers, not yet confirmed from Vercel's). `/api/radio`
+  returns library songs as themselves and new ones as `yt:<videoId>` (saved
+  in `radio_songs`; `lib/keepDiscovery.ts` turns `disc:`/`yt:` IDs into real
+  songs when added to a playlist or hearted). Player `startRadio` + radioRef
+  fetches continuations when <10 songs are left. Dial Familiar/Mixed/New in
+  localStorage `mh-radio-mode`. Entry points: song ⋯ menu, Now Playing chip,
+  Discover → Radio quick starts. Mood chips not built yet.
 - Background finder: `scripts/find_videos.py` (ytmusicapi, unofficial) run by
   `.github/workflows/find-videos.yml` every 3 hours and on demand. Fills
   `tracks.yt_audio_id` (YouTube version for YouTube mode) and
@@ -246,3 +254,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Spotify pause handling + hourly resume job. Discover stage 1 (daily job,
   dated editions, hearts, archive calendar, play counting).
   Self-hosting research (declined). Spotify queue handoff + auto-wake.
+  Fixed adding Discover songs to playlists. Radio from any song.
