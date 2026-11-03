@@ -109,8 +109,24 @@ Environment variables (set in Vercel; names only, never values):
   and Home's "New playlist"). Playlist ⋯ menu (`PlaylistMenu.tsx`): rename,
   delete; songs removable (`HubTrackList.tsx`). Home chip "Mine" shows them.
   Duplicates are skipped when adding. No reordering yet.
-- `components/BottomNav.tsx`: Home, Search (= `/library?search=1`), Discover
-  (placeholder), Library.
+- `components/BottomNav.tsx`: Home, Search (= `/library?search=1`), Discover,
+  Library.
+- **Discover** (owner's Lab v2 pick **P3 + T5 + W2 + M3 + A1 + E3**):
+  `scripts/discover.py` run daily ~6:38 am NY by `.github/workflows/discover.yml`
+  makes dated editions in `discover_editions` / `discover_items` and never
+  changes them: Daily discover (10, two-row carousel), Monday Discovery (30),
+  Friday New Releases (from `discover_releases`; an artist's first scan only
+  seeds what's already out, and 45 artists are scanned a day, so the first real
+  Friday list needs about a week), Forgotten favorites (SQL
+  `forgotten_candidates`), Month mix on the 1st (SQL `month_top_tracks` +
+  hearts). New music = YouTube Music "Fans also like" of weighted-random
+  library artists (cached in `discover_artists`), skipping library songs and
+  anything suggested before (`match_key`). Page `app/discover/page.tsx`,
+  edition page `app/discover/[id]`, `components/Discover.tsx` (TodayGrid,
+  HeartButton, DiscoverList, ArchiveCalendar), `lib/discover.ts`. Heart =
+  `saveTracks` + add to hub playlist "Discoveries". Discoveries play with id
+  `disc:<item id>` until hearted. The player POSTs `/api/plays` after 30 s.
+  **E3 (radio with Familiar↔New dial + mood chips) not built yet.**
 - Background finder: `scripts/find_videos.py` (ytmusicapi, unofficial) run by
   `.github/workflows/find-videos.yml` every 3 hours and on demand. Fills
   `tracks.yt_audio_id` (YouTube version for YouTube mode) and
@@ -195,7 +211,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    songs to a "Discoveries" playlist. Sources: ListenBrainz (needs the hub to
    submit plays; LB weeklies can run late), ytmusicapi radio/related (gives
    YouTube IDs), own play history for monthly. Research report delivered in
-   chat ("Music discovery formats"). Waiting on the Lab v2 pick (six codes).
+   chat ("Music discovery formats"). Picked P3+T5+W2+M3+A1+E3; stage 1 built
+   and first lists made 2026-11-03. Next: E3 radio tuner + mood chips (could
+   precompute a candidate pool and YouTube mood playlists in discover.py),
+   optional ListenBrainz scrobbling (needs owner's LB account token).
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -216,3 +235,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Spotify import now resumable in rounds with unchanged-playlist skipping.
   Bigger spiral; Home Sort + chips on one line, 'YouTube' label, muted
   source dots. Discovery research + Lab v2.
+  Spotify pause handling + hourly resume job. Discover stage 1 (daily job,
+  dated editions, hearts, archive calendar, play counting).
