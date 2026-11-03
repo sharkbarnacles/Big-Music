@@ -215,6 +215,12 @@ export async function browseCollection(id: string, max = 500): Promise<WebCollec
   return { kind, id, title, subtitle: text(head.subtitle), owner, details: text(head.secondSubtitle), image, songs: songs.slice(0, max) };
 }
 
+// Artists only, for "similar to <artist>" radios.
+export async function searchArtists(query: string): Promise<WebItem[]> {
+  const items = await call('search', { query: query.trim().slice(0, 150), params: FILTER.artists }).then(shelfItems);
+  return items.map((r) => parseListItem(r, 'artist')).filter((a): a is WebItem => a !== null);
+}
+
 export async function browseArtist(id: string): Promise<WebArtist> {
   const data = await call('browse', { browseId: id });
   const head = data?.header?.musicImmersiveHeaderRenderer ?? data?.header?.musicVisualHeaderRenderer;

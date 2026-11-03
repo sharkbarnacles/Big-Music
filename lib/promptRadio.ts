@@ -10,6 +10,7 @@
 //    it go first; songs from playlists that mention the origin are trusted.
 // 4. Spread artists out. More comes from the next playlists as you listen.
 import { searchPlaylists, browseCollection, type WebSong } from './ytBrowse';
+import { findSimilarSeed, similarRadio } from './similarRadio';
 import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste } from './taste';
 
 type Origin = { words: string[]; script?: RegExp; notScript?: RegExp; native?: string[] };
@@ -113,7 +114,7 @@ const WANTS_OLD = /\b(old|oldies|classic|retro|vintage|throwback|[5-9]0s|19[5-9]
 // Words that say nothing about the music on their own.
 const FILLER = new Set(['music', 'songs', 'song', 'playlist', 'mix', 'radio', 'some', 'the', 'and', 'of', 'a', 'an', 'with', 'for', 'like', 'that', 'is', 'vibes', 'vibe', 'type', 'kind']);
 
-export type PromptState = { q: string; used: string[] };
+export type PromptState = { q: string; used: string[]; todo?: string[]; seed?: string };
 // `liked`: artists in this batch you already love (their keys), for mixing in your own songs.
 export type PromptBatch = { songs: WebSong[]; state: PromptState | null; picked: string[]; liked: string[]; debug?: string[] };
 
@@ -169,6 +170,12 @@ function curated(songs: WebSong[]): boolean {
 }
 
 export async function promptRadio(q: string, state: PromptState | null): Promise<PromptBatch> {
+  // "Similar to <artist>" / "like <artist>": a radio of artists like that one.
+  if (state?.todo || state?.seed) return similarRadio(q, state);
+  if (!state) {
+    const seed = await findSimilarSeed(q);
+    if (seed) return similarRadio(q, null, seed);
+  }
   const { origin, originWord, feel, moods, styles, scene, wantsOld } = parse(q);
   const used = new Set(state?.used ?? []);
   const script = origin?.script;
@@ -345,7 +352,13 @@ export function decodeState(token: string): PromptState | null {
   if (!token.startsWith('p:')) return null;
   try {
     const s = JSON.parse(Buffer.from(token.slice(2), 'base64url').toString('utf8'));
-    return typeof s?.q === 'string' && Array.isArray(s.used) ? { q: s.q.slice(0, 150), used: s.used.slice(0, 60).map(String) } : null;
+    if (typeof s?.q !== 'string' || !Array.isArray(s.used)) return null;
+    return {
+      q: s.q.slice(0, 150),
+      used: s.used.slice(0, 80).map(String),
+      ...(Array.isArray(s.todo) ? { todo: s.todo.slice(0, 40).map(String) } : {}),
+      ...(typeof s.seed === 'string' ? { seed: s.seed } : {}),
+    };
   } catch {
     return null;
   }

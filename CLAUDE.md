@@ -65,7 +65,7 @@ Environment variables (set in Vercel; names only, never values):
   limited is not retried: after the reset, push any real app change
   (notes-only commits are skipped by vercel.json). Pending since the limit:
   goth/emo/metal/visual kei styles + style-fit lift (commits d046afe,
-  321b273, 1541ea6).
+  321b273, 1541ea6) and similar-artist radios.
 - Database changes: the Supabase connector (apply_migration / execute_sql) on
   project `dvcjjcuqmhwdahhaafuy`, **and** append the same SQL to
   `supabase/schema.sql` (kept re-runnable with `if not exists`).
@@ -435,6 +435,12 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    Spanish, French, Russian (`taste_settings` 'languages'); Daily discover's
    `weighted_seeds` weights artists ×1 main, ×0.35 branch, ×0.5 other
    (language from title script or MusicBrainz country).
+   **Similar-artist radios:** "similar to / like / sounds like / artists
+   like / fans of <artist> [but <words>]" (`lib/similarRadio.ts`): YouTube
+   Music artist search (`searchArtists`), its "Fans might also like" →
+   top 4 songs of ~10 related artists per batch (+2 of the named artist
+   early), continuation walks outwards (state `todo`/`seed` in the `p:`
+   token); taste + tagFit lift, extra words favour artists tagged with them.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -488,3 +494,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Deeper taste: MusicBrainz artist tagging job, vocal preference per language, Your taste page.
   Style-aware word radios (experimental/grunge/indie… in English and natively), consensus check, no oldies unless asked.
   Goth/emo/metal/visual kei/cottagecore… styles; Daily discover leans English + Korean.
+  Similar-artist radios ("similar to Silica Gel").
