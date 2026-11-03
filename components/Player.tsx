@@ -175,6 +175,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const onRejection = (e: PromiseRejectionEvent) => clientLog('rejection', String(e.reason?.stack ?? e.reason).slice(0, 1500));
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
+    const onHide = () => document.visibilityState === 'hidden' && savePlayer();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', savePlayer);
+    restorePlayer();
     // Every few seconds: am I playing, and where? (read on the next start)
     const beat = window.setInterval(() => {
       try {
@@ -190,12 +194,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             images: document.images.length,
           }),
         );
+        savePlayer();
       } catch {
         /* private browsing */
       }
     }, 5000);
     return () => {
       window.clearInterval(beat);
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', savePlayer);
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
     };
@@ -243,6 +250,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sdkDeviceRef = useRef<string | null>(null);
 
   const current = index >= 0 ? queue[index] ?? null : null;
+  // Mirrors for the background saver (it runs outside renders).
+  const progressNowRef = useRef(0);
+  progressNowRef.current = engine === 'spotify' && playing ? posRef.current.ms + (Date.now() - posRef.current.at) : progress;
+  const fromNowRef = useRef('');
+  fromNowRef.current = fromLabel;
+  const restoredRef = useRef(false); // the queue came back after the app restarted; Play resumes it
 
   // Count a play once you've listened to a song for 30 seconds (each time it
   // comes up in the queue). Plays make the monthly Discover mixes.
@@ -265,6 +278,52 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     indexRef.current = i;
     setQueue(q);
     setIndex(i);
+  };
+
+  // ── Surviving a restart ──────────────────────────────────────────────
+  // The app can restart on its own: after an update is published, the first
+  // page change loads the new version, and iOS sometimes shuts home-screen
+  // apps down. The queue, the song and the spot in it are saved every few
+  // seconds, and come back after a restart, paused; one tap on Play carries on.
+  const PLAYER_KEY = 'mh-player';
+  const savePlayer = () => {
+    try {
+      const q = queueRef.current;
+      const i = indexRef.current;
+      if (!q.length || i < 0) return;
+      const start = Math.max(0, i - 50);
+      localStorage.setItem(
+        PLAYER_KEY,
+        JSON.stringify({
+          at: Date.now(),
+          queue: q.slice(start, i + 250),
+          index: i - start,
+          positionMs: Math.max(0, Math.floor(progressNowRef.current)),
+          from: fromNowRef.current,
+          video: videoRef.current,
+        }),
+      );
+    } catch {
+      /* storage full or private browsing */
+    }
+  };
+  const restorePlayer = () => {
+    if (indexRef.current >= 0) return; // something is already playing
+    try {
+      const saved = JSON.parse(localStorage.getItem(PLAYER_KEY) || 'null');
+      if (!saved?.queue?.length || Date.now() - saved.at > 12 * 3600_000) return;
+      const i = Math.min(Math.max(0, saved.index ?? 0), saved.queue.length - 1);
+      baseRef.current = saved.queue.slice();
+      setQ(saved.queue, i);
+      setProgress(saved.positionMs ?? 0);
+      setDuration(saved.queue[i]?.duration_ms ?? 0);
+      setFromLabel(saved.from || '');
+      videoRef.current = Boolean(saved.video);
+      setVideo(videoRef.current);
+      restoredRef.current = true;
+    } catch {
+      /* nothing saved */
+    }
   };
   const setI = (i: number) => {
     indexRef.current = i;
@@ -334,6 +393,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playAt = async (i: number, opts: { positionMs?: number; skips?: number; back?: boolean } = {}) => {
     const track = queueRef.current[i];
     if (!track) return;
+    restoredRef.current = false;
     // Remember the song you're leaving, so Back returns to it even after jumping ahead.
     const leaving = queueRef.current[indexRef.current];
     if (!opts.back && leaving && leaving !== track && !opts.skips) {
@@ -726,6 +786,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const togglePlay = async () => {
     gesture();
     if (!current || busy) return;
+    if (restoredRef.current) {
+      restoredRef.current = false;
+      playAt(indexRef.current, { positionMs: progress, back: true });
+      return;
+    }
     if (engineRef.current === 'youtube') {
       if (playingRef.current) {
         wantPlayRef.current = false;

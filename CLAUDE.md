@@ -53,6 +53,12 @@ Environment variables (set in Vercel; names only, never values):
   wait for Vercel's result on the commit:
   `gh api repos/sharkbarnacles/Big-Music/commits/<sha>/status --jq '.statuses[] | select(.context|test("Vercel";"i")) | .state'`
   (`success` / `failure`). A failed build leaves the previous version live.
+  `vercel.json` skips the build when a commit only changes `CLAUDE.md`,
+  `.github/`, `scripts/` or `supabase/` (no status, or "canceled"). **Every
+  real deploy restarts the owner's open app on their next page change**
+  (Next loads the new version with a full reload), so batch app changes
+  into fewer pushes. The player survives it (`savePlayer`/`restorePlayer`,
+  localStorage `mh-player`): the queue comes back paused, Play resumes.
 - Database changes: the Supabase connector (apply_migration / execute_sql) on
   project `dvcjjcuqmhwdahhaafuy`, **and** append the same SQL to
   `supabase/schema.sql` (kept re-runnable with `if not exists`).
@@ -342,6 +348,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    -f ref=main -f 'inputs[q]=…'`), then `git fetch origin probe-output`
    (artifact downloads are blocked from the sandbox). Spotify playlist
    search not added (Spotify time-out; Dev Mode search capped at 10).
+   **Crash cause found (client_events):** both `restart-while-playing`
+   entries were the first page change after a deploy (version skew → full
+   reload), not memory. Fix: player state saved every 5 s / on hide and
+   restored paused after a restart; notes-only commits no longer deploy.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -386,3 +396,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Smaller covers in lists (crash suspect), crash log, no video panel over the bar.
   'via' chips without 'From'; mini player shows the cover, not the tiny YouTube player.
   Search Everywhere: YouTube Music songs/artists/albums/playlists + pages.
+  Crash = deploy restarts: player now comes back after a restart; notes-only commits skip deploys.
