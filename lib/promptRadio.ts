@@ -80,9 +80,9 @@ const STYLES: Record<string, string[]> = {
 };
 // Related styles to also search for: they fill the same corner when the exact word is rare.
 const RELATED: Record<string, string[]> = {
-  experimental: ['indie', 'post-rock', 'art rock'],
-  artsy: ['indie', 'art rock', 'post-rock'],
-  grunge: ['indie rock', 'alternative rock', 'shoegaze'],
+  experimental: ['post-punk', 'post punk', 'shoegaze', 'noise', 'alternative', 'post-rock', 'art rock', 'indie', '另類', '另类', '独立', '獨立', '地下'],
+  artsy: ['indie', 'art rock', 'post-rock', 'post-punk', 'alternative', '独立', '獨立', '另類'],
+  grunge: ['indie rock', 'alternative rock', 'shoegaze', 'post-punk', 'noise', '另類', '地下'],
   shoegaze: ['dream pop', 'indie'],
   psychedelic: ['indie', 'psych rock'],
 };
@@ -182,8 +182,8 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     if (NOT_A_SONG.test(p.title.replace(/\b(mix|playlist|mixtape)\b/gi, '')) || /🎧|☕|🌙/.test(p.title)) score -= 6;
     const moodHits = moods.filter((m) => MOODS[m].some((w) => t.includes(norm(w)))).length;
     const styleHits = FALSE_STYLE.test(p.title) ? 0 : styles.filter((st) => STYLES[st].some((w) => t.includes(norm(w)))).length;
-    const relatedHits = styles.flatMap((st) => RELATED[st] ?? []).filter((w) => t.includes(w) || (STYLES[styleOf(w) ?? '']?.some((x) => script && x.length < 5 && script.test(x) && t.includes(x)))).length;
-    score += Math.min(relatedHits, 2) * 3;
+    const relatedHits = new Set(styles.flatMap((st) => RELATED[st] ?? []).filter((w) => t.includes(norm(w)))).size;
+    score += Math.min(relatedHits, 3) * 3;
     const sceneHits = scene.filter((w) => t.includes(w)).length;
     score += moodHits * 6 + styleHits * 7 + sceneHits * 3;
     // Moods and styles you asked for that the title doesn't have count against it.
@@ -193,6 +193,8 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     // Classics and oldies only when you ask for them.
     if (!wantsOld && OLD.test(p.title)) score -= 7;
     if (/\bktv\b|卡拉ok|karaoke/i.test(p.title)) score -= 6;
+    // A title that's just "playlist" / "test" with a word in front isn't a curated playlist.
+    if (/播放列表|歌单测试|\btest\b|测试|未命名|untitled|new playlist|my playlist/i.test(p.title)) score -= 9;
     // Asked for no origin: a playlist about a particular country is off-topic.
     if (!origin && ORIGINS.some((x) => x.words.some((w) => new RegExp(`\\b${w}\\b`).test(t)))) score -= 4;
     if (/\b(mix|radio)\b/.test(t)) score -= 0.5;
