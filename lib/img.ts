@@ -17,6 +17,7 @@ export function smallCover(url: string | null | undefined, size: 'row' | 'tile' 
     if (/=s\d+/.test(url)) return url.replace(/=s\d+/, `=s${px}`);
   }
   // YouTube video thumbnails: 320×180 instead of 480×360 or bigger.
-  if (url.includes('i.ytimg.com/vi/')) return url.replace(/\/(maxresdefault|sddefault|hqdefault|hq720)\.jpg/, '/mqdefault.jpg');
+  const yt = url.match(/i\.ytimg\.com\/vi\/([\w-]+)\//);
+  if (yt) return `https://i.ytimg.com/vi/${yt[1]}/mqdefault.jpg`;
   return url;
 }

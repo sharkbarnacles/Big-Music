@@ -5,6 +5,7 @@ import FilterMenu from '@/components/FilterMenu';
 import Header from '@/components/Header';
 import LibraryList from '@/components/LibraryList';
 import PlayButtons from '@/components/PlayButtons';
+import WebResults from '@/components/WebResults';
 import { db } from '@/lib/db';
 import {
   defaultSort,
@@ -27,7 +28,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 200;
 
-type Params = { q?: string; view?: string; sort?: string; both?: string; search?: string; artist?: string };
+type Params = { q?: string; view?: string; sort?: string; both?: string; search?: string; artist?: string; where?: string };
 
 async function count(filter?: (q: any) => any): Promise<number> {
   let query = db().from('tracks').select('id', { count: 'exact', head: true });
@@ -48,6 +49,21 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   };
   const artist = sp.artist?.trim() || null;
   const search = params.q.trim();
+
+  // ── Search everywhere (all of YouTube Music) ──
+  if (sp.where === 'web') {
+    return (
+      <main className="wrap">
+        <Header />
+        <Title title="Search" />
+        <SearchRow params={{ ...params, search: true }} placeholder="Songs, artists, albums, playlists" web />
+        <WhereSwitch q={search} web />
+        <div style={{ marginTop: 8 }}>
+          {search ? <WebResults q={search} /> : <p className="muted">Search all of YouTube Music, including playlists other people made.</p>}
+        </div>
+      </main>
+    );
+  }
 
   // ── Artists view ──
   if (view === 'artists' && !artist) {
@@ -136,6 +152,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         )}
       </p>
       <SearchRow params={params} placeholder={isVideos ? 'Search music videos' : 'Search title, artist or album'} />
+      {(params.search || search) && !isVideos && <WhereSwitch q={search} web={false} />}
       {error && <div className="notice error">{error}</div>}
       <div style={{ marginTop: 8 }}>
         <LibraryList key={query} initial={tracks} total={matching} query={query} video={isVideos} />
@@ -165,16 +182,33 @@ function Title({
 }
 
 // Search box with the filter button; keeps the current view and sort.
-function SearchRow({ params, placeholder }: { params: LibraryParams; placeholder: string }) {
+// "Your library" or "Everywhere" under the search box; keeps what you typed.
+function WhereSwitch({ q, web }: { q: string; web: boolean }) {
+  const base = new URLSearchParams({ search: '1', ...(q ? { q } : {}) });
+  const everywhere = new URLSearchParams({ search: '1', where: 'web', ...(q ? { q } : {}) });
+  return (
+    <div className="where-switch" role="tablist" aria-label="Where to search">
+      <Link href={`/library?${base}`} role="tab" aria-selected={!web} className={!web ? 'on' : undefined}>
+        Your library
+      </Link>
+      <Link href={`/library?${everywhere}`} role="tab" aria-selected={web} className={web ? 'on' : undefined}>
+        Everywhere
+      </Link>
+    </div>
+  );
+}
+
+function SearchRow({ params, placeholder, web = false }: { params: LibraryParams; placeholder: string; web?: boolean }) {
   return (
     <div className="search-row">
       {/* next/form searches inside the app; a plain <form> reloaded the whole page,
           which threw away the player and stopped the music. */}
       <Form action="/library" className="search-form" role="search">
         {params.search && <input type="hidden" name="search" value="1" />}
-        {params.view !== 'songs' && <input type="hidden" name="view" value={params.view} />}
-        {params.sort !== defaultSort(params.view) && <input type="hidden" name="sort" value={params.sort} />}
-        {params.both && <input type="hidden" name="both" value="1" />}
+        {params.view !== 'songs' && !web && <input type="hidden" name="view" value={params.view} />}
+        {params.sort !== defaultSort(params.view) && !web && <input type="hidden" name="sort" value={params.sort} />}
+        {params.both && !web && <input type="hidden" name="both" value="1" />}
+        {web && <input type="hidden" name="where" value="web" />}
         <input
           type="search"
           name="q"
@@ -184,7 +218,7 @@ function SearchRow({ params, placeholder }: { params: LibraryParams; placeholder
           aria-label={placeholder}
         />
       </Form>
-      <FilterMenu params={params} />
+      {!web && <FilterMenu params={params} />}
     </div>
   );
 }
