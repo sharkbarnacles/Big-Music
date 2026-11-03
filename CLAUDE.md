@@ -326,7 +326,9 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    (localStorage `mh-alive` heartbeat every 5 s). Check with
    `select * from client_events order by at desc limit 50;`
    The wide music-video panel above the mini player is gone (owner didn't
-   want it); with the sheet closed the video is the small square in the bar.
+   want it); with the sheet closed the YouTube player sits hidden (opacity 0,
+   still playing) behind the bar, which shows the cover picture.
+   Discover chips read "via “Playlist”" (shortReason drops "From ").
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -369,3 +371,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   MV ↔ studio audio switch, Earlier songs in the queue, Back = real history.
   Queue grips no longer block scrolling (short press before a song lifts).
   Smaller covers in lists (crash suspect), crash log, no video panel over the bar.
+  'via' chips without 'From'; mini player shows the cover, not the tiny YouTube player.
