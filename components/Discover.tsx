@@ -4,6 +4,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PLAYER_ICONS } from '@/lib/playerIcons';
+import { SPIRAL } from '@/lib/icons';
+import { artistLine, splitTitle } from '@/lib/titles';
 import type { TrackRowData } from '@/lib/tracks';
 import { readRadioMode, RADIO_MODE_KEY, usePlayer, type RadioMode } from './Player';
 
@@ -18,7 +20,7 @@ export function shortReason(reason: string | null): string | null {
   return reason.replace(/^Because you (like|played) /i, '').replace(/ a lot$/i, '');
 }
 
-// The keep star (it used to be a heart): the song goes into your "Discoveries" playlist (and your Library).
+// The keep heart: the song goes into your "Discoveries" playlist (and your Library).
 export function HeartButton({ itemId, initial, small = false }: { itemId: string; initial: boolean; small?: boolean }) {
   const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -56,7 +58,9 @@ export function HeartButton({ itemId, initial, small = false }: { itemId: string
         aria-label={on ? 'Remove from Discoveries' : 'Keep in Discoveries'}
         onClick={toggle}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: on ? PLAYER_ICONS.kept : PLAYER_ICONS.keep }} />
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={on ? 'on' : undefined}>
+          <path d={HEART} />
+        </svg>
       </button>
       {msg && (
         <span className="d-toast" role="status">
@@ -81,7 +85,7 @@ export function TodayGrid({ tracks, items }: { tracks: TrackRowData[]; items: It
             aria-label={`Play ${t.title} by ${t.artist}`}
           >
             <span className="d-cover">{t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : null}</span>
-            <span className="d-nm">{t.title}</span>
+            <span className="d-nm">{splitTitle(t.title).title}</span>
             <span className="d-ar">{t.artist}</span>
             {items[i].reason && (
               <span className="d-why" title={items[i].reason ?? undefined}>
@@ -96,31 +100,139 @@ export function TodayGrid({ tracks, items }: { tracks: TrackRowData[]; items: It
   );
 }
 
-// A list of songs with reasons and hearts (one edition's page).
-export function DiscoverList({ tracks, items }: { tracks: TrackRowData[]; items: ItemLite[] }) {
+// One edition's songs (mix page, Discovery Page Lab R2): cover, title,
+// artist (with any "feat."), and the library artist that led here as a teal chip.
+export function DiscoverList({ tracks, items, from }: { tracks: TrackRowData[]; items: ItemLite[]; from?: string }) {
   const player = usePlayer();
   return (
-    <div className="list">
-      {tracks.map((t, i) => (
-        <div key={items[i].id} className={`item${player.current?.id === t.id ? ' active' : ''}`}>
-          <button type="button" className="row-play" onClick={() => player.playList(tracks, i, { noShuffle: true })} aria-label={`Play ${t.title} by ${t.artist}`}>
-            {t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : <div className="ph" />}
-            <div className="main">
-              <div className="title">{t.title}</div>
-              <div className="sub">{t.artist}</div>
-              {items[i].reason && (
-                <div className="d-why" title={items[i].reason ?? undefined}>
-                  {shortReason(items[i].reason)}
+    <div className="list mix-list">
+      {tracks.map((t, i) => {
+        const { title, feat } = splitTitle(t.title);
+        const via = shortReason(items[i].reason);
+        const active = player.current?.id === t.id;
+        return (
+          <div key={items[i].id} className={`item mix-row${active ? ' active' : ''}`}>
+            <button
+              type="button"
+              className="row-play"
+              onClick={() => player.playList(tracks, i, { noShuffle: true, from })}
+              aria-label={`Play ${t.title} by ${t.artist}`}
+            >
+              {t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : <div className="ph" />}
+              <div className="main">
+                <div className="title">
+                  {active && <span className="eq" aria-hidden="true"><i /><i /><i /></span>}
+                  {title}
                 </div>
-              )}
-            </div>
-          </button>
-          <div className="end">
+                <div className="sub">{artistLine(t.artist, feat)}</div>
+                {via && (
+                  <span className="via-chip" title={items[i].reason ?? undefined}>
+                    via {via}
+                  </span>
+                )}
+              </div>
+            </button>
             <HeartButton itemId={items[i].id} initial={items[i].hearted} />
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+// Mix page header (H2): a 2×2 mosaic of the edition's first covers beside the title.
+export function Mosaic({ images }: { images: (string | null)[] }) {
+  const four = [...new Set(images.filter(Boolean))].slice(0, 4) as string[];
+  while (four.length < 4) four.push('');
+  return (
+    <div className="mix-mosaic" aria-hidden="true">
+      {four.map((src, i) => (src ? <img key={i} src={src} alt="" /> : <span key={i} />))}
+    </div>
+  );
+}
+
+// Mix page actions (A1): a Play pill, then round Shuffle, Radio and Save buttons.
+export function MixActions({
+  tracks,
+  from,
+  editionId,
+  savedId,
+}: {
+  tracks: TrackRowData[];
+  from: string;
+  editionId: string;
+  savedId: string | null;
+}) {
+  const player = usePlayer();
+  const [saved, setSaved] = useState<string | null>(savedId);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const flash = (m: string) => {
+    setMsg(m);
+    setTimeout(() => setMsg(null), 1800);
+  };
+  if (tracks.length === 0) return null;
+  const playable = tracks.filter((t) => t.yt_audio_id);
+  const radio = () => {
+    const here = playable.find((t) => t.id === player.current?.id);
+    const seed = here ?? playable[Math.floor(Math.random() * playable.length)];
+    if (seed) player.startRadio(seed);
+  };
+  async function save() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/discover/save-playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editionId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not save');
+      setSaved(d.playlistId);
+      flash(saved ? 'Playlist updated' : `Saved as “${d.name}”`);
+    } catch (err) {
+      flash((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="mix-acts">
+        <button type="button" className="mix-play" onClick={() => player.playList(tracks, 0, { noShuffle: true, from })}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" /></svg>
+          Play
+        </button>
+        <button type="button" className="round-btn" aria-label="Shuffle" onClick={() => player.playList(tracks, -1, { shuffle: true, from })}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={SPIRAL} /></svg>
+        </button>
+        <button type="button" className="round-btn" aria-label="Start a radio from this mix" disabled={!playable.length} onClick={radio}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="picon" dangerouslySetInnerHTML={{ __html: PLAYER_ICONS.radio }} />
+        </button>
+        <button
+          type="button"
+          className={`round-btn${saved ? ' on' : ''}`}
+          aria-label={saved ? 'Update the saved playlist' : 'Save as playlist'}
+          disabled={busy}
+          onClick={save}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            {saved ? <path d="M5 12.5l4.5 4.5L19 7.5" /> : <path d="M12 5v14M5 12h14" />}
+          </svg>
+        </button>
+        {saved && (
+          <Link href={`/playlists/${saved}`} className="mix-open muted small">
+            Open playlist ›
+          </Link>
+        )}
+      </div>
+      {msg && (
+        <span className="d-toast" role="status">
+          {msg}
+        </span>
+      )}
+    </>
   );
 }
 

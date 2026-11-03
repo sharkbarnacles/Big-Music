@@ -1,16 +1,18 @@
 'use client';
 
 import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
+import { splitTitle } from '@/lib/titles';
 import { useEffect, useRef, useState } from 'react';
 import type { TrackRowData } from '@/lib/tracks';
 
-// "Up next" under the Now Playing controls (Queue Lab pick P3 + H3 + L3 + E3):
-// songs you added sit in "Next up", the rest under "From <where it's from>".
-// Each row has a ⋯ menu; hold a row for a moment, then drag it to a new spot.
+// "Up next" under the Now Playing controls (Queue Lab pick P3 + H3 + L3 + E3,
+// cleaned up 2026-11-03): the song playing now is pinned on top, then one flat
+// list with thin dividers. Songs you added sit under "Next up", the rest under
+// "From <where it's from>". Drag a song by its ≡ grip; the other songs slide
+// out of the way, and everything snaps into place when you let go. Tap a song
+// to play it; ⋯ has the other options.
 
 const SHOW = 150; // rows drawn at once (the rest still play)
-const HOLD_MS = 350; // how long to hold before a row lifts
-const SLOP = 8; // moving more than this before the hold ends = scrolling, not dragging
 
 type Props = {
   queue: TrackRowData[];
@@ -27,93 +29,104 @@ type Props = {
   onAddToPlaylist: (t: TrackRowData) => void;
 };
 
-type Drag = { j: number; startY: number; y: number; target: number | null };
+// A drag in progress. Positions are measured once when it starts, in the
+// sheet's scroll coordinates, so nothing is re-measured while rows move.
+type Drag = {
+  k: number; // which visible row (index into `rows`)
+  startY: number; // finger position when it started
+  startScroll: number;
+  dy: number; // how far the lifted row has moved
+  slot: number; // where it would land (index into `rows`)
+  tops: number[]; // each visible row's top
+  heights: number[];
+};
 
 const picon = (name: PlayerIconName) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="picon" dangerouslySetInnerHTML={{ __html: PLAYER_ICONS[name] }} />
 );
+
+// A stable key per queue entry, so React keeps each row's element while the order changes.
+const keys = new WeakMap<TrackRowData, number>();
+let nextKey = 1;
+const keyOf = (t: TrackRowData) => {
+  let k = keys.get(t);
+  if (!k) keys.set(t, (k = nextKey++));
+  return k;
+};
 
 export default function QueueList(p: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
-  const hold = useRef<{ timer: number; j: number; x: number; y: number } | null>(null);
   const pointerY = useRef(0);
-  const justDragged = useRef(false); // the tap that ends a drag must not also play the song
   const propsRef = useRef(p);
   propsRef.current = p;
 
   const end = Math.min(p.queue.length, p.index + 1 + SHOW);
   const rows: number[] = [];
   for (let j = p.index + 1; j < end; j++) rows.push(j);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   const left = Math.max(0, p.queue.length - p.index - 1 + p.more);
+  const now = p.queue[p.index];
 
   const setD = (d: Drag | null) => {
     dragRef.current = d;
     setDrag(d);
   };
 
-  // Where would the lifted row land? "Before queue position N" (N can be one past the last row).
-  const findTarget = (y: number): number | null => {
-    const list = listRef.current;
-    const d = dragRef.current;
-    if (!list || !d) return null;
-    const els = Array.from(list.querySelectorAll<HTMLElement>('[data-q]'));
-    for (const el of els) {
-      const j = Number(el.dataset.q);
-      if (j === d.j) continue;
-      const r = el.getBoundingClientRect();
-      if (y < r.top + r.height / 2) return j;
+  // Where the lifted row's middle is, compared with the other rows' middles.
+  const slotFor = (d: Drag, dy: number) => {
+    const mid = d.tops[d.k] + dy + d.heights[d.k] / 2;
+    let slot = 0;
+    for (let i = 0; i < d.tops.length; i++) {
+      if (i === d.k) continue;
+      if (mid > d.tops[i] + d.heights[i] / 2) slot++;
     }
-    const last = els[els.length - 1];
-    return last ? Number(last.dataset.q) + 1 : null;
+    return slot;
   };
 
-  const cancelHold = () => {
-    if (hold.current) window.clearTimeout(hold.current.timer);
-    hold.current = null;
+  const update = (y: number) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const s = propsRef.current.scroller();
+    const dy = y - d.startY + ((s?.scrollTop ?? 0) - d.startScroll);
+    setD({ ...d, dy, slot: slotFor(d, dy) });
   };
 
-  const onPointerDown = (j: number) => (e: React.PointerEvent) => {
+  const startDrag = (k: number) => (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0 || dragRef.current) return;
-    if ((e.target as HTMLElement).closest('.q-more')) return;
-    cancelHold();
-    const y = e.clientY;
-    pointerY.current = y;
-    hold.current = {
-      j,
-      x: e.clientX,
-      y,
-      timer: window.setTimeout(() => {
-        hold.current = null;
-        setMenu(null);
-        setD({ j, startY: pointerY.current, y: pointerY.current, target: null });
-      }, HOLD_MS),
-    };
+    const list = listRef.current;
+    if (!list) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setMenu(null);
+    const els = Array.from(list.querySelectorAll<HTMLElement>('[data-k]'));
+    const s = propsRef.current.scroller();
+    const off = s?.scrollTop ?? 0;
+    const tops = els.map((el) => el.getBoundingClientRect().top + off);
+    const heights = els.map((el) => el.getBoundingClientRect().height);
+    pointerY.current = e.clientY;
+    setD({ k, startY: e.clientY, startScroll: off, dy: 0, slot: k, tops, heights });
+    navigator.vibrate?.(8);
   };
 
-  // While holding/dragging, follow the finger anywhere on the screen.
+  // While dragging, follow the finger anywhere on the screen.
   useEffect(() => {
     const move = (e: PointerEvent) => {
+      if (!dragRef.current) return;
       pointerY.current = e.clientY;
-      const h = hold.current;
-      if (h && (Math.abs(e.clientX - h.x) > SLOP || Math.abs(e.clientY - h.y) > SLOP)) cancelHold();
-      const d = dragRef.current;
-      if (d) setD({ ...d, y: e.clientY, target: findTarget(e.clientY) });
+      update(e.clientY);
     };
     const up = () => {
-      cancelHold();
       const d = dragRef.current;
       if (!d) return;
-      setD(null);
-      justDragged.current = true;
-      window.setTimeout(() => (justDragged.current = false), 350);
-      if (d.target == null) return;
-      const to = d.target > d.j ? d.target - 1 : d.target;
-      if (to !== d.j) propsRef.current.onMove(d.j, to);
+      setD(null); // rows drop their offsets in the same render as the new order
+      const r = rowsRef.current;
+      if (d.slot !== d.k && r[d.k] != null && r[d.slot] != null) propsRef.current.onMove(r[d.k], r[d.slot]);
     };
-    // iOS: stop the page from scrolling while a row is lifted (needs a non-passive listener).
+    // iOS: stop the page from scrolling while a song is being dragged.
     const touchMove = (e: TouchEvent) => {
       if (dragRef.current) e.preventDefault();
     };
@@ -126,7 +139,6 @@ export default function QueueList(p: Props) {
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       window.removeEventListener('touchmove', touchMove);
-      cancelHold();
     };
   }, []);
 
@@ -140,11 +152,10 @@ export default function QueueList(p: Props) {
       const y = pointerY.current;
       const edge = 90;
       const h = window.innerHeight;
-      const dy = y < edge ? -Math.ceil((edge - y) / 8) : y > h - edge ? Math.ceil((y - (h - edge)) / 8) : 0;
-      if (s && dy) {
-        s.scrollTop += dy;
-        const d = dragRef.current;
-        if (d) setD({ ...d, target: findTarget(y) });
+      const step = y < edge ? -Math.ceil((edge - y) / 8) : y > h - edge ? Math.ceil((y - (h - edge)) / 8) : 0;
+      if (s && step) {
+        s.scrollTop += step;
+        update(y);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -152,52 +163,65 @@ export default function QueueList(p: Props) {
     return () => cancelAnimationFrame(raf);
   }, [dragging]);
 
-  const lastRow = rows[rows.length - 1];
+  // How far each row moves during a drag: the lifted one follows the finger,
+  // rows between its old and new place slide up or down by its height.
+  const offset = (k: number): number => {
+    if (!drag) return 0;
+    if (k === drag.k) return drag.dy;
+    const h = drag.heights[drag.k];
+    if (drag.slot > drag.k && k > drag.k && k <= drag.slot) return -h;
+    if (drag.slot < drag.k && k < drag.k && k >= drag.slot) return h;
+    return 0;
+  };
+
   const out: React.ReactNode[] = [];
   let group: string | null = null;
-  for (const j of rows) {
+  rows.forEach((j, k) => {
     const t = p.queue[j];
     const g = p.isAdded(t) ? 'added' : 'from';
     if (g !== group) {
       group = g;
       out.push(
-        <div className="q-group" key={`g-${j}`}>
+        <div className="q-group" key={`g-${g}-${j}`}>
           {g === 'added' ? 'Next up · added by you' : `From ${p.from}${p.shuffle ? ' · shuffled' : ''}`}
         </div>,
       );
     }
-    const lifted = drag?.j === j;
-    if (drag && drag.target === j && !lifted) out.push(<div className="q-drop" key={`d-${j}`} />);
+    const lifted = drag?.k === k;
+    const dy = offset(k);
     out.push(
       <div
-        key={`${t.id}-${j}`}
-        data-q={j}
+        key={keyOf(t)}
+        data-k={k}
         className={`q-row${lifted ? ' lifted' : ''}`}
-        style={lifted ? { transform: `translateY(${drag.y - drag.startY}px)` } : undefined}
-        onPointerDown={onPointerDown(j)}
-        onContextMenu={(e) => e.preventDefault()}
+        style={dy ? { transform: `translate3d(0, ${dy}px, 0)` } : undefined}
       >
-        <button
-          type="button"
-          className="q-play"
-          onClick={() => !dragRef.current && !justDragged.current && p.onPlay(j)}
-          aria-label={`Play ${t.title} by ${t.artist}`}
-        >
+        <button type="button" className="q-play" onClick={() => !dragRef.current && p.onPlay(j)} aria-label={`Play ${t.title} by ${t.artist}`}>
           {t.image_url ? <img src={t.image_url} alt="" loading="lazy" draggable={false} /> : <span className="ph" />}
           <span className="q-text">
-            <span className="title">{t.title}</span>
+            <span className="title">{splitTitle(t.title).title}</span>
             <span className="sub">{t.artist}</span>
           </span>
         </button>
         <button
           type="button"
-          className="q-more np-icon"
+          className="q-more"
           aria-label={`More for ${t.title}`}
           aria-expanded={menu === j}
           onClick={() => setMenu(menu === j ? null : j)}
         >
           {picon('more')}
         </button>
+        <span
+          className="q-grip"
+          role="button"
+          tabIndex={-1}
+          aria-label={`Drag ${t.title} to move it`}
+          onPointerDown={startDrag(k)}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14" /></svg>
+        </span>
         {menu === j && (
           <>
             <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenu(null)} />
@@ -216,18 +240,35 @@ export default function QueueList(p: Props) {
         )}
       </div>,
     );
-    if (drag && j === lastRow && drag.target === j + 1) out.push(<div className="q-drop" key="d-end" />);
-  }
+  });
 
   return (
-    <div className={`q-list${drag ? ' dragging' : ''}`} ref={listRef}>
+    <div className="q-list">
+      {now && (
+        <div className="q-now">
+          <div className="q-group">Now playing</div>
+          <div className="q-row current">
+            <span className="q-play">
+              {now.image_url ? <img src={now.image_url} alt="" draggable={false} /> : <span className="ph" />}
+              <span className="q-text">
+                <span className="title">
+                  <span className="eq" aria-hidden="true"><i /><i /><i /></span>
+                  {splitTitle(now.title).title}
+                </span>
+                <span className="sub">{now.artist}</span>
+              </span>
+            </span>
+          </div>
+        </div>
+      )}
       <div className="q-head">
         <span>Up next</span>
         <span className="q-count">{left.toLocaleString()} {left === 1 ? 'song' : 'songs'}</span>
       </div>
-      {rows.length === 0 ? <p className="q-empty">Nothing after this song.</p> : out}
+      <div className={`q-rows${drag ? ' dragging' : ''}`} ref={listRef}>
+        {rows.length === 0 ? <p className="q-empty">Nothing after this song.</p> : out}
+      </div>
       {left > rows.length && <p className="q-empty">…and {(left - rows.length).toLocaleString()} more</p>}
-      {rows.length > 1 && <p className="q-hint">Hold a song, then drag to move it.</p>}
     </div>
   );
 }
