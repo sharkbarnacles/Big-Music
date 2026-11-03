@@ -282,6 +282,20 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    move (`moveInQueue`; a dragged song joins the group around it). The fixed
    YouTube iframe follows the cover as the sheet scrolls (`followArt`, CSS
    vars `--np-top` / `--np-clip`). Not yet tried on the phone.
+   **Queue cleanup (2026-11-03, after owner said it looked messy and
+   dragging wasn't smooth):** Now playing pinned above Up next; flat rows with
+   thin dividers (no boxes); drag only by the ≡ grip (`.q-grip`,
+   touch-action none, pointer capture, no hold delay); positions are measured
+   once at drag start and other rows slide with transforms, cleared in the
+   same render as the reorder; stable row keys (WeakMap). Not yet tried on the phone.
+   **Mix pages (Discovery Page Lab pick H2 + A1 + R2 + E3, 2026-11-03):**
+   `app/discover/[id]/page.tsx` + `Mosaic`, `MixActions`, `DiscoverList` in
+   `components/Discover.tsx` (.mix-* styles): 2×2 cover mosaic, badge + one
+   meta line, Play pill + round Shuffle / Radio (seed = playing song if in the
+   mix, else random) / Save as playlist, rows with a teal "via" chip, no
+   explainer. Discover keep buttons are hearts again (Now Playing keeps the
+   star). `lib/titles.ts` splits "(feat. …)" into the artist line and drops
+   "(Official Audio)"-style noise. Lab: https://claude.ai/chat/e2cba1af-352e-483c-ab48-c8223eb4ad69
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -318,3 +332,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Player crash fix: in-app search form (was reloading), SafeBoundary.
   Queue Lab pick built: Up next under controls, playing-from header,
   grouped list, per-song ⋯ menu, hold-and-drag reorder.
+  Mix page redesign (H2+A1+R2+E3) and queue cleanup (grip drag, flat list).
