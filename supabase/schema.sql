@@ -244,3 +244,24 @@ language sql stable set search_path = public as $$
 $$;
 revoke execute on function artist_page(text, boolean, integer, integer) from public, anon, authenticated;
 grant execute on function artist_page(text, boolean, integer, integer) to service_role;
+
+-- ── Resumable imports ───────────────────────────────────────────────
+-- Spotify's "snapshot" of each playlist changes whenever the playlist
+-- changes, so unchanged playlists can be skipped on the next import.
+alter table source_playlists add column if not exists snapshot text;
+-- Where a long import got to, so the next round carries on from there
+-- (each round must finish within Vercel's 5-minute limit).
+create table if not exists import_progress (
+  service     text primary key check (service in ('spotify', 'youtube')),
+  next_offset integer not null default 0,
+  total       integer not null default 0,
+  playlists   integer not null default 0,
+  unchanged   integer not null default 0,
+  songs       integer not null default 0,
+  excluded    integer not null default 0,
+  skipped     jsonb not null default '[]'::jsonb,
+  done        boolean not null default false,
+  started_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+alter table import_progress enable row level security;

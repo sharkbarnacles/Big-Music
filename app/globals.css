@@ -399,3 +399,8 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .picker-row:hover { border-color: var(--line); }
 .picker-row .main { display: flex; flex-direction: column; }
 .more-loader { min-height: 56px; display: flex; align-items: center; justify-content: center; padding: 12px 0; }
+
+/* Import progress bar (under the Import button while a big import runs in rounds) */
+.import-progress { height: 3px; margin-top: 8px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.import-progress i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+@media (prefers-reduced-motion: reduce) { .import-progress i { transition: none; } }
