@@ -679,3 +679,17 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .web-pl { color: inherit; }
 .web-big-cover, .web-artist-pic { width: 112px; height: 112px; flex: none; object-fit: cover; border-radius: 12px; background: var(--panel-2); display: block; }
 .web-artist-pic { border-radius: 50%; }
+
+/* Radio from words, idea chips, planet icon */
+.d-words { display: flex; gap: 8px; margin-top: 4px; }
+.d-words input { flex: 1; min-width: 0; }
+.d-words button { flex: none; padding: 9px 18px; }
+.d-ideas { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 2px -16px 0; padding: 0 16px 2px; }
+.d-ideas::-webkit-scrollbar { display: none; }
+.d-ideas .chip { flex: none; height: 32px; font-size: 13px; padding: 0 13px; }
+.d-err { color: var(--danger); margin: 0; }
+svg.planet { overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+svg.planet .planet-body { fill: var(--panel-2); }
+/* Search everywhere: keep every section to the screen width (long titles cut off instead of widening the page). */
+.web-results, .web-sec { grid-template-columns: minmax(0, 1fr); }
+.web-results > *, .web-sec > * { min-width: 0; }

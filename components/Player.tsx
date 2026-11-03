@@ -69,7 +69,7 @@ type PlayerApi = {
   playList: (list: TrackRowData[], start: number, opts?: PlayOptions) => void;
   playNext: (track: TrackRowData) => void;
   addToQueue: (track: TrackRowData) => void;
-  startRadio: (track: TrackRowData) => void;
+  startRadio: (track: TrackRowData, label?: string) => void;
 };
 
 const PlayerContext = createContext<PlayerApi>({
@@ -1010,14 +1010,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Starts a radio from any song: it plays first, then songs like it.
-  const startRadio = async (track: TrackRowData) => {
+  // `label`: a radio started from words ("rainy day lo-fi") is named after them.
+  const startRadio = async (track: TrackRowData, label?: string) => {
     const videoId = track.yt_audio_id;
     if (!videoId) {
       showToast('This song has no YouTube version yet, so a radio can’t start from it.');
       return;
     }
     const mode = readRadioMode();
-    showToast(`Starting a radio from “${track.title}”…`);
+    showToast(label ? `Starting a “${label}” radio…` : `Starting a radio from “${track.title}”…`);
     try {
       const seed = new URLSearchParams({
         videoId,
@@ -1026,12 +1027,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         seedArtist: track.artist,
         seedImage: track.image_url ?? '',
         seedId: /^[0-9a-f-]{36}$/i.test(track.id) ? track.id : '',
+        ...(label ? { seedLabel: label } : {}),
       });
       const res = await fetch(`/api/radio?${seed.toString()}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Radio failed');
       const rest: TrackRowData[] = (body.tracks ?? []).filter((t: TrackRowData) => t.yt_audio_id !== videoId && t.id !== track.id);
-      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null }, from: `Radio · ${track.title}` });
+      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null }, from: `Radio · ${label ?? track.title}` });
       setRadioEdition(body.editionId ?? null);
     } catch (err) {
       showToast((err as Error).message || 'The radio couldn’t start. Try again in a moment.');

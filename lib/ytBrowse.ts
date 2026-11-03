@@ -139,6 +139,12 @@ function shelfItems(data: any): any[] {
   return sections.flatMap((s: any) => s?.musicShelfRenderer?.contents ?? []).map((c: any) => c?.musicResponsiveListItemRenderer).filter(Boolean);
 }
 
+// Songs only (for starting a radio from words like "rainy day lo-fi").
+export async function searchSongs(query: string): Promise<WebSong[]> {
+  const items = await call('search', { query: query.trim().slice(0, 150), params: FILTER.songs }).then(shelfItems);
+  return items.map((r) => parseSong(r)).filter((s): s is WebSong => s !== null);
+}
+
 export type WebSearch = { songs: WebSong[]; artists: WebItem[]; albums: WebItem[]; playlists: WebItem[] };
 
 export async function searchEverywhere(query: string): Promise<WebSearch> {

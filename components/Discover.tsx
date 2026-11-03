@@ -338,6 +338,23 @@ const MODES: { id: RadioMode; label: string; note: string }[] = [
   { id: 'new', label: 'New', note: 'Only songs that aren’t in your library.' },
 ];
 
+// The radio icon on Discover: a planet with a ring. The back of the ring is
+// hidden behind the planet (the planet is filled with the button's colour).
+export function PlanetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="planet">
+      <g transform="rotate(-20 12 12)">
+        <path d="M1.8 12a10.2 3.7 0 0 1 20.4 0" />
+        <circle cx="12" cy="12" r="5.4" className="planet-body" />
+        <path d="M1.8 12a10.2 3.7 0 0 0 20.4 0" />
+      </g>
+    </svg>
+  );
+}
+
+// Ready-made ideas for a radio from words.
+const IDEAS = ['Chill', 'Focus', 'Workout', 'Rainy day', 'Late night', 'Sad songs', 'Party', 'K-indie', 'City pop', 'Lo-fi', 'Shoegaze', 'Jazz'];
+
 export function RadioExplore({ seeds }: { seeds: { label: string; tracks: TrackRowData[] }[] }) {
   const player = usePlayer();
   const [mode, setMode] = useState<RadioMode>('mixed');
@@ -355,6 +372,29 @@ export function RadioExplore({ seeds }: { seeds: { label: string; tracks: TrackR
     if (playable.length) player.startRadio(playable[Math.floor(Math.random() * playable.length)]);
   };
   const usable = seeds.filter((s) => s.tracks.some((t) => t.yt_audio_id));
+  // A radio from words: a genre, a mood, an artist, or anything you'd type into a search.
+  const [words, setWords] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const fromWords = async (raw: string) => {
+    const q = raw.trim();
+    if (!q || busy) return;
+    setBusy(q);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/radio/seed?q=${encodeURIComponent(q)}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'The radio couldn’t start.');
+      const top: TrackRowData[] = (d.tracks ?? []).filter((t: TrackRowData) => t.yt_audio_id);
+      if (!top.length) throw new Error(`Nothing found for “${q}”. Try other words.`);
+      // One of the best few matches, so the same words don't always give the same radio.
+      player.startRadio(top[Math.floor(Math.random() * Math.min(3, top.length))], q);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <div className="d-radio">
       <div className="d-dial" role="radiogroup" aria-label="Radio: familiar or new">
@@ -365,11 +405,40 @@ export function RadioExplore({ seeds }: { seeds: { label: string; tracks: TrackR
         ))}
       </div>
       <p className="muted small d-hint">{MODES.find((m) => m.id === mode)?.note}</p>
+      <form
+        className="d-words"
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          fromWords(words);
+        }}
+      >
+        <input
+          id="radio-words"
+          type="search"
+          value={words}
+          onChange={(e) => setWords(e.target.value)}
+          placeholder="A genre, mood or artist…"
+          aria-label="Start a radio from words"
+          enterKeyHint="go"
+        />
+        <button type="submit" className="primary" disabled={!words.trim() || Boolean(busy)}>
+          {busy && busy === words.trim() ? 'Starting…' : 'Start'}
+        </button>
+      </form>
+      <div className="d-ideas">
+        {IDEAS.map((idea) => (
+          <button key={idea} type="button" className="chip" disabled={Boolean(busy)} onClick={() => fromWords(idea)}>
+            {busy === idea ? 'Starting…' : idea}
+          </button>
+        ))}
+      </div>
+      {err && <p className="small d-err" role="alert">{err}</p>}
       {usable.length > 0 && (
         <div className="d-radio-starts">
           {usable.map((s) => (
             <button key={s.label} type="button" className="chip" onClick={() => start(s.tracks)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0M7.5 12a4.5 4.5 0 0 1 9 0M12 12v8" /></svg>
+              <PlanetIcon />
               {s.label}
             </button>
           ))}

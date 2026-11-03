@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
         track_sources: [],
       };
       const list = [seed, ...tracks.filter((t) => t.yt_audio_id !== vid && t.id !== seedId)];
-      editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid }, list).catch(() => null);
+      editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid, label: q.get('seedLabel') }, list).catch(() => null);
     } else if (editionId) {
       await appendToRadioEdition(editionId, tracks).catch(() => {});
     }

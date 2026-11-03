@@ -21,10 +21,10 @@ function rows(editionId: string, start: number, tracks: TrackRowData[]) {
   }));
 }
 
-export async function createRadioEdition(seed: { title: string; artist: string; videoId: string }, tracks: TrackRowData[]): Promise<string | null> {
+export async function createRadioEdition(seed: { title: string; artist: string; videoId: string; label?: string | null }, tracks: TrackRowData[]): Promise<string | null> {
   const { data, error } = await db()
     .from('discover_editions')
-    .insert({ kind: 'radio', edition_date: todayInNY(), title: `Radio from ${seed.title}`.slice(0, 120), subtitle: seed.artist.slice(0, 120), seed_video_id: seed.videoId })
+    .insert({ kind: 'radio', edition_date: todayInNY(), title: (seed.label ? `Radio: ${seed.label}` : `Radio from ${seed.title}`).slice(0, 120), subtitle: (seed.label ? `started from ${seed.title}` : seed.artist).slice(0, 120), seed_video_id: seed.videoId })
     .select('id')
     .single();
   if (error || !data) return null;

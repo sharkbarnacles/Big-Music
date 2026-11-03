@@ -352,6 +352,14 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    entries were the first page change after a deploy (version skew → full
    reload), not memory. Fix: player state saved every 5 s / on hide and
    restored paused after a restart; notes-only commits no longer deploy.
+   **Radio from words (2026-11-03):** Discover → Radio has a words box
+   ("A genre, mood or artist…") + idea chips (`IDEAS` in Discover.tsx).
+   `/api/radio/seed?q=` = YouTube Music songs search (`searchSongs`); the
+   player starts a radio from one of the top 3 with `startRadio(track,
+   label)`, named "Radio · <words>" and saved as "Radio: <words>". Discover's
+   radio chips use `PlanetIcon` (ringed planet); Now Playing / mix pages
+   still use the UFO. Search Everywhere sections are pinned to the screen
+   width (`minmax(0,1fr)`), which fixed the zoomed-out page.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -397,3 +405,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   'via' chips without 'From'; mini player shows the cover, not the tiny YouTube player.
   Search Everywhere: YouTube Music songs/artists/albums/playlists + pages.
   Crash = deploy restarts: player now comes back after a restart; notes-only commits skip deploys.
+  Radio from words + idea chips, planet icon on Discover, Search Everywhere layout fix.
