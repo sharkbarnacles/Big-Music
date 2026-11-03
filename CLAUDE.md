@@ -405,6 +405,17 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    (VoicePrefs, `/api/taste/settings`), top artists, genres, countries,
    voices per language. MusicBrainz tags have little mood info; Last.fm
    tags (free key in a GitHub secret) would add moods later if wanted.
+   **Style words (owner: "experimental/existential/grungy mandarin" gave old
+   ballads):** promptRadio now has `STYLES` (synonyms incl. native terms:
+   实验音乐/前卫/后摇/垃圾摇滚/独立…; bare 实验 = "lab/school", see
+   `FALSE_STYLE`) and `RELATED` styles (experimental → post-punk, shoegaze,
+   alternative, 另類…), both required-ish in titles (missing −5; 2+ related
+   count as a match); `OLD` titles (classic/经典/老歌/怀旧…) −7 unless asked;
+   ktv/"播放列表"/test titles down; Chinese `notScript` excludes kana/hangul;
+   lyric-video re-uploads (動態歌詞, cover, 8D…) aren't songs; artists
+   tagged with the style +3; and a consensus check: with a style/mood, a
+   playlist sharing no artists with the other candidates −8. `PROMPT_DEBUG=1`
+   (set in try-prompt.yml) returns the queries and scored titles.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -456,3 +467,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Time bar no longer freezes after touching it on iPhone.
   Zoomed-in pages fixed (16px text boxes, clipped colour wash).
   Deeper taste: MusicBrainz artist tagging job, vocal preference per language, Your taste page.
+  Style-aware word radios (experimental/grunge/indie… in English and natively), consensus check, no oldies unless asked.

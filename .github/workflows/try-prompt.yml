@@ -20,6 +20,7 @@ jobs:
       - run: npx tsx scripts/try_prompt.mts
         env:
           PROMPTS: "${{ inputs.prompts }}"
+          PROMPT_DEBUG: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       - name: Save to probe-output branch
