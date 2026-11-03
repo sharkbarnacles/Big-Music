@@ -270,8 +270,18 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    links are next/link). Remaining possible cause: iOS reloading the app
    under memory pressure (YouTube iframe + many cover images). Ask the
    owner whether it still happens and exactly what they see.
-   Queue: owner dislikes the two clashing queue buttons and the full-page
-   queue; waiting on their Queue Lab pick (P+H+L+E).
+   **Queue (2026-11-03, Queue Lab pick P3 + H3 + L3 + E3):** no pop-up;
+   `components/QueueList.tsx` sits under the Now Playing controls and the
+   constellation scrolls to it. Header shows "PLAYING FROM <label>"
+   (`PlayOptions.from`, default = the page's `main h1`; TodayGrid passes
+   "Daily discover", radio "Radio · <song>"). Songs added with Play next /
+   Add to queue are copies tracked in `addedRef` (WeakSet) and shown under
+   "Next up · added by you"; Add to queue now inserts after the other added
+   songs (Spotify-style), not at the very end. Row ⋯: Play next, Move to end,
+   Keep in Discoveries, Add to playlist, Remove. Hold ~350 ms then drag to
+   move (`moveInQueue`; a dragged song joins the group around it). The fixed
+   YouTube iframe follows the cover as the sheet scrolls (`followArt`, CSS
+   vars `--np-top` / `--np-clip`). Not yet tried on the phone.
 4. Polish: installable home-screen app (PWA); reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -306,3 +316,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Stability fixes (error.tsx, lighter wash, fewer refreshes); V9 eye.
   Radios saved to Past editions + Save as playlist; Queue Lab.
   Player crash fix: in-app search form (was reloading), SafeBoundary.
+  Queue Lab pick built: Up next under controls, playing-from header,
+  grouped list, per-song ⋯ menu, hold-and-drag reorder.
