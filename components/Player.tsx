@@ -4,6 +4,7 @@ import { SPIRAL } from '@/lib/icons';
 import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
+import QueueList from './QueueList';
 import SafeBoundary from './SafeBoundary';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
 
@@ -30,7 +31,20 @@ type Notice = { text: string; link?: { href: string; label: string }; action?: {
 // A list that's bigger than what's on screen (the whole Library, an artist…):
 // the player fetches more songs from /api/library/tracks as it goes.
 export type QueueSource = { query: string; total: number };
-type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource; radio?: RadioOpts };
+// from: where the music is playing from ("Daily discover", a playlist name…), shown as "PLAYING FROM".
+type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource; radio?: RadioOpts; from?: string };
+
+// Default "playing from" label: the page's title (a playlist, an edition, an artist…).
+function pageTitle(): string {
+  try {
+    const h = document.querySelector('main h1');
+    const t = h?.textContent?.trim();
+    if (t) return t;
+  } catch {
+    /* not in a browser */
+  }
+  return 'your library';
+}
 // A radio (YouTube Music "radio" from any song): more songs are fetched as you go.
 type RadioOpts = { continuation: string | null; mode: RadioMode; editionId?: string | null };
 export type RadioMode = 'familiar' | 'mixed' | 'new';
@@ -143,7 +157,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [queueOpen, setQueueOpen] = useState(false);
+  const [fromLabel, setFromLabel] = useState('');
+  // Songs you added with Play next / Add to queue ("Next up · added by you" in the queue).
+  const addedRef = useRef(new WeakSet<TrackRowData>());
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const upnextRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false); // the ⋯ menu on Now Playing
   const [kept, setKept] = useState(false); // the star: is this song in Discoveries?
   const [radioEdition, setRadioEdition] = useState<string | null>(null); // the saved radio playing now
@@ -727,6 +745,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     gesture();
     if (list.length === 0) return;
     baseRef.current = list.slice();
+    addedRef.current = new WeakSet();
+    setFromLabel(opts.from || pageTitle());
     if (opts.noShuffle) shuffleRef.current = false;
     if (opts.shuffle) shuffleRef.current = true;
     setShuffle(shuffleRef.current);
@@ -835,20 +855,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Radio failed');
       const rest: TrackRowData[] = (body.tracks ?? []).filter((t: TrackRowData) => t.yt_audio_id !== videoId && t.id !== track.id);
-      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null } });
+      playList([track, ...rest], 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null }, from: `Radio · ${track.title}` });
       setRadioEdition(body.editionId ?? null);
     } catch (err) {
       showToast((err as Error).message || 'The radio couldn’t start. Try again in a moment.');
     }
   };
 
+  // Play next: straight after the current song. Add to queue: after the other
+  // songs you added, before the rest of the list (like Spotify's queue).
+  // Each added song is a copy, so it can be told apart from the same song in the list.
   const playNext = (track: TrackRowData) => {
     if (indexRef.current < 0) return playList([track], 0);
+    const t = { ...track };
+    addedRef.current.add(t);
     const q = queueRef.current.slice();
-    q.splice(indexRef.current + 1, 0, track);
+    q.splice(indexRef.current + 1, 0, t);
     const cur = queueRef.current[indexRef.current];
     const base = baseRef.current.slice();
-    base.splice(Math.max(0, base.indexOf(cur)) + 1, 0, track);
+    base.splice(Math.max(0, base.indexOf(cur)) + 1, 0, t);
     baseRef.current = base;
     setQ(q, indexRef.current);
     showToast(`Playing next: ${track.title}`);
@@ -857,9 +882,33 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const addToQueue = (track: TrackRowData) => {
     if (indexRef.current < 0) return playList([track], 0);
-    baseRef.current = [...baseRef.current, track];
-    setQ([...queueRef.current, track], indexRef.current);
+    const t = { ...track };
+    addedRef.current.add(t);
+    const q = queueRef.current.slice();
+    let at = indexRef.current + 1;
+    while (at < q.length && addedRef.current.has(q[at])) at++;
+    q.splice(at, 0, t);
+    baseRef.current = [...baseRef.current, t];
+    setQ(q, indexRef.current);
     showToast(`Added to queue: ${track.title}`);
+    resyncSpotify();
+  };
+
+  // Moves an upcoming song (drag in Up next, or its ⋯ menu). added: which group it
+  // joins; when not given (a drag), it joins the group of the songs around it.
+  const moveInQueue = (from: number, to: number, added?: boolean) => {
+    const cur = indexRef.current;
+    const q = queueRef.current.slice();
+    if (from <= cur || to <= cur || from >= q.length || from === to) return;
+    const [t] = q.splice(from, 1);
+    q.splice(Math.min(to, q.length), 0, t);
+    const at = q.indexOf(t);
+    const before = at - 1 > cur ? q[at - 1] : null;
+    const after = q[at + 1];
+    const join = added ?? (before ? addedRef.current.has(before) : Boolean(after && addedRef.current.has(after)));
+    if (join) addedRef.current.add(t);
+    else addedRef.current.delete(t);
+    setQ(q, cur);
     resyncSpotify();
   };
 
@@ -906,6 +955,52 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       showToast((err as Error).message || 'Could not save');
     }
   };
+
+  // The star from a queue row's ⋯ menu (any song, not just the one playing).
+  const keepTrack = async (t: TrackRowData) => {
+    try {
+      const res = await fetch('/api/keep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId: t.id, on: true }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not save');
+      if (current && t.id === current.id) setKept(true);
+      showToast(`Kept in Discoveries: ${t.title}`);
+    } catch (err) {
+      showToast((err as Error).message || 'Could not save');
+    }
+  };
+
+  // P3: the constellation scrolls down to "Up next" (no pop-up).
+  const showUpNext = () => {
+    const sheet = sheetRef.current;
+    const el = upnextRef.current;
+    if (!sheet || !el) return;
+    const top = sheet.scrollTop + el.getBoundingClientRect().top - sheet.getBoundingClientRect().top - 12;
+    sheet.scrollTo({ top, behavior: 'smooth' });
+  };
+
+  // The YouTube player floats over the cover (it can't live inside the sheet
+  // without reloading), so when the sheet scrolls it follows the cover.
+  const followArt = () => {
+    const sheet = sheetRef.current;
+    const host = hostRef.current;
+    const art = sheet?.querySelector<HTMLElement>('.np-art');
+    if (!sheet || !host || !art) return;
+    const top = art.getBoundingClientRect().top;
+    const safe = parseFloat(getComputedStyle(sheet).paddingTop) || 0;
+    host.style.setProperty('--np-top', `${top}px`);
+    host.style.setProperty('--np-clip', `${Math.max(0, safe - top)}px`);
+  };
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    host.style.removeProperty('--np-top');
+    host.style.removeProperty('--np-clip');
+    if (sheetOpen) requestAnimationFrame(followArt);
+  }, [sheetOpen, video]);
 
   // Turns a saved radio (or any Discover edition) into one of your hub playlists.
   const saveEditionAsPlaylist = async (editionId: string) => {
@@ -1053,9 +1148,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Where YouTube's player sits: over the artwork in Now Playing, a wide
   // panel above the bar for music videos, a small square in the bar, or hidden.
   const hostStyle: React.CSSProperties =
-    ytActive && sheetOpen && !queueOpen
+    ytActive && sheetOpen
       ? {
-          top: 'calc(env(safe-area-inset-top) + 64px)',
+          top: 'var(--np-top, calc(env(safe-area-inset-top) + 64px))',
+          clipPath: 'inset(var(--np-clip, 0px) 0 0 0)',
           left: '50%',
           transform: 'translateX(-50%)',
           // Same box as .sheet-art: a big square cover (a wide box for music videos).
@@ -1131,7 +1227,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       {/* Space so the bar never covers the end of a list. */}
       {current && <div aria-hidden="true" style={{ height: BAR_HEIGHT + 24 + (video && ytActive ? 240 : 0) }} />}
 
-      <div ref={hostRef} className={`yt-host${ytActive && sheetOpen && !queueOpen && !video ? ' square' : ''}`} style={hostStyle} />
+      <div ref={hostRef} className={`yt-host${ytActive && sheetOpen && !video ? ' square' : ''}`} style={hostStyle} />
 
       {(toast || notice) && !sheetOpen && (
         <div className="player-float" style={{ bottom: `calc(var(--nav-h) + ${current ? BAR_HEIGHT + 16 : 10}px + env(safe-area-inset-bottom))` }}>
@@ -1191,23 +1287,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       )}
 
       {current && sheetOpen && (
-        <div className="sheet" role="dialog" aria-label="Now playing">
+        <div className="sheet" role="dialog" aria-label="Now playing" ref={sheetRef} onScroll={followArt}>
           <div className="sheet-head">
             <button type="button" className="ctrl" aria-label="Close Now Playing" onClick={() => setSheetOpen(false)}>
               {icon(ICON.down)}
             </button>
-            <span>{queueOpen ? 'Queue' : 'Now playing'}</span>
-            <button
-              type="button"
-              className={`ctrl${queueOpen ? ' on' : ''}`}
-              aria-label={queueOpen ? 'Back to Now Playing' : 'Show queue'}
-              onClick={() => setQueueOpen(!queueOpen)}
-            >
-              {icon(ICON.queue)}
-            </button>
+            {/* H3: where the music is playing from. */}
+            <span className="np-from">
+              <small>Playing from</small>
+              <span>{fromLabel || 'Music Hub'}</span>
+            </span>
+            <span className="np-head-space" aria-hidden="true" />
           </div>
 
-          {!queueOpen ? (
             <div className="sheet-body np">
               {/* A soft wash of the cover's colors behind the top of the screen. */}
               {current.image_url && <div className="np-wash" aria-hidden="true" style={{ backgroundImage: `url("${current.image_url}")` }} />}
@@ -1298,7 +1390,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Stop watching video' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!current.video_id} onClick={toggleVideo}>
                   {picon('video', 'row-video')}
                 </button>
-                <button type="button" className="np-icon" aria-label="Show queue" title="Queue" onClick={() => setQueueOpen(true)}>
+                <button type="button" className="np-icon" aria-label="Show up next" title="Up next" onClick={showUpNext}>
                   {picon('queue', 'row-queue')}
                 </button>
               </div>
@@ -1328,36 +1420,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   ? `Spotify${device ? ` · ${device}` : ''} · keeps going with the screen locked`
                   : 'YouTube · in the hub'}
               </p>
-            </div>
-          ) : (
-            <div className="sheet-body queue">
-              <div className="queue-label">Now playing</div>
-              <div className="queue-row now">
-                <span className="title">{current.title}</span>
-                <span className="sub">{current.artist}</span>
+
+              <div ref={upnextRef} className="np-upnext">
+                <QueueList
+                  queue={queue}
+                  index={index}
+                  more={srcLeft}
+                  from={fromLabel || 'Music Hub'}
+                  shuffle={shuffle}
+                  isAdded={(t) => addedRef.current.has(t)}
+                  scroller={() => sheetRef.current}
+                  onPlay={(j) => playAt(j)}
+                  onMove={moveInQueue}
+                  onRemove={removeAt}
+                  onKeep={keepTrack}
+                  onAddToPlaylist={(t) => pickPlaylist([t])}
+                />
               </div>
-              <div className="queue-label">
-                Up next{shuffle ? ' · shuffled' : ''} · {Math.max(0, queue.length - index - 1 + srcLeft).toLocaleString()} songs
-              </div>
-              {queue.slice(index + 1, index + 151).map((t, k) => {
-                const j = index + 1 + k;
-                return (
-                  <div className="queue-row" key={`${t.id}-${j}`}>
-                    <button type="button" className="queue-play" onClick={() => playAt(j)}>
-                      <span className="title">{t.title}</span>
-                      <span className="sub">{t.artist}</span>
-                    </button>
-                    <button type="button" className="ctrl" aria-label={`Remove ${t.title} from queue`} onClick={() => removeAt(j)}>
-                      {icon(ICON.close)}
-                    </button>
-                  </div>
-                );
-              })}
-              {queue.length - index - 1 + srcLeft > 150 && (
-                <p className="muted small">…and {(queue.length - index - 151 + srcLeft).toLocaleString()} more</p>
-              )}
             </div>
-          )}
         </div>
       )}
       </SafeBoundary>

@@ -563,3 +563,44 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .safe-boundary { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); z-index: 45;
   display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 14px;
   background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; }
+
+/* ── Queue (Queue Lab pick P3 + H3 + L3 + E3) ─────────────────────────── */
+/* H3: the header says where the music is playing from. */
+.np-from { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.25; text-align: center; padding: 0 4px; }
+.np-from small { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); opacity: .8; }
+.np-from span { max-width: 100%; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-head-space { width: 44px; flex: none; }
+/* P3: Up next sits under the controls. */
+.np-upnext { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); scroll-margin-top: 12px; }
+.q-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.q-head span:first-child { font-size: 17px; font-weight: 700; }
+.q-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* L3: groups with small covers. */
+.q-group { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-row {
+  position: relative; display: flex; align-items: center; gap: 4px; min-height: 58px;
+  border-radius: 10px; background: var(--bg);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  transition: background .15s, box-shadow .15s;
+}
+.q-row.lifted {
+  z-index: 30; background: var(--panel-2); box-shadow: 0 14px 34px -10px rgba(0, 0, 0, .75), 0 0 0 1px var(--line);
+  transition: none; pointer-events: none;
+}
+.q-list.dragging { touch-action: none; }
+.q-play {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px;
+  background: none; border: 0; border-radius: 0; padding: 7px 0 7px 2px; color: inherit; font: inherit; text-align: left;
+}
+.q-play:hover { border-color: transparent; }
+.q-play img, .q-play .ph { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; background: var(--panel-2); -webkit-user-drag: none; }
+.q-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.q-text .title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-text .sub { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-more { flex: none; }
+/* E3: the ⋯ menu per song. */
+.q-menu { right: 0; top: calc(100% - 4px); min-width: 220px; }
+/* Where a lifted song will land. */
+.q-drop { height: 3px; margin: -1.5px 6px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); position: relative; z-index: 2; }
+.q-empty { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.q-hint { font-size: 12px; color: var(--muted); opacity: .7; text-align: center; margin: 18px 0 0; }

@@ -77,7 +77,7 @@ export function TodayGrid({ tracks, items }: { tracks: TrackRowData[]; items: It
           <button
             type="button"
             className="d-tile-play"
-            onClick={() => player.playList(tracks, i, { noShuffle: true })}
+            onClick={() => player.playList(tracks, i, { noShuffle: true, from: 'Daily discover' })}
             aria-label={`Play ${t.title} by ${t.artist}`}
           >
             <span className="d-cover">{t.image_url ? <img src={t.image_url} alt="" loading="lazy" /> : null}</span>
