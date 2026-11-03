@@ -1,6 +1,7 @@
 'use client';
 
 import { SPIRAL } from '@/lib/icons';
+import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
@@ -142,6 +143,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false); // the ⋯ menu on Now Playing
+  const [kept, setKept] = useState(false); // the star: is this song in Discoveries?
 
   const queueRef = useRef<TrackRowData[]>([]);
   const baseRef = useRef<TrackRowData[]>([]); // the list in its original order (for turning shuffle off)
@@ -856,6 +859,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     resyncSpotify();
   };
 
+  // The star: keep this song in your "Discoveries" playlist (any song, Discover or not).
+  useEffect(() => {
+    setKept(false);
+    setMoreOpen(false);
+    if (!current || !sheetOpen) return;
+    let alive = true;
+    fetch(`/api/keep?trackId=${encodeURIComponent(current.id)}`)
+      .then((r) => r.json())
+      .then((d) => alive && setKept(Boolean(d.kept)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [current?.id, sheetOpen]);
+
+  const toggleKeep = async () => {
+    if (!current) return;
+    const want = !kept;
+    setKept(want);
+    try {
+      const res = await fetch('/api/keep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId: current.id, on: want }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not save');
+      showToast(want ? 'Kept in Discoveries' : 'Removed from Discoveries');
+    } catch (err) {
+      setKept(!want);
+      showToast((err as Error).message || 'Could not save');
+    }
+  };
+
   const closePlayer = () => {
     tokenRef.current++;
     wantPlayRef.current = false;
@@ -989,10 +1026,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           top: 'calc(env(safe-area-inset-top) + 64px)',
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 'min(calc(100% - 40px), 520px)',
-          aspectRatio: '16 / 9',
+          // Same box as .sheet-art: a big square cover (a wide box for music videos).
+          width: video ? 'min(calc(100vw - 44px), 520px)' : 'var(--np-art)',
+          aspectRatio: video ? '16 / 9' : '1 / 1',
           zIndex: 41,
-          borderRadius: 12,
+          borderRadius: 14,
         }
       : ytActive && !sheetOpen && video
         ? {
@@ -1028,6 +1066,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     seek(ms);
   };
 
+  // The owner's chosen player icons (lib/playerIcons.ts, from the Player Icon Lab).
+  const picon = (name: PlayerIconName, cls = '') => (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={`picon ${cls}`} dangerouslySetInnerHTML={{ __html: PLAYER_ICONS[name] }} />
+  );
+
   const icon = (d: string, filled = false) => (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={filled ? 'filled' : undefined}>
       <path d={d} />
@@ -1056,7 +1099,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       {/* Space so the bar never covers the end of a list. */}
       {current && <div aria-hidden="true" style={{ height: BAR_HEIGHT + 24 + (video && ytActive ? 240 : 0) }} />}
 
-      <div ref={hostRef} className="yt-host" style={hostStyle} />
+      <div ref={hostRef} className={`yt-host${ytActive && sheetOpen && !queueOpen && !video ? ' square' : ''}`} style={hostStyle} />
 
       {(toast || notice) && !sheetOpen && (
         <div className="player-float" style={{ bottom: `calc(var(--nav-h) + ${current ? BAR_HEIGHT + 16 : 10}px + env(safe-area-inset-bottom))` }}>
@@ -1132,20 +1175,51 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           </div>
 
           {!queueOpen ? (
-            <div className="sheet-body">
-              <div className={`sheet-art${ytActive ? ' wide' : ''}`}>
+            <div className="sheet-body np">
+              {/* A soft wash of the cover's colors behind the top of the screen. */}
+              {current.image_url && <div className="np-wash" aria-hidden="true" style={{ backgroundImage: `url("${current.image_url}")` }} />}
+              <div className={`sheet-art np-art${ytActive && video ? ' wide' : ''}${ytActive ? ' yt' : ''}`}>
                 {!ytActive && current.image_url && <img src={current.image_url} alt="" />}
               </div>
-              <div className="sheet-title">{current.title}</div>
-              <div className="sheet-artist">{current.artist}</div>
 
-              <div className="sheet-progress">
+              <div className="np-title">
+                <div className="np-text">
+                  <div className="sheet-title">{current.title}</div>
+                  <div className="sheet-artist">{current.artist}</div>
+                </div>
+                <button type="button" className={`np-icon keep${kept ? ' on' : ''}`} aria-pressed={kept} aria-label={kept ? 'Remove from Discoveries' : 'Keep in Discoveries'} onClick={toggleKeep}>
+                  {picon(kept ? 'kept' : 'keep')}
+                </button>
+                <button type="button" className="np-icon" aria-label="More options" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)}>
+                  {picon('more')}
+                </button>
+                {moreOpen && (
+                  <>
+                    <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMoreOpen(false)} />
+                    <div className="row-menu np-menu" role="menu">
+                      <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); pickPlaylist([current]); }}>Add to playlist…</button>
+                      {current.yt_audio_id && (
+                        <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); startRadio(current); }}>Start radio</button>
+                      )}
+                      <label className="switch np-switch" role="menuitemcheckbox" aria-checked={youtubeMode}>
+                        <span>YouTube mode</span>
+                        <input type="checkbox" checked={youtubeMode} onChange={(e) => setYoutubeMode(e.target.checked)} />
+                        <span className="track" aria-hidden="true" />
+                      </label>
+                      <button type="button" role="menuitem" className="danger-item" onClick={() => { setMoreOpen(false); closePlayer(); }}>Stop and close player</button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="sheet-progress np-progress">
                 <input
                   type="range"
                   min={0}
                   max={Math.max(1, Math.floor(duration))}
                   value={Math.floor(Math.min(progress, duration || progress))}
                   aria-label="Position in song"
+                  style={{ ['--pct' as string]: `${pct}%` } as React.CSSProperties}
                   onChange={(e) => {
                     draggingRef.current = true;
                     setProgress(Number(e.target.value));
@@ -1159,55 +1233,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
 
-              <div className="sheet-controls">
-                <button type="button" className={`ctrl${shuffle ? ' on' : ''}`} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
+              <div className="sheet-controls np-controls">
+                <button type="button" className={`np-side shuf${shuffle ? ' on' : ''}`} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
                   {icon(ICON.shuffle)}
                 </button>
-                <button type="button" className="ctrl big" aria-label="Previous" onClick={prev}>
-                  {icon(ICON.prev)}
+                <button type="button" className="np-skip" aria-label="Previous" onClick={prev}>
+                  {picon('prev')}
                 </button>
-                <button type="button" className="ctrl primary huge" aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
+                <button type="button" className="np-play" aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
                   {playing ? icon(ICON.pause) : icon(ICON.play, true)}
                 </button>
-                <button type="button" className="ctrl big" aria-label="Next" onClick={next}>
-                  {icon(ICON.next)}
+                <button type="button" className="np-skip" aria-label="Next" onClick={next}>
+                  {picon('next')}
                 </button>
-                <button
-                  type="button"
-                  className={`ctrl${repeat !== 'off' ? ' on' : ''}`}
-                  aria-label={`Repeat: ${repeat}`}
-                  onClick={cycleRepeat}
-                >
-                  {icon(ICON.repeat)}
+                <button type="button" className={`np-side rep${repeat !== 'off' ? ' on' : ''}`} aria-label={`Repeat: ${repeat}`} onClick={cycleRepeat}>
+                  {picon('repeat')}
                   {repeat === 'one' && <span className="repeat-one">1</span>}
                 </button>
               </div>
 
-              <div className="sheet-options">
-                <button type="button" className="chip" onClick={() => pickPlaylist([current])}>
-                  {icon(ICON.plus)} Add to playlist
+              <div className="np-row">
+                <button type="button" className="np-icon" aria-label="Add to playlist" title="Add to playlist" onClick={() => pickPlaylist([current])}>
+                  {picon('plus')}
                 </button>
-                {current.yt_audio_id && (
-                  <button type="button" className="chip" onClick={() => startRadio(current)}>
-                    {icon(ICON.radio)} Start radio
-                  </button>
-                )}
-                {current.video_id && (
-                  <button type="button" className={`chip${video ? ' on' : ''}`} onClick={toggleVideo}>
-                    {icon(ICON.video)} {video ? 'Watching video' : 'Watch video'}
-                  </button>
-                )}
-                <label className="switch">
-                  <input type="checkbox" checked={youtubeMode} onChange={(e) => setYoutubeMode(e.target.checked)} />
-                  <span className="track" aria-hidden="true" />
-                  YouTube mode
-                </label>
+                <button type="button" className="np-icon" aria-label="Start radio" title="Start radio" disabled={!current.yt_audio_id} onClick={() => startRadio(current)}>
+                  {picon('radio')}
+                </button>
+                <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Stop watching video' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!current.video_id} onClick={toggleVideo}>
+                  {picon('video')}
+                </button>
+                <button type="button" className="np-icon" aria-label="Show queue" title="Queue" onClick={() => setQueueOpen(true)}>
+                  {picon('queue')}
+                </button>
               </div>
-              <p className="sheet-device">
-                {engine === 'spotify'
-                  ? `Playing through Spotify${device ? ` on ${device}` : ''}. Keeps going with your screen locked.`
-                  : 'Playing inside the hub with YouTube. Keep the screen on.'}
-              </p>
+
               {notice && (
                 <div className="player-notice inline">
                   <span>{notice.text}</span>
@@ -1223,9 +1282,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
               )}
-              <button type="button" className="sheet-stop" onClick={closePlayer}>
-                Stop and close player
-              </button>
+              {toast && (
+                <div className="np-toast" role="status">
+                  {toast}
+                </div>
+              )}
+              <p className="sheet-device np-device">
+                {engine === 'spotify'
+                  ? `Spotify${device ? ` · ${device}` : ''} · keeps going with the screen locked`
+                  : 'YouTube · in the hub'}
+              </p>
             </div>
           ) : (
             <div className="sheet-body queue">

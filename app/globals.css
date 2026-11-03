@@ -483,3 +483,63 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .d-dial button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .d-radio-starts { display: flex; flex-wrap: wrap; gap: 8px; }
 .d-radio-starts .chip { height: 34px; font-size: 13px; }
+
+/* ── Now Playing, owner's pick A2 + G2 + T3 + B2 + C2 + O2 with the Player Icon
+   Lab icons (S13 + R11 + I5 + D21 + Q15 + V2 + K3 + L2) ─────────────────── */
+:root { --np-art: min(calc(100vw - 44px), 420px, 46vh); }
+.np-wash { position: fixed; inset: 0 0 auto 0; height: 78vh; z-index: -1; background-size: cover; background-position: center;
+  filter: blur(60px) saturate(1.3); opacity: .42; transform: scale(1.3);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 30%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 30%, transparent 100%); }
+.sheet-art.np-art { width: var(--np-art); max-width: 100%; margin: 0 auto 22px; border-radius: 14px; box-shadow: 0 24px 50px -24px rgba(0, 0, 0, .8); }
+.sheet-art.np-art.wide { width: min(100%, 520px); aspect-ratio: 16 / 9; }
+.sheet-art.np-art.yt { background: transparent; box-shadow: none; }
+/* In YouTube mode the player sits over the square: show the middle of its 16:9 picture. */
+.yt-host.square { overflow: hidden; }
+.yt-host.square iframe { width: 177.78% !important; max-width: none; margin-left: -38.89%; }
+
+.np-title { position: relative; display: flex; align-items: center; gap: 4px; }
+.np-text { flex: 1; min-width: 0; }
+.np-text .sheet-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 24px; }
+.picon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; overflow: visible; flex: none; }
+.np-icon { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--muted); }
+.np-icon .picon { width: 26px; height: 26px; }
+.np-icon.on, .np-icon.keep.on { color: var(--accent); }
+.np-icon:disabled { opacity: .3; }
+.np-menu { right: 0; left: auto; top: calc(100% + 4px); min-width: 230px; }
+.np-switch { display: flex; justify-content: space-between; width: 100%; padding: 10px 12px; font-size: 15px; color: var(--text); }
+.np-switch input { position: absolute; }
+
+/* B2: a thin line; the knob only shows while you hold it. */
+.np-progress { margin-top: 16px; }
+.np-progress input[type="range"] { -webkit-appearance: none; appearance: none; height: 22px; background: transparent; cursor: pointer; }
+.np-progress input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 3px;
+  background: linear-gradient(var(--accent), var(--accent)) 0 / var(--pct, 0%) 100% no-repeat, rgba(191, 239, 242, .16); }
+.np-progress input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%;
+  background: var(--text); opacity: 0; transition: opacity .15s; }
+.np-progress input[type="range"]:active::-webkit-slider-thumb, .np-progress input[type="range"]:focus-visible::-webkit-slider-thumb { opacity: 1; }
+.np-progress input[type="range"]::-moz-range-track { height: 3px; border-radius: 3px; background: rgba(191, 239, 242, .16); }
+.np-progress input[type="range"]::-moz-range-progress { height: 3px; border-radius: 3px; background: var(--accent); }
+.np-progress input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--text); opacity: 0; }
+.np-progress input[type="range"]:active::-moz-range-thumb { opacity: 1; }
+.np-progress .times { margin-top: 0; }
+
+/* C2: a lighter play circle; shuffle and repeat stay quiet until they're on. */
+.np-controls { margin: 14px 0 6px; padding: 0 2px; }
+.np-controls button { padding: 0; border: 0; background: none; display: grid; place-items: center; }
+.np-side { position: relative; width: 48px; height: 48px; color: var(--muted); }
+.np-side.on { color: var(--accent); }
+.np-side.on::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+/* Balanced by eye: the spiral fills its square, the infinity snake is wide and flat. */
+.np-side.shuf svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.np-side.rep .picon { width: 32px; height: 32px; }
+.np-side .repeat-one { right: 50%; top: 50%; transform: translate(50%, -55%); font-size: 9px; color: var(--accent); }
+.np-skip { width: 54px; height: 54px; color: var(--text); }
+.np-skip .picon { width: 32px; height: 32px; }
+.np-play { width: 66px; height: 66px; border-radius: 50%; background: var(--text) !important; color: var(--on-accent); }
+.np-play svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.np-play svg.filled { fill: currentColor; stroke: none; margin-left: 3px; }
+
+/* O2 + L2: one row of icons, no labels. */
+.np-row { display: flex; justify-content: space-around; align-items: center; margin-top: 22px; }
+.np-device { text-align: center; font-size: 12px; margin-top: 16px; opacity: .8; }
+.np-toast { align-self: center; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; }
