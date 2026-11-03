@@ -1,0 +1,53 @@
+# Carries on an unfinished Spotify import in the background, so you don't
+# have to keep the app open. You start an import from the app (Services →
+# Spotify → Import playlists); if it stops part-way (Spotify asked the app
+# to wait, or the phone slept), this job picks it up within an hour.
+#
+# Uses the same two repository secrets as "Find music videos":
+#   SUPABASE_URL, SUPABASE_SECRET_KEY
+
+name: Resume Spotify import
+
+on:
+  schedule:
+    - cron: '43 * * * *' # every hour; exits in seconds when there's nothing to do
+  workflow_dispatch:
+
+concurrency:
+  group: import-resume
+  cancel-in-progress: false
+
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      APP_URL: https://big-music-six.vercel.app
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - name: Continue the import if one is waiting
+        run: |
+          set -u
+          status() {
+            curl -sS "$SUPABASE_URL/rest/v1/import_progress?service=eq.spotify&select=done,blocked_until,next_offset,total" \
+              -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY"
+          }
+          for round in $(seq 1 40); do
+            row=$(status | jq -c '.[0] // empty')
+            if [ -z "$row" ] || [ "$(jq -r '.done' <<<"$row")" = "true" ]; then
+              echo "Nothing waiting."; exit 0
+            fi
+            until=$(jq -r '.blocked_until // empty' <<<"$row")
+            if [ -n "$until" ] && [ "$(date -u -d "$until" +%s)" -gt "$(date -u +%s)" ]; then
+              echo "Spotify asked to wait until $until; trying again later."; exit 0
+            fi
+            echo "Round $round: $(jq -r '"\(.next_offset) of \(.total)"' <<<"$row") playlists so far"
+            t=$(date -u +%s)
+            sig=$(printf 'import:%s' "$t" | openssl dgst -sha256 -hmac "$SUPABASE_SECRET_KEY" -hex | awk '{print $NF}')
+            out=$(curl -sS --max-time 330 -X POST "$APP_URL/api/jobs/import" -H "x-job-time: $t" -H "x-job-sig: $sig" || echo '{"error":"request failed"}')
+            echo "$out" | jq -c '{done, paused, processed, total, playlists, error}' 2>/dev/null || echo "$out" | head -c 300
+            if [ "$(jq -r '.done // false' <<<"$out" 2>/dev/null)" = "true" ]; then echo "Import finished."; exit 0; fi
+            if [ "$(jq -r '.paused // false' <<<"$out" 2>/dev/null)" = "true" ]; then echo "Paused by Spotify."; exit 0; fi
+            if [ -n "$(jq -r '.error // empty' <<<"$out" 2>/dev/null)" ]; then echo "Stopped with an error; will retry next hour."; exit 0; fi
+          done

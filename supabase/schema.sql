@@ -265,3 +265,6 @@ create table if not exists import_progress (
   updated_at  timestamptz not null default now()
 );
 alter table import_progress enable row level security;
+-- When Spotify asks the app to wait (a long "429" pause), the end time is
+-- kept here so nobody asks Spotify again before then (that can lengthen it).
+alter table import_progress add column if not exists blocked_until timestamptz;

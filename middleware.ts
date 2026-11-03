@@ -6,6 +6,8 @@ import { SESSION_COOKIE, verifySessionToken } from './lib/session';
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === '/login' || pathname === '/api/login') return NextResponse.next();
+  // Background jobs prove who they are with a signature instead (see the route).
+  if (pathname.startsWith('/api/jobs/')) return NextResponse.next();
 
   const ok = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
   if (ok) return NextResponse.next();

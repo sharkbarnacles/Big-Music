@@ -11,12 +11,22 @@ type Summary = {
   skipped?: { name: string; reason: string }[];
   // Spotify imports run in rounds (each under Vercel's 5-minute limit).
   done?: boolean; // missing = the import finished in one go (YouTube)
+  paused?: boolean; // Spotify asked the hub to wait; a background job carries on after blockedUntil
+  blockedUntil?: string | null;
   total?: number;
   processed?: number;
   error?: string;
 };
 
 const MAX_ROUNDS = 60;
+
+// "today at 3:29 AM" / "Wed 4 Nov, 3:29 AM", in the phone's own time zone.
+function when(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay ? `today at ${time}` : `${d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}, ${time}`;
+}
 
 export default function ImportButton({ service, label }: { service: 'spotify' | 'youtube'; label: string }) {
   const router = useRouter();
@@ -35,6 +45,10 @@ export default function ImportButton({ service, label }: { service: 'spotify' | 
         const data: Summary = await res.json().catch(() => ({ error: `Import stopped (HTTP ${res.status}).` }));
         if (data.error) {
           setResult({ ...data, error: `${data.error} What's done so far is saved: press Import again to carry on.` });
+          break;
+        }
+        if (data.paused) {
+          setResult(data);
           break;
         }
         if (data.done === false) {
@@ -70,7 +84,15 @@ export default function ImportButton({ service, label }: { service: 'spotify' | 
         </div>
       ) : null}
       {result?.error && <div className="notice error small">{result.error}</div>}
-      {result && !result.error && (
+      {result?.paused && (
+        <div className="notice small">
+          Spotify asked the hub to take a break until{' '}
+          <b>{result.blockedUntil ? when(result.blockedUntil) : 'later'}</b>.
+          {result.total ? ` ${(result.processed ?? 0).toLocaleString()} of ${result.total.toLocaleString()} playlists done so far.` : ''}{' '}
+          You don&apos;t need to do anything: the import carries on by itself after that (it checks every hour), even with the app closed.
+        </div>
+      )}
+      {result && !result.error && !result.paused && (
         <div className="notice small">
           Done. {result.playlists ?? 0} playlists imported or updated, {(result.songs ?? 0).toLocaleString()} songs.
           {result.unchanged ? ` ${result.unchanged.toLocaleString()} unchanged since last time.` : ''}

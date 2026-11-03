@@ -19,15 +19,33 @@ class SpotifyError extends Error {
   }
 }
 
+// Spotify asked us to wait a long time (minutes or hours). `until` is when we may ask again.
+export class SpotifyPaused extends Error {
+  constructor(public until: Date) {
+    super('Spotify asked the hub to wait before importing more.');
+  }
+}
+
+// Keep a calm pace (about 3 requests a second) so Spotify doesn't put the
+// app on a long time-out, which happened once with a big library.
+const MIN_GAP_MS = 330;
+let lastCallAt = 0;
+async function pace() {
+  const wait = lastCallAt + MIN_GAP_MS - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastCallAt = Date.now();
+}
+
 // One API call, waiting and retrying if Spotify says "slow down" (HTTP 429).
 async function call(token: string, pathOrUrl: string): Promise<any> {
   const url = pathOrUrl.startsWith('http') ? pathOrUrl : `${API}${pathOrUrl}`;
   for (let attempt = 0; attempt < 6; attempt++) {
+    await pace();
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (res.status === 429) {
       const wait = Number(res.headers.get('retry-after')) || 2;
       // A long wait would outlast the 5-minute limit; stop and let the next round retry.
-      if (wait > 30) throw new SpotifyError(429, `Spotify asked us to pause for ${Math.ceil(wait / 60)} min. Press Import again after that; it carries on where it stopped.`);
+      if (wait > 30) throw new SpotifyPaused(new Date(Date.now() + wait * 1000));
       await new Promise((r) => setTimeout(r, wait * 1000));
       continue;
     }
@@ -77,10 +95,12 @@ function toTrack(t: any): ImportedTrack | null {
 // next time only fetch songs for playlists whose snapshot is different.
 
 const ROUND_MS = 240_000; // stop starting new playlists after 4 minutes
-const RESUME_WINDOW_MS = 6 * 60 * 60 * 1000; // an unfinished import older than this starts over
+const RESUME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // an unfinished import older than a week starts over
 
 export type RoundResult = ImportSummary & {
   done: boolean;
+  paused?: boolean; // Spotify asked us to wait; carries on by itself after `blockedUntil`
+  blockedUntil?: string | null;
   total: number; // playlists on Spotify (plus Liked Songs)
   processed: number; // how many of them are done so far
   unchanged: number;
@@ -95,6 +115,7 @@ type Progress = {
   excluded: number;
   skipped: { name: string; reason: string }[];
   done: boolean;
+  blocked_until?: string | null;
   updated_at: string;
 };
 
@@ -182,10 +203,19 @@ export async function importSpotify(): Promise<RoundResult> {
   const token = await getAccessToken('spotify');
 
   const saved = await loadProgress();
+  // Still inside Spotify's time-out: don't ask again (that can make it longer).
+  if (saved && !saved.done && saved.blocked_until && Date.parse(saved.blocked_until) > Date.now()) {
+    return {
+      service: 'spotify', playlists: saved.playlists, songs: saved.songs, excluded: saved.excluded,
+      skipped: saved.skipped ?? [], unchanged: saved.unchanged, done: false, total: saved.total,
+      processed: saved.next_offset, paused: true, blockedUntil: saved.blocked_until,
+    };
+  }
   const resume = saved && !saved.done && Date.now() - Date.parse(saved.updated_at) < RESUME_WINDOW_MS;
   const prog: Progress = resume
     ? { ...saved!, skipped: saved!.skipped ?? [] }
     : { next_offset: 0, total: 0, playlists: 0, unchanged: 0, songs: 0, excluded: 0, skipped: [], done: false, updated_at: '' };
+  prog.blocked_until = null;
   const fresh = !resume;
   const result = (): RoundResult => ({
     service: 'spotify',
@@ -260,7 +290,7 @@ export async function importSpotify(): Promise<RoundResult> {
         try {
           await importOne(token, p, prog);
         } catch (err) {
-          if (err instanceof SpotifyError && err.status === 429) {
+          if (err instanceof SpotifyPaused || (err instanceof SpotifyError && err.status === 429)) {
             prog.next_offset = offset + i + 1; // try this one again next round
             throw err;
           }
@@ -280,6 +310,11 @@ export async function importSpotify(): Promise<RoundResult> {
     await saveProgress(toSaveOf(prog), false);
     return result();
   } catch (err) {
+    if (err instanceof SpotifyPaused) {
+      prog.blocked_until = err.until.toISOString();
+      await saveProgress(toSaveOf(prog), false).catch(() => {});
+      return { ...result(), paused: true, blockedUntil: prog.blocked_until };
+    }
     // Keep what was done so pressing Import again carries on from here.
     await saveProgress(toSaveOf(prog), false).catch(() => {});
     throw err;
