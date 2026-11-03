@@ -292,12 +292,15 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       const official = x.release === 'song' ? 2 : x.release === 'video' ? 1 : x.release === 'upload' ? -3 : 0;
       // Asked for a language with its own script: your taste only lifts songs in it
       // (so a favourite from elsewhere doesn't slip into a Thai radio).
-      const lift = origin?.script && !mine ? 0 : affinity(taste, x.artist) * 5;
+      let lift = origin?.script && !mine ? 0 : affinity(taste, x.artist) * 5;
       // Deeper taste: how well the artist's genres/tags fit yours, and your vocal
       // preference for this language (a gentle lift, never a filter).
       const prof = profiles.get(artistKey(x.artist));
       // Artists tagged with the style you asked for (MusicBrainz: "experimental", "post-rock"…).
-      const styleTag = prof && styles.some((st) => STYLES[st].some((w) => prof.tags.some((t: string) => t.includes(w)))) ? 3 : 0;
+      const styleTag = prof && styles.some((st) => [...STYLES[st], ...(RELATED[st] ?? [])].some((w) => prof.tags.some((t: string) => t.includes(w)))) ? 3 : 0;
+      // You asked for a style: your favourites only get lifted if they're known to fit it
+      // (a K-pop favourite shouldn't lead a metalcore radio). Untagged artists keep a little.
+      if (styles.length && !styleTag) lift *= prof?.tags.length ? 0 : 0.3;
       const deep = tagFit(taste, prof) * 4 + styleTag + voiceFit(taste, songLanguage(`${x.title} ${x.artist}`, prof), prof) * 2.5;
       pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + deep + Math.random() * 3 });
     }
