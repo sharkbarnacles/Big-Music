@@ -11,7 +11,7 @@ import TrackList from './TrackList';
 // how many, Select all, Copy to… and, in your own (hub) playlists, Move to…
 // and Remove. Spotify / YouTube playlists can only be copied from: the next
 // import would put removed songs back. Hub playlists also keep "Remove from
-// this playlist" in each song's ⋯ menu.
+// this playlist" in each song's ⋯ menu. (Deployed 2026-11-04.)
 export default function PlaylistSongs({
   playlistId,
   hub,

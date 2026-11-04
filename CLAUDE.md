@@ -63,10 +63,7 @@ Environment variables (set in Vercel; names only, never values):
   deploys: "Deployment rate limited — retry in 24 hours"; the live site
   stays on the last good deploy). Batch changes. A commit pushed while
   limited is not retried: after the reset, push any real app change
-  (notes-only commits are skipped by vercel.json). Pending since the limit:
-  goth/emo/metal/visual kei styles + style-fit lift (commits d046afe,
-  321b273, 1541ea6), similar-artist radios, and the Playlist Tools pick
-  (Set aside folder, new Add to playlist window, hold-to-select songs).
+  (notes-only commits are skipped by vercel.json).
 - Database changes: the Supabase connector (apply_migration / execute_sql) on
   project `dvcjjcuqmhwdahhaafuy`, **and** append the same SQL to
   `supabase/schema.sql` (kept re-runnable with `if not exists`).
@@ -511,4 +508,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Style-aware word radios (experimental/grunge/indie… in English and natively), consensus check, no oldies unless asked.
   Goth/emo/metal/visual kei/cottagecore… styles; Daily discover leans English + Korean.
   Similar-artist radios ("similar to Silica Gel").
-  Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove (deploys with the next allowed push).
+  Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove
