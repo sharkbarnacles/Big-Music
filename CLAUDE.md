@@ -661,6 +661,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    musicTwoRowItemRenderer; probed on The Cure: 29 albums), the rest, and
    "In your library" (your songs by that name, `library_page` main_artist).
    `probe_ytm.mjs` now also saves artist discography pages.
+   **Radios pill (2026-11-05, owner's wish):** every Library view's numbers
+   line (`.lib-line.with-pill`) ends with a "Radios" pill (UFO icon,
+   `RadiosPill` in `components/RadioList.tsx`) → `/library?view=radios`:
+   all saved radio editions newest first (`lib/radioList.ts` `loadRadios`:
+   2×2 cover mosaic, song count, date, subtitle), a "Find a radio" box when
+   there are more than 8, tap = radio page `/discover/<id>`, round button =
+   play (`/api/speed-dial/play?radio=`). Tapping the lit pill goes back.
    **Jump back in (Speed Dial pick S1 + C3 + T1 + P1 + A1 + N1, 2026-11-05):**
    `components/SpeedDial.tsx` at the top of Home's playlist view only
    (`PlaylistBrowser` `dial` prop; not in Library, not while selecting):
@@ -750,3 +757,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Lock card claimed three times after each song change (old 54-song queue cleared once).
 - 2026-11-05: Lock card: back to one claim when the hub starts/skips (repeated claims made it flip and lose skip buttons).
 - 2026-11-05: In-hub Spotify: faster starts, no wrong-song jumps right after a tap, spinner stays during loading.
+- 2026-11-05: Library: Radios pill → list of every radio you've made (play button, opens its page).
