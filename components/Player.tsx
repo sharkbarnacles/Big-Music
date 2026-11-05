@@ -273,6 +273,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sdkLastRef = useRef<{ playing: boolean; pos: number; dur: number; id: string | null; at: number }>({ playing: false, pos: 0, dur: 0, id: null, at: 0 });
   // Watchdog for the in-hub Spotify player: where it was and since when.
   const startInFlightRef = useRef(false);
+  const startedByRef = useRef<'tap' | 'next' | 'auto'>('tap');
   const spotifyTokenRef = useRef<{ token: string; at: number } | null>(null);
   const forceServerRef = useRef(false);
   const queueCheckedRef = useRef(false);
@@ -503,7 +504,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Playing ──────────────────────────────────────────────────────────
 
-  const playAt = async (i: number, opts: { positionMs?: number; skips?: number; back?: boolean } = {}) => {
+  const playAt = async (i: number, opts: { positionMs?: number; skips?: number; back?: boolean; reason?: 'tap' | 'next' | 'auto' } = {}) => {
     const track = queueRef.current[i];
     if (!track) return;
     restoredRef.current = false;
@@ -514,6 +515,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       historyRef.current.push(leaving);
       if (historyRef.current.length > 200) historyRef.current.shift();
     }
+    // How this song came on: picked by you ('tap', which includes peeking at
+    // songs in the queue), Next pressed, or the music moving on by itself.
+    // Only Next on a song you didn't pick counts as a skip (reportSkip).
+    if (opts.reason) startedByRef.current = opts.reason;
+    else if (i !== indexRef.current) startedByRef.current = 'tap';
     const token = ++tokenRef.current;
     // Spotify mode: from this moment the old song's reports must not pull the
     // screen back or start anything (the version lookup below can take ~1 s).
@@ -1120,7 +1126,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       } else {
         const n = nextIndex(indexRef.current);
         if (n !== null) {
-          playAt(n);
+          playAt(n, { reason: 'auto' });
           return;
         }
       }
@@ -1161,7 +1167,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (s.tries < 3 && !nearEnd) return; // give a plain resume one more go
     stallRef.current = null;
     const n = nearEnd ? nextIndex(indexRef.current) : indexRef.current;
-    if (n !== null) playAt(n, nearEnd ? {} : { positionMs: pos });
+    if (n !== null) playAt(n, nearEnd ? { reason: 'auto' } : { positionMs: pos });
   };
   claimRef.current = claimLockScreen;
   const nudgeRef = useRef(nudgeSpotify);
@@ -1380,7 +1386,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const n = nextIndex(indexRef.current);
-      if (n !== null) playAt(n);
+      if (n !== null) playAt(n, { reason: 'auto' });
       else setPlay(false);
     }
   };
@@ -1391,7 +1397,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     ytErrorsRef.current += 1;
     showToast(`Skipped “${track?.title ?? 'song'}”: YouTube won’t play it here`);
     const n = nextIndex(indexRef.current);
-    if (n !== null && ytErrorsRef.current < 5) playAt(n);
+    if (n !== null && ytErrorsRef.current < 5) playAt(n, { reason: 'auto' });
     else setPlay(false);
   };
 
@@ -1457,7 +1463,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         lastPlayedEndRef.current = false;
         const n = nextIndex(run.idx[run.idx.length - 1]);
         clientLog('spotify', 'list finished, hub continues', { next: n });
-        if (n !== null) playAt(n);
+        if (n !== null) playAt(n, { reason: 'auto' });
         return;
       }
       // In the hub's own player Spotify was given exactly the hub's list, so a
@@ -1487,7 +1493,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const qi = run.idx[pos];
-      if (qi !== indexRef.current) setI(qi);
+      if (qi !== indexRef.current) {
+        if (Date.now() - runStartedAtRef.current >= 5000) startedByRef.current = 'auto'; // Spotify moved on by itself
+        setI(qi);
+      }
 
       // The last song Spotify was given has finished: the hub plays what's next
       // (for example a YouTube-only song). Only works while the hub is open.
@@ -1518,7 +1527,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (isLast && lastPlayedEndRef.current && atEdge && repeatRef.current !== 'one') {
         lastPlayedEndRef.current = false;
         const n = nextIndex(qi);
-        if (n !== null) playAt(n);
+        if (n !== null) playAt(n, { reason: 'auto' });
       }
     }
   };
@@ -1614,6 +1623,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     gesture();
     const n = nextIndex(indexRef.current);
     if (n === null) return;
+    reportSkip();
     // In the hub's own Spotify player the next song is already lined up in
     // Spotify's list: just skip (instant, no new start).
     const run = runRef.current;
@@ -1631,12 +1641,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setProgress(0);
         posRef.current = { ms: 0, at: Date.now() };
         setDuration(queueRef.current[n]?.duration_ms ?? 0);
-        p.nextTrack().catch(() => playAt(n));
+        startedByRef.current = 'next';
+        p.nextTrack().catch(() => playAt(n, { reason: 'next' }));
         claimLockScreen();
         return;
       }
     }
-    playAt(n);
+    playAt(n, { reason: 'next' });
+  };
+
+  // Next pressed early on a song you didn't pick yourself → a skip, which
+  // teaches your taste (artists you keep skipping come up less). Not counted:
+  // songs you tapped (peeking around the queue), under 8 s (flicking through),
+  // or past half the song / 2 minutes (you listened).
+  const reportSkip = () => {
+    const t = queueRef.current[indexRef.current];
+    if (!t || startedByRef.current === 'tap' || !playingRef.current) return;
+    const played = currentProgress();
+    const dur = durationRef.current || t.duration_ms || 0;
+    if (played < 8000) return;
+    if (played > Math.min(dur ? dur * 0.5 : 120_000, 120_000)) return;
+    fetch('/api/skips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackId: t.id, title: t.title, artist: t.artist, playedMs: Math.round(played), durationMs: dur }),
+      keepalive: true,
+    }).catch(() => {});
   };
 
   const prev = () => {

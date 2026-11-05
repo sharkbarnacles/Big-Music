@@ -13,6 +13,10 @@ export type Taste = {
   similar: Map<string, number>;
   tags: Map<string, number>; // your taste in genres/tags, 0..1 (MusicBrainz, via artist_profiles)
   voice: VoicePrefs;
+  // Artists you keep skipping (Next pressed early): 0 (never) to 1 (often).
+  skips: Map<string, number>;
+  // Your languages: main ones, side branches (taste_settings 'languages').
+  languages: { main: string[]; branch: string[] };
 };
 let cache: { at: number; taste: Taste } | null = null;
 
@@ -31,16 +35,19 @@ export function artistKey(name: string): string {
 }
 
 export async function loadTaste(): Promise<Taste> {
-  if (cache && Date.now() - cache.at < 30 * 60_000) {
+  if (cache && Date.now() - cache.at < 10 * 60_000) {
     // Your vocal preferences change from the Your taste page: always read them fresh.
     const { data } = await db().from('taste_settings').select('value').eq('key', 'voice').maybeSingle();
     return { ...cache.taste, voice: ((data as any)?.value ?? {}) as VoicePrefs };
   }
-  const [{ data: rows }, { data: rel }, { data: tagRows }, { data: setting }] = await Promise.all([
+  const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
+  const [{ data: rows }, { data: rel }, { data: tagRows }, { data: setting }, { data: skipRows }, { data: langs }] = await Promise.all([
     db().rpc('taste_artists', { max_rows: 4000 }),
     db().from('discover_artists').select('name, data'),
     db().rpc('taste_tags', { max_rows: 120 }),
     db().from('taste_settings').select('value').eq('key', 'voice').maybeSingle(),
+    db().from('skips').select('artist_key, at').gte('at', since).limit(5000),
+    db().from('taste_settings').select('value').eq('key', 'languages').maybeSingle(),
   ]);
   const own = new Map<string, number>();
   const top = (rows as any[])?.[0]?.weight || 1;
@@ -59,7 +66,21 @@ export async function loadTaste(): Promise<Taste> {
   const tagTop = Math.sqrt((tagRows as any[])?.[0]?.weight || 1);
   for (const r of (tagRows as any[]) ?? []) if (!NOT_STYLE.test(r.tag)) tags.set(r.tag, Math.sqrt(r.weight) / tagTop);
   const voice = ((setting as any)?.value ?? {}) as VoicePrefs;
-  const taste = { own, similar, tags, voice };
+  // Skips: newer ones count more (half-life ~30 days); the first one is free,
+  // about five recent skips is "often". Artists you love are judged gently.
+  const raw = new Map<string, number>();
+  for (const r of (skipRows as any[]) ?? []) {
+    const age = (Date.now() - Date.parse(r.at)) / 86_400_000;
+    raw.set(r.artist_key, (raw.get(r.artist_key) ?? 0) + Math.pow(0.5, age / 30));
+  }
+  const skips = new Map<string, number>();
+  for (const [k, n] of raw) {
+    const p = Math.max(0, Math.min(1, (n - 1) / 4)) * (1 - 0.6 * (own.get(k) ?? 0));
+    if (p > 0) skips.set(k, p);
+  }
+  const lv = ((langs as any)?.value ?? {}) as { main?: string[]; branch?: string[] };
+  const languages = { main: lv.main ?? ['english'], branch: lv.branch ?? [] };
+  const taste = { own, similar, tags, voice, skips, languages };
   cache = { at: Date.now(), taste };
   return taste;
 }
@@ -122,4 +143,23 @@ export function affinity(taste: Taste, artist: string): number {
     best = Math.max(best, taste.own.get(k) ?? 0, taste.similar.get(k) ?? 0);
   }
   return best;
+}
+
+// How much you've been skipping this artist lately: 0 (not) to 1 (often).
+export function skipPenalty(taste: Taste, artist: string): number {
+  let worst = 0;
+  for (const name of artist.split(/\s*(?:,|&|\bx\b|\bfeat\.?|\bft\.?|\band\b)\s*/i)) {
+    const k = artistKey(name);
+    if (k) worst = Math.max(worst, taste.skips.get(k) ?? 0);
+  }
+  return worst;
+}
+
+// How a song's language sits with yours: +0.35 main, +0.1 side branch,
+// -0.5 a language you don't listen to, 0 unknown (most English/Latin titles).
+export function languageFit(taste: Taste, lang: string | null): number {
+  if (!lang) return 0;
+  if (taste.languages.main.includes(lang)) return 0.35;
+  if (taste.languages.branch.includes(lang)) return 0.1;
+  return -0.5;
 }

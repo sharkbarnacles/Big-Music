@@ -5,7 +5,7 @@
 // artists similar to those. Your taste lifts artists you love or that fit
 // your genres; extra words ("…but shoegaze") favour artists tagged with them.
 import { browseArtist, searchArtists, type WebSong } from './ytBrowse';
-import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, tagFit, type Taste } from './taste';
+import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, tagFit, type Taste, skipPenalty } from './taste';
 import { isRealSong } from './promptRadio';
 
 const ASK = /^(?:.*?\b)?(?:similar to|sounds? like|artists? like|bands? like|songs? like|music like|more like|fans of|in the style of|style of|vibes? like|like)\s+(.+?)(?:\s+(?:but|with|and)\s+(.+))?$/i;
@@ -28,7 +28,7 @@ export async function findSimilarSeed(q: string): Promise<{ id: string; name: st
 }
 
 export async function similarRadio(q: string, state: SimilarState | null, seed?: { id: string; name: string; extra: string }) {
-  const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {} };
+  const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {}, skips: new Map(), languages: { main: ['english'], branch: [] } };
   const taste = await loadTaste().catch(() => empty);
   const used = new Set(state?.used ?? []);
   let todo = state?.todo ?? [];
@@ -68,7 +68,7 @@ export async function similarRadio(q: string, state: SimilarState | null, seed?:
   for (const x of songs) {
     const prof = profiles.get(artistKey(x.s.artist));
     const wantExtra = extraWords.length && prof?.tags.some((t: string) => extraWords.some((w) => t.includes(w))) ? 4 : 0;
-    x.rank += affinity(taste, x.s.artist) * 4 + tagFit(taste, prof) * 3 + wantExtra + Math.random() * 3;
+    x.rank += affinity(taste, x.s.artist) * 4 + tagFit(taste, prof) * 3 + wantExtra + Math.random() * 3 - skipPenalty(taste, x.s.artist) * 5;
   }
   // Mix artists: best songs first, but never the same artist twice in a row.
   songs.sort((a, b) => b.rank - a.rank);

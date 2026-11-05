@@ -200,12 +200,27 @@ class Library:
             self.languages = row[0]["value"] if row else {}
         except SystemExit:
             self.languages = {}
+        # Artists you keep skipping (Next pressed early in the app; table skips):
+        # newer skips count more, about three recent ones keeps them out.
+        self.skip_weight: dict[str, float] = {}
+        try:
+            since = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+            for r in db.get_all("skips", {"select": "artist_key,at", "at": f"gte.{since}"}):
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(r["at"].replace("Z", "+00:00"))).days
+                self.skip_weight[r["artist_key"]] = self.skip_weight.get(r["artist_key"], 0) + 0.5 ** (age / 30)
+        except (SystemExit, Exception):
+            pass
         suggested = db.get_all("discover_items", {"select": "match_key", "match_key": "not.is.null"})
         self.suggested = {r["match_key"] for r in suggested}
         print(f"Library: {len(rows)} songs, {len(counts)} artists; {len(self.suggested)} songs suggested before.")
 
     def top_artists(self, n: int) -> list[str]:
         return sorted(self.artist_counts, key=lambda k: -self.artist_counts[k])[:n]
+
+    def skipped(self, name: str) -> bool:
+        key = re.sub(r"\s+(feat\.?|ft\.?|x|&|and)\s+.*$", "", name, flags=re.I).split(",")[0]
+        key = re.sub(r"\s+", " ", key).strip().lower()
+        return self.skip_weight.get(key, 0) >= 3
 
     def has_artist(self, name: str) -> bool:
         return simplify(name) in self.artist_counts
@@ -379,7 +394,7 @@ def find_new_songs(lib: Library, music: Music, want: int, seeds: int, ranks: ran
         random.shuffle(related)
         for rel in related:
             name = rel.get("name") or ""
-            if not name or lib.has_artist(name) or simplify(name) in used_artists:
+            if not name or lib.has_artist(name) or simplify(name) in used_artists or lib.skipped(name):
                 continue
             rel_page = music.artist_by_id(name, rel.get("browseId"))
             songs = ((rel_page or {}).get("data") or {}).get("songs") or []

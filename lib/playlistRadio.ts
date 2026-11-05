@@ -4,6 +4,7 @@
 // five songs not used yet; when every song has been used it starts over.
 // Continuations are "pl:<state>" tokens handled by /api/radio.
 import { db, fetchAllRows } from './db';
+import { tasteOrder } from './tasteRank';
 import { RADIO_SIZE, toRadioTracks, type RadioMode } from './radioTracks';
 import type { TrackRowData } from './tracks';
 import { fetchRadio, type RadioSong } from './ytRadio';
@@ -84,9 +85,11 @@ export async function playlistRadio(opts: { playlistId?: string; token?: string;
     }
     if (pool.length <= SEEDS_PER_ROUND && round > 0) break; // a tiny playlist: no new seeds left to try
   }
+  // Your taste decides which suggestions stay and their order.
+  const ranked = await tasteOrder(out).catch(() => out);
   return {
     name: playlist.name as string,
-    tracks: out.slice(0, target),
+    tracks: ranked.slice(0, target),
     continuation: encodePlaylistState({ p: playlistId, u: used }),
   };
 }

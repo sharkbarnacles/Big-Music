@@ -5,6 +5,7 @@ import { fetchRadio } from '@/lib/ytRadio';
 import { runPromptRadio } from '@/lib/promptRadioRoute';
 import { playlistRadio } from '@/lib/playlistRadio';
 import { RADIO_SIZE, radioMode, toRadioTracks } from '@/lib/radioTracks';
+import { tasteOrder } from '@/lib/tasteRank';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -57,7 +58,9 @@ export async function GET(req: NextRequest) {
     // Keep the radio in Past editions: a new edition when it starts, more songs as it goes.
     let editionId = editionParam;
     const seedTitle = q.get('seedTitle');
-    let list = tracks;
+    // Your taste decides which suggestions stay and their order (lib/tasteRank.ts).
+    const ranked = await tasteOrder(tracks, { keepFirst: !token }).catch(() => tracks);
+    let list = ranked;
     if (!token && seedTitle) {
       // The song you started from always comes first, even if the dial filters it out,
       // followed by 49 more: 50 in all.
@@ -74,12 +77,12 @@ export async function GET(req: NextRequest) {
         yt_audio_id: vid,
         track_sources: [],
       };
-      list = tracks.filter((t) => t.yt_audio_id !== vid && t.id !== seedId).slice(0, RADIO_SIZE - 1);
+      list = ranked.filter((t) => t.yt_audio_id !== vid && t.id !== seedId).slice(0, RADIO_SIZE - 1);
       editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid, label: q.get('seedLabel') }, [seed, ...list]).catch(() => null);
     } else if (!token) {
-      list = tracks.slice(0, RADIO_SIZE);
+      list = ranked.slice(0, RADIO_SIZE);
     } else if (editionId) {
-      await appendToRadioEdition(editionId, tracks).catch(() => {});
+      await appendToRadioEdition(editionId, ranked).catch(() => {});
     }
     return NextResponse.json({ tracks: list, continuation, editionId: editionId ?? null });
   } catch (err) {

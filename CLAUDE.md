@@ -631,6 +631,23 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    Spanish, French, Russian (`taste_settings` 'languages'); Daily discover's
    `weighted_seeds` weights artists ×1 main, ×0.35 branch, ×0.5 other
    (language from title script or MusicBrainz country).
+   **Taste everywhere + skips (2026-11-05, owner: "everything should be with
+   my taste in mind … help me branch out"; skips yes, but tapping around the
+   queue to peek must not count):** `lib/tasteRank.ts` `tasteOrder()` now
+   ranks song radios (`/api/radio`, start keeps the seed first, and
+   continuations) and playlist radios (`lib/playlistRadio.ts`): 1.1×tagFit +
+   0.7×affinity + `languageFit` (main +0.35, branch +0.1, other −0.5) +
+   0.35×voiceFit − 1.6×`skipPenalty` − filler (isRealSong) − 0.012×YouTube
+   rank; drops filler and artists skipped often (≥0.8), the worst sixth on
+   batches >12, no artist twice within 3; unknown artists → tagging queue.
+   Word/similar radios subtract skipPenalty too. **Skips:** table `skips`
+   (created 2026-11-05 via execute_sql, in schema.sql), `/api/skips`; player
+   `reportSkip()` on Next (button or lock screen) only if the song wasn't
+   picked by you (`startedByRef` 'tap' covers any tap incl. queue peeks;
+   'next'/'auto' otherwise), played ≥8 s and ≤ min(half, 2 min).
+   `loadTaste()` (cache now 10 min) adds `skips` (decayed, half-life 30 d,
+   first skip free, loved artists judged gently) and `languages`.
+   `discover.py` leaves out related artists with ≥3 decayed skips.
    **Similar-artist radios:** "similar to / like / sounds like / artists
    like / fans of <artist> [but <words>]" (`lib/similarRadio.ts`): YouTube
    Music artist search (`searchArtists`), its "Fans might also like" →
@@ -808,3 +825,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Radios moved to a chip after "Mine" in the playlist chips (Home and Library).
 - 2026-11-05: Playback deep check: direct Spotify start from the phone, no autoplay "clearing", lookup no longer blocks taps, review fixes (settle window, stale timers, double sound).
 - 2026-11-05: In-hub Spotify: reconnects when Spotify forgot the player (no more YouTube stand-ins), moves a stand-in song back to Spotify.
+- 2026-11-05: Taste in every radio (song + playlist radios ranked by your tags, artists, languages, voices), skips learned (Next on songs you didn't pick), Discover avoids often-skipped artists.

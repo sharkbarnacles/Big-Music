@@ -641,3 +641,18 @@ language sql stable set search_path = public as $$
 $$;
 revoke execute on function library_page(text, boolean, boolean, text, text, text, integer, integer, uuid[]) from public, anon, authenticated;
 grant execute on function library_page(text, boolean, boolean, text, text, text, integer, integer, uuid[]) to service_role;
+
+-- Skips (2026-11-05): songs you pressed Next on early (not songs you tapped
+-- to peek at). Artists you keep skipping show up less in radios and Discover.
+create table if not exists skips (
+  id bigserial primary key,
+  at timestamptz not null default now(),
+  track_id text,
+  artist_key text not null,
+  artist text,
+  title text,
+  played_ms integer,
+  duration_ms integer
+);
+create index if not exists skips_artist_at on skips (artist_key, at desc);
+alter table skips enable row level security;

@@ -11,7 +11,7 @@
 // 4. Spread artists out. More comes from the next playlists as you listen.
 import { searchPlaylists, browseCollection, type WebSong } from './ytBrowse';
 import { findSimilarSeed, similarRadio } from './similarRadio';
-import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste } from './taste';
+import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste, skipPenalty } from './taste';
 
 type Origin = { words: string[]; script?: RegExp; notScript?: RegExp; native?: string[] };
 // Words people use for where music is from, and how to recognise it.
@@ -200,7 +200,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     queries.push(feel.slice(0, 2).join(' '));
   }
   const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 11);
-  const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {} };
+  const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {}, skips: new Map(), languages: { main: ['english'], branch: [] } };
   const [found, taste] = await Promise.all([
     Promise.all(unique.map((x) => searchPlaylists(x).catch(() => []))).then((r) => r.flat()),
     loadTaste().catch(() => empty),
@@ -299,7 +299,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       const official = x.release === 'song' ? 2 : x.release === 'video' ? 1 : x.release === 'upload' ? -3 : 0;
       // Asked for a language with its own script: your taste only lifts songs in it
       // (so a favourite from elsewhere doesn't slip into a Thai radio).
-      let lift = origin?.script && !mine ? 0 : affinity(taste, x.artist) * 5;
+      let lift = (origin?.script && !mine ? 0 : affinity(taste, x.artist) * 5) - skipPenalty(taste, x.artist) * 6;
       // Deeper taste: how well the artist's genres/tags fit yours, and your vocal
       // preference for this language (a gentle lift, never a filter).
       const prof = profiles.get(artistKey(x.artist));
