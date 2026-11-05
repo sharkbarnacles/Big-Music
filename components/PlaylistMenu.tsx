@@ -10,11 +10,13 @@ export default function PlaylistMenu({
   id,
   name,
   hub,
+  pinned,
   tracks,
 }: {
   id: string;
   name: string;
   hub: boolean;
+  pinned?: boolean; // left out = not one of your playlists (no Pin)
   tracks: { id: string; title: string }[];
 }) {
   const router = useRouter();
@@ -55,6 +57,21 @@ export default function PlaylistMenu({
   const remove = async () => {
     if (await call('DELETE')) router.push('/');
   };
+  // Pin to Home / Unpin (Home Lab P2).
+  const togglePin = async () => {
+    setMenu(false);
+    try {
+      const res = await fetch('/api/playlists/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id], pinned: !pinned }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message || 'Couldn’t do that. Try again.');
+    }
+  };
   const open = (p: 'rename' | 'delete') => {
     setMenu(false);
     setError(null);
@@ -71,6 +88,11 @@ export default function PlaylistMenu({
         <>
           <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenu(false)} />
           <div className="row-menu filter-drop" role="menu">
+            {pinned !== undefined && (
+              <button type="button" role="menuitem" onClick={togglePin}>
+                {pinned ? 'Unpin from Home' : 'Pin to Home'}
+              </button>
+            )}
             {tracks.length > 0 && (
               <button type="button" role="menuitem" onClick={() => { setMenu(false); pick(tracks); }}>
                 Add all to a playlist…
@@ -85,6 +107,7 @@ export default function PlaylistMenu({
           </div>
         </>
       )}
+      {error && !panel && <span className="small" style={{ color: 'var(--danger)' }}>{error}</span>}
       {panel && (
         <>
           <button type="button" className="panel-back" aria-label="Close panel" onClick={() => setPanel(null)} />

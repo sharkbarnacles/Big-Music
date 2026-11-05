@@ -593,3 +593,51 @@ create table if not exists spotify_matches (
   checked_at timestamptz not null default now()
 );
 alter table spotify_matches enable row level security;
+
+-- ── Home Lab pick L3 + T3 + P2 + G2 + E3 (2026-11-05): pins and playlist tags ──
+-- Pinned playlists sit at the top of Home in the order they were pinned.
+alter table playlists add column if not exists pinned_at timestamptz;
+-- Your own words on playlists (any service; imports never touch them).
+-- Uses the same `tags` table as songs would; `color` is a palette name.
+create table if not exists playlist_tags (
+  playlist_id uuid not null references playlists(id) on delete cascade,
+  tag_id      uuid not null references tags(id) on delete cascade,
+  added_at    timestamptz not null default now(),
+  primary key (playlist_id, tag_id)
+);
+create index if not exists playlist_tags_tag_idx on playlist_tags(tag_id);
+alter table playlist_tags enable row level security;
+
+-- library_page gains tag_ids: only songs from playlists that have every one
+-- of those tags (Home's Songs view with tags chosen).
+drop function if exists library_page(text, boolean, boolean, text, text, text, integer, integer);
+create or replace function library_page(
+  q text default null, only_videos boolean default false, both_services boolean default false,
+  main_artist text default null, sort_by text default 'artist', seed text default null,
+  off_n integer default 0, lim_n integer default 200, tag_ids uuid[] default null)
+returns table(id uuid, total bigint)
+language sql stable set search_path = public as $$
+  with tagged as (
+    select pt.playlist_id from playlist_tags pt
+     where tag_ids is not null and pt.tag_id = any(tag_ids)
+     group by pt.playlist_id
+    having count(distinct pt.tag_id) = cardinality(tag_ids)
+  )
+  select t.id, count(*) over () as total
+    from tracks t
+   where (q is null or t.title ilike '%' || q || '%' or t.artist ilike '%' || q || '%' or t.album ilike '%' || q || '%')
+     and (not only_videos or t.video_id is not null)
+     and (not both_services or (select count(distinct s.service) from track_sources s where s.track_id = t.id) > 1)
+     and (main_artist is null or lower(trim((regexp_split_to_array(t.artist, '\s*(,|&|\s+x\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*', 'i'))[1])) = lower(main_artist))
+     and (tag_ids is null or cardinality(tag_ids) = 0 or exists (
+           select 1 from playlist_items pi join tagged g on g.playlist_id = pi.playlist_id where pi.track_id = t.id))
+   order by
+     case when seed is not null then md5(t.id::text || seed) end,
+     case when sort_by = 'recent' then t.created_at end desc,
+     case when sort_by = 'video' then t.video_id is null end,
+     case when sort_by = 'title' then lower(t.title) end,
+     lower(t.artist), lower(t.title), t.id
+   offset off_n limit lim_n;
+$$;
+revoke execute on function library_page(text, boolean, boolean, text, text, text, integer, integer, uuid[]) from public, anon, authenticated;
+grant execute on function library_page(text, boolean, boolean, text, text, text, integer, integer, uuid[]) to service_role;

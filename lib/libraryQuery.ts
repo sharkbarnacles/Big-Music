@@ -9,6 +9,11 @@ export type ArtistRow = { artist: string; songs: number; videos: number; image_u
 
 // Removes characters that would confuse the database search.
 const clean = (s?: string | null) => (s ?? '').replace(/[%\\]/g, ' ').trim() || null;
+// Valid tag ids from "id,id" (null = no tag filter).
+const tagIds = (s?: string) => {
+  const ids = (s ?? '').split(',').filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+  return ids.length ? ids : null;
+};
 
 export async function loadTracks(
   query: TrackQuery,
@@ -25,6 +30,7 @@ export async function loadTracks(
     seed,
     off_n: offset,
     lim_n: limit,
+    tag_ids: tagIds(query.tags),
   });
   if (error) return { tracks: [], total: null, error: error.message };
   const rows = (data ?? []) as { id: string; total: number }[];

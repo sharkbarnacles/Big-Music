@@ -3,6 +3,8 @@ import Header from '@/components/Header';
 import PlayButtons from '@/components/PlayButtons';
 import PlaylistMenu from '@/components/PlaylistMenu';
 import PlaylistSongs from '@/components/PlaylistSongs';
+import PlaylistTags from '@/components/PlaylistTags';
+import { listTags } from '@/lib/playlistTags';
 import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
 import { db, fetchAllRows } from '@/lib/db';
 
@@ -13,19 +15,23 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
 
   const { data: playlist } = await db()
     .from('playlists')
-    .select('id, service, name, description, image_url, imported_at, last_added_at, set_aside')
+    .select('id, service, name, description, image_url, imported_at, last_added_at, set_aside, pinned_at, playlist_tags(tag_id)')
     .eq('id', id)
     .maybeSingle();
   if (!playlist) notFound();
 
-  const { rows: items, error } = await fetchAllRows<any>((from, to) =>
-    db()
-      .from('playlist_items')
-      .select(`position, tracks(${TRACK_COLUMNS})`)
-      .eq('playlist_id', id)
-      .order('position')
-      .range(from, to),
-  );
+  const [{ rows: items, error }, tags] = await Promise.all([
+    fetchAllRows<any>((from, to) =>
+      db()
+        .from('playlist_items')
+        .select(`position, tracks(${TRACK_COLUMNS})`)
+        .eq('playlist_id', id)
+        .order('position')
+        .range(from, to),
+    ),
+    listTags().catch(() => []),
+  ]);
+  const myTags = ((playlist.playlist_tags ?? []) as { tag_id: string }[]).map((t) => t.tag_id);
 
   const kept = items.filter((row) => row.tracks);
   const tracks = kept.map((row) => row.tracks as TrackRowData);
@@ -45,6 +51,7 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
             id={playlist.id}
             name={playlist.name}
             hub={hub}
+            pinned={Boolean(playlist.pinned_at)}
             tracks={tracks.map((t) => ({ id: t.id, title: t.title }))}
           />
           <PlayButtons tracks={tracks} />
@@ -55,7 +62,9 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
         {from} · {tracks.length.toLocaleString()} songs · {hub ? 'updated' : 'imported'}{' '}
         {new Date(when).toLocaleDateString()}
         {playlist.set_aside ? ' · set aside' : ''}
+        {playlist.pinned_at ? ' · pinned' : ''}
       </div>
+      <PlaylistTags playlistId={playlist.id} name={playlist.name} initial={myTags} tags={tags} />
       {playlist.description && <p className="muted">{playlist.description}</p>}
       {error && <div className="notice error">{error}</div>}
 

@@ -13,6 +13,9 @@
   --spotify: #1ed760;
   --youtube: #B388FF;   /* soft purple (was YouTube red) to suit the Abyss colors */
   --danger: #ff8a8a;
+  /* Playlist tag colours (Home Lab) */
+  --tag-teal: #3DDBD9; --tag-purple: #B388FF; --tag-amber: #E8C36A;
+  --tag-rose: #F28FAD; --tag-blue: #7AB8FF; --tag-green: #7FD8A6;
   --radius: 14px;
   --nav-h: 64px;        /* height of the bottom bar, without the iPhone home-bar space */
 }
@@ -800,3 +803,74 @@ button.pl-pick:hover { border-color: var(--line); }
 .sel-acts { display: flex; gap: 8px; }
 .sel-acts button { flex: 1; height: 40px; padding: 0 8px; font-weight: 600; font-size: 14px; }
 .sel-hint { text-align: center; margin-top: 14px; }
+
+/* ── Home Lab pick L3 + T3 + P2 + G2 + E3: switch, pins, shelf, tags ── */
+.tag-teal { --c: var(--tag-teal); } .tag-purple { --c: var(--tag-purple); } .tag-amber { --c: var(--tag-amber); }
+.tag-rose { --c: var(--tag-rose); } .tag-blue { --c: var(--tag-blue); } .tag-green { --c: var(--tag-green); }
+
+/* T3: two-icon switch at the start of the controls line */
+.home-switch { flex: none; display: inline-flex; padding: 2px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.home-switch button { width: 36px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: grid; place-items: center; }
+.home-switch button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.home-switch button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.home-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* P2: pinned quick tiles, two columns */
+.pin-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 2px 0 6px; }
+@media (min-width: 700px) { .pin-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.pin-tile { display: flex; align-items: center; gap: 9px; height: 52px; min-width: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.pin-tile img, .pin-tile .ph { width: 52px; height: 52px; flex: none; object-fit: cover; background: var(--panel-2); }
+.pin-tile .title { min-width: 0; padding-right: 8px; font-size: 13px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pin-tile:active { background: var(--panel-2); }
+.pin-mark { width: 15px; height: 15px; flex: none; fill: var(--accent); }
+
+/* L3: Recently updated shelf */
+.pl-sec { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.pl-shelf { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; scroll-snap-type: x proximity; }
+.pl-shelf::-webkit-scrollbar { display: none; }
+.shelf-tile { flex: none; width: 118px; display: grid; gap: 3px; scroll-snap-align: start; }
+.shelf-tile img, .shelf-tile .ph { width: 118px; height: 118px; max-width: 100%; border-radius: 10px; object-fit: cover; background: var(--panel-2); }
+.shelf-tile .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+.shelf-tile .sub { font-size: 12px; color: var(--muted); }
+
+/* G2: Tags button and menu; tag dots on rows */
+.pl-tags-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tag-menu { left: 0; right: 0; max-width: 340px; max-height: 60vh; overflow-y: auto; }
+.row-menu .tag-menu-item { display: flex; align-items: center; gap: 10px; }
+.row-menu .tag-menu-item[aria-checked="true"] { color: var(--text); font-weight: 500; }
+.row-menu .tag-menu-item[aria-checked="true"]::after { content: none; }
+.tag-menu-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck { width: 18px; height: 18px; flex: none; border-radius: 5px; border: 1.5px solid var(--muted); display: inline-grid; place-items: center; }
+.ck.on { background: var(--accent); border-color: var(--accent); }
+.ck.on::after { content: ""; width: 8px; height: 4px; border: 2px solid var(--on-accent); border-top: 0; border-right: 0; transform: translate(0, -1px) rotate(-45deg); }
+.tag-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--c); }
+.tag-menu-foot { display: flex; gap: 6px; padding: 6px 4px 2px; border-top: 1px solid var(--line); margin-top: 4px; }
+.row-menu .tag-menu-foot button { width: auto; flex: 1; text-align: center; background: var(--panel); }
+.row-menu .tag-menu-foot .tag-menu-done { color: var(--accent); font-weight: 600; }
+.tag-menu-empty { margin: 8px 10px; }
+.tag-note { margin: 2px 0 4px; }
+.tag-dots { display: inline-flex; gap: 3px; margin-left: 4px; flex: none; }
+.tag-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+
+/* Select bar on Home: four things on a phone */
+.home-select-bar { gap: 6px; padding-left: 12px; }
+.home-select-bar button { padding: 0 12px; font-size: 14px; }
+.home-select-bar .select-count { font-size: 13px; }
+
+/* E3: tag pills (Tag window and playlist pages) */
+.tag-sheet { top: calc(env(safe-area-inset-top) + 48px); bottom: auto; border-radius: 20px; margin: 0 8px; max-height: calc(100vh - 120px); }
+.tag-sheet input { font-size: 16px; }
+.tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; max-height: 40vh; overflow-y: auto; }
+.tag-pill {
+  height: 34px; padding: 0 13px; gap: 5px; font-size: 14px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  background: transparent; color: color-mix(in srgb, var(--c) 75%, var(--text));
+}
+.tag-pill svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.tag-pill[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 22%, var(--panel-2)); border-color: var(--c); color: var(--text); font-weight: 600; }
+.tag-pill.partly { border-style: dashed; }
+.tag-pill:hover { border-color: var(--c); }
+.pl-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+.pl-tags .tag-pill { height: 30px; padding: 0 11px; font-size: 13px; background: color-mix(in srgb, var(--c) 10%, transparent); }
+.pl-tags .tag-pill .x { opacity: .6; margin-left: 2px; }
+.tag-add { height: 30px; padding: 0 12px; font-size: 13px; border-radius: 999px; border: 1px dashed var(--muted); background: transparent; color: var(--muted); }
