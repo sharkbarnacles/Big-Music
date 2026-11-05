@@ -251,6 +251,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // The Spotify line-up: `ids` the songs it should play in order, `sent` how many
   // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
   const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean } | null>(null);
+  const asleepToldRef = useRef(false); // told you once that Spotify is asleep
   const wakeRef = useRef<{ token: number; body: Record<string, unknown>; retried: boolean } | null>(null); // a wake-up still waiting
   const lastPlayedEndRef = useRef(false);
   const pollingRef = useRef(false);
@@ -566,9 +567,35 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json().catch(() => ({}));
       if (token !== tokenRef.current) return;
-      if (!res.ok && data.error === 'no_device') {
-        // Spotify is asleep: wake it up for you and let the server start the music.
-        wakeSpotify(token, { ids, positionMs, deviceId: sdkDeviceRef.current, repeatOne: repeatRef.current === 'one' });
+      // Spotify asleep on this phone, or it said yes but stayed silent: the hub
+      // never switches you to the Spotify app (owner's wish, 2026-11-05).
+      // This song plays through YouTube instead, right here; the next song
+      // tries Spotify again, so once Spotify is awake (playing in the
+      // background, or opened once) it takes over by itself.
+      const asleep = !res.ok && data.error === 'no_device';
+      const silent = res.ok && data.confirmed === false;
+      if (asleep || silent) {
+        clientLog('spotify', asleep ? 'asleep, playing via YouTube' : 'silent, playing via YouTube', { song: list[i]?.title });
+        const yt = list[i].yt_audio_id ?? sourceId(list[i], 'youtube') ?? list[i].video_id;
+        if (silent) spotifyAction('action=pause').catch(() => null);
+        if (yt) {
+          // Say it once per visit, not on every song.
+          if (!asleepToldRef.current) setNotice({
+            text: asleep
+              ? 'Spotify is asleep on this phone, so this plays through YouTube. Spotify takes over by itself once its app is awake.'
+              : 'Spotify didn’t start the song, so it plays through YouTube.',
+            link: { href: 'spotify:', label: 'Wake Spotify' },
+          });
+          asleepToldRef.current = true;
+          startYouTube(yt, positionMs);
+          return;
+        }
+        setPlay(false);
+        setNotice({
+          text: 'Spotify is asleep on this phone and this song has no YouTube version yet.',
+          link: { href: 'spotify:', label: 'Wake Spotify' },
+          action: { label: 'Use YouTube mode', run: () => setYoutubeMode(true) },
+        });
         return;
       }
       if (!res.ok && data.error === 'rate_limited') {
@@ -879,7 +906,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (ids.join() !== remaining.join()) {
       const wasPlaying = playingRef.current;
       playAt(indexRef.current, { positionMs: currentProgress() }).then(() => {
-        if (!wasPlaying) spotifyAction('action=pause').then(() => setPlay(false));
+        if (!wasPlaying) {
+          clientLog('spotify', 'paused after re-sync (was paused before)');
+          spotifyAction('action=pause').then(() => setPlay(false));
+        }
       });
     }
   };

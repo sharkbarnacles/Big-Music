@@ -152,12 +152,29 @@ export async function POST(req: NextRequest) {
       () => null,
     );
 
+    // Check that Spotify really plays it (on 2026-11-05 it said yes twice and
+    // stayed silent). If not, nudge it once with "resume".
+    const check = async () => {
+      await sleep(1500);
+      const r = await spotifyFetch('/me/player');
+      if (r.status === 204 || !r.ok) return { playing: false, status: r.status, item: null as string | null, device: null as string | null };
+      const p = await r.json().catch(() => ({}));
+      return { playing: Boolean(p.is_playing), status: r.status, item: (p.item?.id as string) ?? null, device: (p.device?.name as string) ?? null };
+    };
+    let state = await check();
+    if (!state.playing) {
+      await logSpotify('said yes but silent, nudging', { ...state, wanted: ids[0] });
+      await spotifyFetch(`/me/player/play?${target}`, { method: 'PUT' }).catch(() => null);
+      state = await check();
+    }
+    await logSpotify(state.playing ? 'playing confirmed' : 'still silent', { ...state, wanted: ids[0] });
+
     // 3. Line up the next few in Spotify's own queue, in order.
     const queued = await addToQueue(ids.slice(1, 1 + QUEUE_SIZE), target);
     await saveQueued(queued);
     await logSpotify('started', { device: device.name, waited: body.wait === true, queued: queued.length, leftoversSkipped: leftovers });
 
-    return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: queued.length, skippedLeftovers: leftovers });
+    return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: queued.length, skippedLeftovers: leftovers, confirmed: state.playing });
   } catch (err) {
     await logSpotify('error', { message: (err as Error).message?.slice(0, 300) });
     return errorResponse(err);

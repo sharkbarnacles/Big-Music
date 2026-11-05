@@ -135,6 +135,16 @@ Environment variables (set in Vercel; names only, never values):
     status + Spotify's reply, started/topped up) is logged to
     `client_events` kind 'spotify' (`logSpotify`):
     `select at, message, detail from client_events where kind='spotify' order by at desc limit 40;`
+    **No switching to Spotify (2026-11-05, owner's wish):** the diary showed
+    both tries "started" (iPhone found after waking, hand-over 204, play OK,
+    10 queued) yet no sound. Now the route checks `/me/player` 1.5 s after
+    play; if not playing it nudges once with a plain play, logs
+    'playing confirmed' / 'still silent', and returns `confirmed`. The hub
+    no longer opens `spotify:` by itself (`wakeSpotify` is unused): when
+    Spotify is asleep (`no_device`) or silent, that song plays via YouTube
+    right away with a one-time note + optional "Wake Spotify" link; the next
+    song tries Spotify again. An iPhone can't be woken without opening the
+    Spotify app (no Web Playback SDK on iOS, Connect needs the app running).
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -626,3 +636,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Library playlists/music switch; tap artist in Now Playing → artist page with discography (See all) + your songs; Speed Dial Lab.
 - 2026-11-05: Jump back in speed dial on Home (radios/albums/artists/songs, play button plays, tap opens).
 - 2026-11-05: Gentler Spotify mode (10-song hand-off + top-ups, 5 s polling), hand playback to the phone before playing, retry after waking, Spotify diary.
+- 2026-11-05: Spotify mode never switches apps (asleep/silent → YouTube for that song), play is confirmed and nudged once.
