@@ -7,17 +7,51 @@ import TrackList from '@/components/TrackList';
 import { Tiles } from '@/components/WebResults';
 import { smallCover } from '@/lib/img';
 import { toPlayable } from '@/lib/webTracks';
-import { browseArtist, browseCollection } from '@/lib/ytBrowse';
+import { browseArtist, browseCollection, browseDiscography } from '@/lib/ytBrowse';
+import { loadTracks } from '@/lib/libraryQuery';
+import { trackQueryString } from '@/lib/libraryParams';
 
 export const dynamic = 'force-dynamic';
 
 // A playlist, album or artist from YouTube Music (found with Search →
 // Everywhere). Songs play right here; ⋯ copies them all into one of your
 // playlists, which also saves them to your library.
-export default async function WebPage({ params }: { params: Promise<{ kind: string; id: string }> }) {
+export default async function WebPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ kind: string; id: string }>;
+  searchParams: Promise<{ p?: string; t?: string; a?: string; name?: string }>;
+}) {
   const { kind, id: raw } = await params;
+  const sp = await searchParams;
   const id = decodeURIComponent(raw);
   if (!/^[\w-]{6,80}$/.test(id)) notFound();
+
+  // An artist's full albums or singles (the "See all" on their page).
+  if (kind === 'discography') {
+    let page;
+    try {
+      page = await browseDiscography(id, sp.p ?? '');
+    } catch (err) {
+      return <Failed message={(err as Error).message} />;
+    }
+    return (
+      <main className="wrap">
+        <Header />
+        <Back />
+        <div className="mix-titles" style={{ marginTop: 10 }}>
+          <div className="mix-badge">{sp.a || 'Artist'}</div>
+          <h1>{sp.t || page.title}</h1>
+          <div className="mix-meta"><span>{page.items.length} releases</span></div>
+        </div>
+        <section className="web-sec">
+          {page.items.length ? <Tiles items={page.items} grid /> : <p className="muted">YouTube Music sent nothing here.</p>}
+        </section>
+        <div className="mix-end" aria-hidden="true" />
+      </main>
+    );
+  }
 
   if (kind === 'artist') {
     let artist;
@@ -26,7 +60,17 @@ export default async function WebPage({ params }: { params: Promise<{ kind: stri
     } catch (err) {
       return <Failed message={(err as Error).message} />;
     }
-    const songs = await toPlayable(artist.songs).catch(() => []);
+    // Your own songs by them (the name you tapped, else YouTube Music's).
+    const libName = (sp.name || artist.name).trim();
+    const libQuery = { artist: libName, sort: 'title' };
+    const [songs, mine] = await Promise.all([
+      toPlayable(artist.songs).catch(() => []),
+      loadTracks(libQuery, 0, 200).catch(() => ({ tracks: [], total: 0, error: null })),
+    ]);
+    const mineTotal = mine.total ?? mine.tracks.length;
+    // Discography first (albums, singles), then everything else YouTube Music shows.
+    const disco = (t: string) => /^(albums|singles|singles & eps|eps)$/i.test(t.trim());
+    const shelves = [...artist.shelves.filter((sh) => disco(sh.title)), ...artist.shelves.filter((sh) => !disco(sh.title))];
     return (
       <main className="wrap">
         <Header />
@@ -36,7 +80,10 @@ export default async function WebPage({ params }: { params: Promise<{ kind: stri
           <div className="mix-titles">
             <div className="mix-badge">Artist</div>
             <h1>{artist.name}</h1>
-            <div className="mix-meta"><span>on YouTube Music</span></div>
+            <div className="mix-meta">
+              <span>on YouTube Music</span>
+              {mineTotal > 0 && <span>{mineTotal.toLocaleString()} in your library</span>}
+            </div>
           </div>
         </div>
         {songs.length > 0 && (
@@ -48,12 +95,36 @@ export default async function WebPage({ params }: { params: Promise<{ kind: stri
             <TrackList tracks={songs} />
           </section>
         )}
-        {artist.shelves.map((sh) => (
+        {shelves.map((sh) => (
           <section key={sh.title} className="web-sec">
-            <h2>{sh.title}</h2>
+            <div className="web-sech">
+              <h2>{sh.title}</h2>
+              {sh.more && (
+                <Link
+                  className="small web-more"
+                  href={`/web/discography/${encodeURIComponent(sh.more.id)}?${new URLSearchParams({ p: sh.more.params, t: sh.title, a: artist.name })}`}
+                >
+                  See all ›
+                </Link>
+              )}
+            </div>
             <Tiles items={sh.items} />
           </section>
         ))}
+        {mineTotal > 0 && (
+          <section className="web-sec">
+            <div className="web-sech">
+              <h2>In your library</h2>
+              <PlayButtons tracks={mine.tracks} source={{ query: trackQueryString(libQuery), total: mineTotal }} />
+            </div>
+            <TrackList tracks={mine.tracks.slice(0, 5)} source={{ query: trackQueryString(libQuery), total: mineTotal }} />
+            {mineTotal > 5 && (
+              <Link className="small web-more" href={`/library?artist=${encodeURIComponent(libName)}`}>
+                All {mineTotal.toLocaleString()} of your songs by {libName} ›
+              </Link>
+            )}
+          </section>
+        )}
         <div className="mix-end" aria-hidden="true" />
       </main>
     );

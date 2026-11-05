@@ -4,6 +4,9 @@ import ArtistList from '@/components/ArtistList';
 import FilterMenu from '@/components/FilterMenu';
 import Header from '@/components/Header';
 import LibraryList from '@/components/LibraryList';
+import PlaylistBrowser from '@/components/PlaylistBrowser';
+import { loadPlaylistCards } from '@/lib/playlistCards';
+import { listTags } from '@/lib/playlistTags';
 import PlayButtons from '@/components/PlayButtons';
 import WebResults from '@/components/WebResults';
 import { db } from '@/lib/db';
@@ -28,7 +31,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 200;
 
-type Params = { q?: string; view?: string; sort?: string; both?: string; search?: string; artist?: string; where?: string };
+type Params = { q?: string; view?: string; sort?: string; both?: string; search?: string; artist?: string; where?: string; tags?: string };
 
 async function count(filter?: (q: any) => any): Promise<number> {
   let query = db().from('tracks').select('id', { count: 'exact', head: true });
@@ -61,6 +64,23 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         <div style={{ marginTop: 8 }}>
           {search ? <WebResults q={search} /> : <p className="muted">Search all of YouTube Music, including playlists other people made.</p>}
         </div>
+      </main>
+    );
+  }
+
+  // ── Playlists (the switch at the start of the search line) ──
+  if (sp.view === 'playlists') {
+    const chosen = (sp.tags ?? '').split(',').filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+    const [{ cards, error }, tags, total] = await Promise.all([loadPlaylistCards(), listTags().catch(() => []), count()]);
+    return (
+      <main className="wrap">
+        <Header />
+        <Title title="Library" />
+        <p className="lib-line">
+          <b>{total.toLocaleString()}</b> songs · <b>{cards.length.toLocaleString()}</b> playlists
+        </p>
+        {error && <div className="notice error">{error}</div>}
+        <PlaylistBrowser playlists={cards} tags={tags} view="playlists" initialTags={chosen} base="/library" />
       </main>
     );
   }
@@ -201,6 +221,7 @@ function WhereSwitch({ q, web }: { q: string; web: boolean }) {
 function SearchRow({ params, placeholder, web = false }: { params: LibraryParams; placeholder: string; web?: boolean }) {
   return (
     <div className="search-row">
+      {!web && !params.search && <LibrarySwitch />}
       {/* next/form searches inside the app; a plain <form> reloaded the whole page,
           which threw away the player and stopped the music. */}
       <Form action="/library" className="search-form" role="search">
@@ -220,5 +241,20 @@ function SearchRow({ params, placeholder, web = false }: { params: LibraryParams
       </Form>
       {!web && <FilterMenu params={params} />}
     </div>
+  );
+}
+
+// Playlists ↔ all music, the same two-icon switch as on Home. The Library's
+// song, artist and video views are the "music" side.
+function LibrarySwitch() {
+  return (
+    <span className="home-switch" role="group" aria-label="Show">
+      <Link href="/library?view=playlists" aria-pressed="false" aria-label="Playlists">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="12" height="12" rx="2" /><path d="M8 4h10a2 2 0 0 1 2 2v10" /></svg>
+      </Link>
+      <Link href="/library" aria-pressed="true" aria-label="All music">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></svg>
+      </Link>
+    </span>
   );
 }

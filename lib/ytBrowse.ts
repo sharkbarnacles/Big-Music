@@ -53,7 +53,8 @@ export type WebArtist = {
   name: string;
   image: string | null;
   songs: WebSong[];
-  shelves: { title: string; items: WebItem[] }[];
+  // `more`: the full list behind a shelf (all albums / all singles), when YouTube Music has one.
+  shelves: { title: string; items: WebItem[]; more?: { id: string; params: string } }[];
 };
 
 async function call(endpoint: 'search' | 'browse', body: Record<string, unknown>): Promise<any> {
@@ -239,8 +240,35 @@ export async function browseArtist(id: string): Promise<WebArtist> {
     const car = s.musicCarouselShelfRenderer;
     if (car) {
       const items = (car.contents ?? []).map((c: any) => parseTwoRow(c?.musicTwoRowItemRenderer)).filter((x: WebItem | null): x is WebItem => x !== null);
-      if (items.length) shelves.push({ title: text(car.header?.musicCarouselShelfBasicHeaderRenderer?.title), items });
+      const head = car.header?.musicCarouselShelfBasicHeaderRenderer;
+      const be = head?.moreContentButton?.buttonRenderer?.navigationEndpoint?.browseEndpoint ?? head?.title?.runs?.[0]?.navigationEndpoint?.browseEndpoint;
+      const isDisco = be?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType === 'MUSIC_PAGE_TYPE_ARTIST_DISCOGRAPHY';
+      const more = isDisco && be?.browseId && be?.params ? { id: String(be.browseId), params: decodeURIComponent(String(be.params)) } : undefined;
+      if (items.length) shelves.push({ title: text(head?.title), items, more });
     }
   }
   return { id, name, image, songs, shelves };
+}
+
+// An artist's full albums or singles list (the "More" behind those shelves).
+// Every album/single tile on that page, in YouTube Music's order (newest first).
+export async function browseDiscography(id: string, params: string): Promise<{ title: string; items: WebItem[] }> {
+  const data = await call('browse', { browseId: id, params });
+  const found: WebItem[] = [];
+  const seen = new Set<string>();
+  const walk = (o: any) => {
+    if (!o || typeof o !== 'object') return;
+    if (o.musicTwoRowItemRenderer) {
+      const it = parseTwoRow(o.musicTwoRowItemRenderer);
+      if (it && !seen.has(it.id)) {
+        seen.add(it.id);
+        found.push(it);
+      }
+      return;
+    }
+    for (const v of Array.isArray(o) ? o : Object.values(o)) walk(v);
+  };
+  walk(data?.contents);
+  const head = data?.header?.musicHeaderRenderer ?? data?.header?.musicImmersiveHeaderRenderer;
+  return { title: text(head?.title) || 'Discography', items: found };
 }

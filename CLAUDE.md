@@ -233,6 +233,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - App Icon Lab (mark M, background B, name N): https://claude.ai/artifact/9NfsRk65axr1MmKkw21Gpu
 - Playlist Tools Lab (Set aside folder F, moving M, add-to-playlist window P, multi-select S): https://claude.ai/artifact/LVa34wAaGVwoizVJzvuEf2
 - Home Lab (layout L, Playlists/Songs switch T, pinned P, tag filter G, adding tags E): https://claude.ai/artifact/ViRmYrMA6gzqjTwr1C1wMB
+- Speed Dial Lab (Home speed dial: look S, contents C, labels T, placement P, tap A, name N; waiting for pick): https://claude.ai/artifact/6qwGLdZZVYwXLXwpE6aFNo
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -519,6 +520,22 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    first; leaving the page sends it with keepalive. Spotify/YouTube
    playlists: hold opens edit mode for selecting/copying only. Tag pills
    show their × only in edit mode (window event `mh-playlist-edit`).
+   **Library switch + artist pages (2026-11-05):** Library's search line
+   starts with the same two-icon switch (`LibrarySwitch` links);
+   `/library?view=playlists` renders `PlaylistBrowser` with `base="/library"`
+   (its switch goes back to `/library`; tags in `?tags=`). Playlist cards come
+   from `lib/playlistCards.ts` (shared with Home). Now Playing's artist name
+   is a button (`splitArtists`; several artists → small menu) → `/artist?name=`
+   (`app/artist/page.tsx`: YouTube Music artist search, best name match →
+   redirect to `/web/artist/<UC…>?name=`). The artist page now shows Top
+   songs, then Albums / Singles & EPs first (with "See all ›" when YouTube
+   Music has a discography page: header browseEndpoint pageType
+   MUSIC_PAGE_TYPE_ARTIST_DISCOGRAPHY, `MPAD<channel>` + params →
+   `/web/discography/<id>?p=&t=&a=`, `browseDiscography` walks every
+   musicTwoRowItemRenderer; probed on The Cure: 29 albums), the rest, and
+   "In your library" (your songs by that name, `library_page` main_artist).
+   `probe_ytm.mjs` now also saves artist discography pages.
+   **Speed dial (Home playlist view only):** lab published, waiting for pick.
 4. Polish: (done: reorder songs in hub playlists)
    save the current queue as a playlist.
 
@@ -579,3 +596,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Home shelf edge room; radios from whole playlists (UFO by Shuffle); every radio starts with 50 songs.
 - 2026-11-05: Hold a song = edit mode; drag to reorder hub playlists (grip or hold-and-drag), order saves itself.
 - 2026-11-05: Smoother scrolling in Now Playing/queue (no always-on touch listeners; swipes pass through the video).
+- 2026-11-05: Library playlists/music switch; tap artist in Now Playing → artist page with discography (See all) + your songs; Speed Dial Lab.

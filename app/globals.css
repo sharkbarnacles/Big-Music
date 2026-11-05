@@ -810,10 +810,10 @@ button.pl-pick:hover { border-color: var(--line); }
 
 /* T3: two-icon switch at the start of the controls line */
 .home-switch { flex: none; display: inline-flex; padding: 2px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
-.home-switch button { width: 36px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: grid; place-items: center; }
-.home-switch button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.home-switch button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-.home-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.home-switch button, .home-switch a { width: 36px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: grid; place-items: center; }
+.home-switch button svg, .home-switch a svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.home-switch button[aria-pressed="true"], .home-switch a[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.home-switch button:focus-visible, .home-switch a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* P2: pinned quick tiles, two columns */
 .pin-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 2px 0 6px; }
@@ -905,3 +905,21 @@ span.tag-pill { display: inline-flex; align-items: center; }
 /* Swipes that start on the video/cover scroll Now Playing (the hub has its own controls);
    the video takes taps only while the iPhone asks for one tap to start the sound. */
 .yt-host:not([data-needs-tap]) { pointer-events: none; }
+
+.search-row .home-switch { align-self: center; }
+.home-switch a { color: var(--muted); }
+.home-switch a[aria-pressed="true"] { color: var(--on-accent); }
+
+/* Now Playing: the artist name opens their page */
+.np-artist-link {
+  display: block; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: none; font: inherit;
+  font-size: 16px; color: var(--muted); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.np-artist-link:hover, .np-artist-link:active { color: var(--accent); border: 0; }
+.np-artist-menu { left: 0; right: auto; top: calc(100% + 4px); }
+
+/* Artist pages: "See all" links and the full discography grid */
+.web-more { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.web-tiles.grid { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); overflow: visible; margin: 0; padding: 0; row-gap: 16px; }
+@media (max-width: 420px) { .web-tiles.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.web-tiles.grid .web-cover { width: 100%; height: auto; aspect-ratio: 1; }

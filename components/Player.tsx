@@ -2,6 +2,7 @@
 
 import { SPIRAL } from '@/lib/icons';
 import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
+import { useRouter } from 'next/navigation';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePlaylistPicker } from './PlaylistPicker';
 import QueueList from './QueueList';
@@ -35,6 +36,11 @@ type Notice = { text: string; link?: { href: string; label: string }; action?: {
 export type QueueSource = { query: string; total: number };
 // from: where the music is playing from ("Daily discover", a playlist name…), shown as "PLAYING FROM".
 type PlayOptions = { shuffle?: boolean; noShuffle?: boolean; video?: boolean; source?: QueueSource; radio?: RadioOpts; from?: string };
+
+// "A, B & C feat. D" → ["A", "B", "C", "D"] (for tapping the artist name).
+export function splitArtists(artist: string): string[] {
+  return [...new Set(artist.split(/\s*(?:,|&|\s+x\s+|\s+feat\.?\s+|\s+ft\.?\s+|\s+with\s+)\s*/i).map((a) => a.trim()).filter(Boolean))];
+}
 
 // Default "playing from" label: the page's title (a playlist, an edition, an artist…).
 function pageTitle(): string {
@@ -219,6 +225,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const router = useRouter();
+  const [artistMenu, setArtistMenu] = useState<string[] | null>(null);
   const [fromLabel, setFromLabel] = useState('');
   // Songs you added with Play next / Add to queue ("Next up · added by you" in the queue).
   const addedRef = useRef(new WeakSet<TrackRowData>());
@@ -1121,6 +1129,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setRadioEdition(body.editionId ?? null);
   };
 
+  // Opens an artist's page in the hub (app/artist/page.tsx finds them on YouTube Music).
+  const openArtist = (name: string) => {
+    setArtistMenu(null);
+    setMoreOpen(false);
+    setSheetOpen(false);
+    router.push(`/artist?name=${encodeURIComponent(name)}`);
+  };
+
   // A radio from a whole playlist: songs like the ones in it, none of its own (lib/playlistRadio.ts).
   const startPlaylistRadio = async (playlistId: string, name: string) => {
     const mode = readRadioMode();
@@ -1616,7 +1632,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               <div className="np-title">
                 <div className="np-text">
                   <div className="sheet-title">{current.title}</div>
-                  <div className="sheet-artist">{current.artist}</div>
+                  {/* Tap the artist: their page in the hub (discography, top songs, yours).
+                      Several artists on one song: pick which one. */}
+                  <button
+                    type="button"
+                    className="sheet-artist np-artist-link"
+                    onClick={() => {
+                      const names = splitArtists(current.artist);
+                      if (names.length > 1) return setArtistMenu(names);
+                      if (names[0]) openArtist(names[0]);
+                    }}
+                  >
+                    {current.artist}
+                  </button>
+                  {artistMenu && (
+                    <>
+                      <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setArtistMenu(null)} />
+                      <div className="row-menu np-menu np-artist-menu" role="menu">
+                        {artistMenu.map((n) => (
+                          <button key={n} type="button" role="menuitem" onClick={() => openArtist(n)}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <button type="button" className={`np-icon keep${kept ? ' on' : ''}`} aria-pressed={kept} aria-label={kept ? 'Remove from Discoveries' : 'Keep in Discoveries'} onClick={toggleKeep}>
                   {picon(kept ? 'kept' : 'keep')}

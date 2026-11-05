@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers';
 import FlashToast from '@/components/FlashToast';
 import Header from '@/components/Header';
-import PlaylistBrowser, { type HomeSongs, type HomeView, type PlaylistCard } from '@/components/PlaylistBrowser';
-import { db, fetchAllRows } from '@/lib/db';
+import PlaylistBrowser, { type HomeSongs, type HomeView } from '@/components/PlaylistBrowser';
+import { db } from '@/lib/db';
+import { loadPlaylistCards } from '@/lib/playlistCards';
 import { trackQueryString, type TrackQuery } from '@/lib/libraryParams';
 import { loadTracks } from '@/lib/libraryQuery';
 import { listTags } from '@/lib/playlistTags';
@@ -15,18 +16,6 @@ export const dynamic = 'force-dynamic';
 // ?view=playlists|songs (else the last one you used, cookie mh-home-view),
 // ?tags=id,id (chosen tags), ?ssort= (song order). Needs playlists.pinned_at,
 // playlist_tags and library_page(tag_ids) from supabase/schema.sql.
-
-type PlaylistRow = {
-  id: string;
-  service: 'spotify' | 'youtube' | 'hub';
-  name: string;
-  image_url: string | null;
-  last_added_at: string | null;
-  set_aside: boolean;
-  pinned_at: string | null;
-  playlist_items: { count: number }[];
-  playlist_tags: { tag_id: string }[];
-};
 
 const SONG_SORTS = ['recent', 'artist', 'title'];
 
@@ -44,29 +33,12 @@ export default async function Home({
 
   const songQuery: TrackQuery = { sort: songSort, tags: chosen.join(',') || undefined };
   const [playlistsRes, tracksRes, tags, songPage] = await Promise.all([
-    fetchAllRows<PlaylistRow>((from, to) =>
-      db()
-        .from('playlists')
-        .select('id, service, name, image_url, last_added_at, set_aside, pinned_at, playlist_items(count), playlist_tags(tag_id)')
-        .order('name')
-        .range(from, to),
-    ),
+    loadPlaylistCards(),
     db().from('tracks').select('id', { count: 'exact', head: true }),
     listTags().catch(() => []),
     view === 'songs' ? loadTracks(songQuery, 0, 200) : Promise.resolve(null),
   ]);
-  const playlists = playlistsRes.rows;
-  const cards: PlaylistCard[] = playlists.map((p) => ({
-    id: p.id,
-    service: p.service,
-    name: p.name,
-    image_url: p.image_url,
-    count: p.playlist_items?.[0]?.count ?? 0,
-    last_added_at: p.last_added_at,
-    set_aside: !!p.set_aside,
-    pinned_at: p.pinned_at,
-    tags: (p.playlist_tags ?? []).map((t) => t.tag_id),
-  }));
+  const cards = playlistsRes.cards;
   const songs: HomeSongs | undefined = songPage
     ? {
         tracks: songPage.tracks,
@@ -90,7 +62,7 @@ export default async function Home({
       )}
 
       <p className="lib-line">
-        <b>{(tracksRes.count ?? 0).toLocaleString()}</b> songs · <b>{playlists.length.toLocaleString()}</b> playlists
+        <b>{(tracksRes.count ?? 0).toLocaleString()}</b> songs · <b>{cards.length.toLocaleString()}</b> playlists
       </p>
 
       <PlaylistBrowser playlists={cards} tags={tags} view={view} initialTags={chosen} songs={songs} />

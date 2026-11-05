@@ -74,6 +74,12 @@ export function homeHref(view: HomeView, tags: string[], songSort?: string) {
   return `/?${qs}`;
 }
 
+export function libraryPlaylistsHref(tags: string[]) {
+  const qs = new URLSearchParams({ view: 'playlists' });
+  if (tags.length) qs.set('tags', tags.join(','));
+  return `/library?${qs}`;
+}
+
 const PIN = <path d="M15 3l6 6-3 1-4 4 1 5-2 1-4-5-5 5H3v-1l5-5-5-4 1-2 5 1 4-4z" />;
 
 export default function PlaylistBrowser({
@@ -82,7 +88,9 @@ export default function PlaylistBrowser({
   view,
   initialTags,
   songs,
+  base = '/',
 }: {
+  base?: '/' | '/library'; // Home, or the Library tab's playlist view
   playlists: PlaylistCard[];
   tags: Tag[];
   view: HomeView;
@@ -145,6 +153,11 @@ export default function PlaylistBrowser({
 
   // ── Switching views (T3) ──
   const go = (next: HomeView, nextTags = chosen) => {
+    if (base === '/library') {
+      // Library: the music side is the Library's own song list.
+      router.push(next === 'songs' ? '/library' : libraryPlaylistsHref(nextTags));
+      return;
+    }
     try {
       document.cookie = `mh-home-view=${next}; path=/; max-age=31536000; samesite=lax`;
     } catch {
@@ -167,7 +180,7 @@ export default function PlaylistBrowser({
       router.replace(homeHref('songs', next, songs?.sort));
     } else {
       try {
-        window.history.replaceState(null, '', homeHref('playlists', next));
+        window.history.replaceState(null, '', base === '/library' ? libraryPlaylistsHref(next) : homeHref('playlists', next));
       } catch {
         /* ignore */
       }

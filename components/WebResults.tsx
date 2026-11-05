@@ -68,9 +68,9 @@ export function webHref(item: WebItem) {
 }
 
 // A sideways row of covers (round for artists).
-export function Tiles({ items }: { items: WebItem[] }) {
+export function Tiles({ items, grid = false }: { items: WebItem[]; grid?: boolean }) {
   return (
-    <div className="web-tiles">
+    <div className={`web-tiles${grid ? ' grid' : ''}`}>
       {items.map((it) => (
         <Link key={it.id} href={webHref(it)} className={`web-tile${it.kind === 'artist' ? ' round' : ''}`}>
           <span className="web-cover">{it.image ? <img src={smallCover(it.image, 'tile')} alt="" loading="lazy" decoding="async" /> : null}</span>
