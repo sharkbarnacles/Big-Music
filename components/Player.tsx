@@ -12,6 +12,13 @@ import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
 import { smallCover } from '@/lib/img';
 import { splitTitle } from '@/lib/titles';
 
+// A song name boiled down for matching: no "(feat. …)", "- Remastered", case or punctuation.
+const simpleName = (t: string) =>
+  splitTitle(t)
+    .title.toLowerCase()
+    .replace(/\s*[-–]\s*(remaster|live|single|radio|version|mono|stereo).*$/i, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+
 // ── How playback works ────────────────────────────────────────────────
 // The hub owns the queue: which songs, in what order, shuffle and repeat.
 // Each song is then played by one of two "engines":
@@ -839,7 +846,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    applySpotify({ active: true, isPlaying: !st.paused || Boolean(ended), progressMs: st.position ?? 0, durationMs: st.duration ?? 0, trackIds: ids, deviceId: sdkDeviceRef.current });
+    applySpotify({ active: true, isPlaying: !st.paused || Boolean(ended), progressMs: st.position ?? 0, durationMs: st.duration ?? 0, trackIds: ids, trackName: cur?.name ?? null, deviceId: sdkDeviceRef.current });
     keepAwake(!st.paused || Boolean(ended));
     // A new song or playing again after a pause: Spotify's frame just took the
     // lock screen, so take it back for the hub's card.
@@ -885,7 +892,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     let checking = false;
     const iv = setInterval(async () => {
       if (checking) return;
-      if (engineRef.current !== 'spotify' || !sdkLiveRef.current || userPausedRef.current || startingRef.current) {
+      if (engineRef.current !== 'spotify' || !sdkLiveRef.current || startingRef.current) {
         stallRef.current = null;
         return;
       }
@@ -894,8 +901,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       checking = true;
       try {
         const st = await p.getCurrentState().catch(() => null);
-        if (!st) return;
-        const id = st.track_window?.current_track?.id ?? null;
+        if (!st || engineRef.current !== 'spotify' || !sdkLiveRef.current || startingRef.current) return;
+        // Keep the mini player and Now Playing on the song really playing,
+        // even if the player's own change reports went missing (screen off).
+        const cur = st.track_window?.current_track;
+        applyRef.current({
+          active: true,
+          isPlaying: !st.paused,
+          progressMs: st.position ?? 0,
+          durationMs: st.duration ?? 0,
+          trackIds: [cur?.id, cur?.linked_from?.id].filter(Boolean) as string[],
+          trackName: cur?.name ?? null,
+          deviceId: sdkDeviceRef.current,
+        });
+        if (userPausedRef.current) {
+          stallRef.current = null;
+          return;
+        }
+        const id = cur?.id ?? null;
         const pos = st.position ?? 0;
         const dur = st.duration ?? 0;
         const nearEnd = dur > 0 && pos > dur - 6000;
@@ -1110,7 +1133,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // What Spotify is playing → the hub's screen, queue position, top-ups and
   // "last song given has finished". Fed by the poll, or by the in-hub player.
-  type SpotifyState = { active: boolean; isPlaying: boolean; progressMs: number; durationMs: number; trackIds: string[]; deviceId: string | null; deviceName?: string | null };
+  type SpotifyState = { active: boolean; isPlaying: boolean; progressMs: number; durationMs: number; trackIds: string[]; trackName?: string | null; deviceId: string | null; deviceName?: string | null };
   const applySpotify = (d: SpotifyState) => {
     if (engineRef.current !== 'spotify' || startingRef.current) return;
     {
@@ -1128,8 +1151,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       const run = runRef.current;
       if (!run) return;
-      const pos = run.ids.findIndex((id) => d.trackIds.includes(id));
-      if (pos < 0) return; // something else is playing in Spotify
+      let pos = run.ids.findIndex((id) => d.trackIds.includes(id));
+      // Spotify sometimes swaps in another copy of a song (a different id);
+      // then match by name among the songs it was given.
+      if (pos < 0 && d.trackName) {
+        const want = simpleName(d.trackName);
+        pos = run.ids.findIndex((_, k) => {
+          const t = queueRef.current[run.idx[k]];
+          return Boolean(t) && simpleName(t.title) === want;
+        });
+      }
+      if (pos < 0) {
+        // Something else is playing in Spotify; note it once per song.
+        const key = d.trackIds[0] ?? d.trackName ?? '';
+        if (key && unmatchedRef.current !== key) {
+          unmatchedRef.current = key;
+          clientLog('spotify', 'playing song not in the line-up', { ids: d.trackIds, name: d.trackName ?? null, lineUp: run.ids.slice(0, 12) });
+        }
+        return;
+      }
       const qi = run.idx[pos];
       if (qi !== indexRef.current) setI(qi);
 
@@ -1166,6 +1206,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     }
   };
+
+  const applyRef = useRef(applySpotify);
+  applyRef.current = applySpotify;
+  const unmatchedRef = useRef('');
 
   // If the songs after the current one changed (shuffle, play next…),
   // give Spotify the new line-up, continuing the current song where it is.

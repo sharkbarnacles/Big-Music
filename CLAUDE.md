@@ -196,6 +196,12 @@ Environment variables (set in Vercel; names only, never values):
     stuck 2.5 s: resume → near the end `nextTrack()` → start the right song from
     the hub (`nudgeSpotify`); logged as 'stuck (…), nudge n'. `clientLog` now
     allows 80 'spotify' notes per page load (was 20 for everything).
+    **Screen follows the song (2026-11-05, owner: mini player / Now Playing
+    stayed on the old song):** the watchdog also feeds each `getCurrentState`
+    into `applySpotify` (via `applyRef`), so a missed `player_state_changed`
+    no longer leaves the screen behind; if Spotify's id isn't in the line-up
+    (a relinked copy), it matches by name (`simpleName`), else logs 'playing
+    song not in the line-up' once per song.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -693,3 +699,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify: loading spinner + steady time while starting, no double top-up, keep-awake sound + end-of-song handling for screen-off, lock-screen controls.
 - 2026-11-05: Lock screen shows the hub's song card (title, artist, cover) in in-hub Spotify mode; its buttons drive the hub queue.
 - 2026-11-05: In-hub Spotify: fixed end-of-song check, watchdog nudges a stuck player (resume → skip → restart from the hub).
+- 2026-11-05: In-hub Spotify: mini player / Now Playing follow the song every second (watchdog state + name match).
