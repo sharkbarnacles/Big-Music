@@ -510,7 +510,8 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    old ones, then deletes the old rows, so nothing can be lost; returns the
    new positions, which the page maps in). Move/Remove/Done flush the save
    first; leaving the page sends it with keepalive. Spotify/YouTube
-   playlists: hold opens edit mode for selecting/copying only.
+   playlists: hold opens edit mode for selecting/copying only. Tag pills
+   show their × only in edit mode (window event `mh-playlist-edit`).
 4. Polish: (done: reorder songs in hub playlists)
    save the current queue as a playlist.
 

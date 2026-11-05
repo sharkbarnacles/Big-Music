@@ -278,6 +278,27 @@ export default function PlaylistSongs({
     };
   }, [playlistId]);
 
+  // Tell the tag pills above (PlaylistTags) when edit mode opens or closes,
+  // so their × buttons only show while editing.
+  const editing = !!selected;
+  useEffect(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('mh-playlist-edit', { detail: { id: playlistId, on: editing } }));
+    } catch {
+      /* ignore */
+    }
+  }, [editing, playlistId]);
+  useEffect(
+    () => () => {
+      try {
+        window.dispatchEvent(new CustomEvent('mh-playlist-edit', { detail: { id: playlistId, on: false } }));
+      } catch {
+        /* ignore */
+      }
+    },
+    [playlistId],
+  );
+
   // ── Removing / moving / copying ──
   const removePositions = async (positions: number[]) => {
     const res = await fetch(`/api/hub-playlists/${playlistId}/items`, {

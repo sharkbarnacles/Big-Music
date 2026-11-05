@@ -898,3 +898,6 @@ button.pl-pick:hover { border-color: var(--line); }
 @media (prefers-reduced-motion: reduce) { .edit-list .list.dragging .item { transition: none; } }
 .sel-tip { margin: 0; text-align: center; }
 .sel-saved { font-weight: 400; }
+
+/* Tag pills outside edit mode are plain labels (no ×) */
+span.tag-pill { display: inline-flex; align-items: center; }

@@ -1,12 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Tag } from '@/lib/tagTypes';
 import TagSheet from './TagSheet';
 
-// Tag pills under a playlist's name (Home Lab pick E3): tap a pill to take
-// that tag off, "+ Tag" opens the Tags window to add or make one.
+// Tag pills under a playlist's name (Home Lab pick E3). "+ Tag" opens the
+// Tags window to add or make one. The × to take a tag off only shows while
+// the songs are in edit mode (hold a song; PlaylistSongs announces it).
 export default function PlaylistTags({
   playlistId,
   name,
@@ -23,6 +24,15 @@ export default function PlaylistTags({
   const [known, setKnown] = useState<Tag[]>(tags);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; on: boolean }>).detail;
+      if (d?.id === playlistId) setEditing(d.on);
+    };
+    window.addEventListener('mh-playlist-edit', on);
+    return () => window.removeEventListener('mh-playlist-edit', on);
+  }, [playlistId]);
   const byId = new Map(known.map((t) => [t.id, t]));
 
   const change = (tag: Tag, on: boolean) => {
@@ -49,17 +59,23 @@ export default function PlaylistTags({
   return (
     <>
       <div className="pl-tags" aria-label="Tags">
-        {shown.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`tag-pill tag-${t.color}`}
-            aria-label={`Remove tag ${t.name}`}
-            onClick={() => remove(t)}
-          >
-            {t.name} <span className="x" aria-hidden="true">×</span>
-          </button>
-        ))}
+        {shown.map((t) =>
+          editing ? (
+            <button
+              key={t.id}
+              type="button"
+              className={`tag-pill tag-${t.color}`}
+              aria-label={`Remove tag ${t.name}`}
+              onClick={() => remove(t)}
+            >
+              {t.name} <span className="x" aria-hidden="true">×</span>
+            </button>
+          ) : (
+            <span key={t.id} className={`tag-pill tag-${t.color}`}>
+              {t.name}
+            </span>
+          ),
+        )}
         <button type="button" className="tag-add" onClick={() => setOpen(true)}>
           + Tag
         </button>
