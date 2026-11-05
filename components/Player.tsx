@@ -266,6 +266,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const ytPendingRef = useRef<{ id: string; start: number } | null>(null);
   const sdkPlayerRef = useRef<any>(null);
   const sdkDeviceRef = useRef<string | null>(null);
+  const sdkReadyRef = useRef(false); // Spotify's player script has loaded
+  const sdkWaitRef = useRef<Promise<string | null> | null>(null); // resolves when the in-hub player is ready
+  const makeSdkPlayerRef = useRef<() => void>(() => {});
 
   const current = index >= 0 ? queue[index] ?? null : null;
   // Mirrors for the background saver (it runs outside renders).
@@ -376,7 +379,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     toastTimer.current = setTimeout(() => setToast(null), 2200);
   };
   // Browsers only allow sound after a tap; this lets Spotify's in-browser player start.
-  const gesture = () => sdkPlayerRef.current?.activateElement?.();
+  // Every tap on a play control. On iPhones (Nov 2026 experiment, owner's
+  // wish: Spotify without the Spotify app) the in-hub Spotify player is made
+  // here, inside the tap, because iPhones only let it make sound after one.
+  const gesture = () => {
+    if (!sdkPlayerRef.current && sdkReadyRef.current && !ytModeRef.current) makeSdkPlayerRef.current();
+    sdkPlayerRef.current?.activateElement?.();
+  };
 
   const currentProgress = () =>
     engineRef.current === 'spotify' && playingRef.current
@@ -554,6 +563,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     lastPlayedEndRef.current = false;
     setPlay(true);
     setBusy(true);
+    // The in-hub player was just made (first tap): give it a moment to connect.
+    if (!sdkDeviceRef.current && sdkWaitRef.current) await sdkWaitRef.current;
     try {
       const res = await fetch('/api/play/spotify', {
         method: 'POST',
@@ -1434,10 +1445,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // On computers, start Spotify's in-browser player so songs play in this tab.
+  // Spotify's player inside the hub ("Music Hub (this browser)"): music plays
+  // from this page with your Premium account, no Spotify app needed. On
+  // computers it starts when the app opens; on iPhones on your first Play
+  // tap in Spotify mode (see gesture). Its problems go to the Spotify diary.
   useEffect(() => {
-    if (isPhone() || window.location.pathname === '/login') return;
-    window.onSpotifyWebPlaybackSDKReady = () => {
+    if (window.location.pathname === '/login') return;
+    const make = () => {
+      if (sdkPlayerRef.current || !window.Spotify) return;
       const player = new window.Spotify.Player({
         name: 'Music Hub (this browser)',
         volume: 0.8,
@@ -1448,20 +1463,38 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             .catch(() => {});
         },
       });
+      let done: (id: string | null) => void = () => {};
+      sdkWaitRef.current = new Promise((res) => {
+        done = res;
+        setTimeout(() => res(null), 6000);
+      });
       player.addListener('ready', ({ device_id }: { device_id: string }) => {
         sdkDeviceRef.current = device_id;
+        clientLog('spotify', 'in-hub player ready', { phone: isPhone() });
+        done(device_id);
       });
       player.addListener('not_ready', () => {
         sdkDeviceRef.current = null;
       });
+      for (const ev of ['initialization_error', 'authentication_error', 'account_error', 'playback_error', 'autoplay_failed']) {
+        player.addListener(ev, (e: { message?: string }) => clientLog('spotify', `in-hub player: ${ev}`, { message: e?.message ?? '' }));
+      }
       player.connect();
+      if (isPhone()) player.activateElement?.();
       sdkPlayerRef.current = player;
+    };
+    makeSdkPlayerRef.current = make;
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      sdkReadyRef.current = true;
+      if (!isPhone()) make();
     };
     if (!document.getElementById('spotify-sdk')) {
       const script = document.createElement('script');
       script.id = 'spotify-sdk';
       script.src = 'https://sdk.scdn.co/spotify-player.js';
       document.head.appendChild(script);
+    } else if (window.Spotify) {
+      sdkReadyRef.current = true;
     }
   }, []);
 

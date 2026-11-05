@@ -157,6 +157,16 @@ Environment variables (set in Vercel; names only, never values):
     `confirmed:false` → the hub plays that song via YouTube. The owner's
     tries at 10:18–10:19 UTC still ran the old client (wake/switch path)
     because the app hadn't reloaded after the deploy.
+    **In-hub Spotify player on iPhone (2026-11-05 experiment, owner's
+    idea):** the Web Playback SDK script now loads on phones too. On
+    computers the player is made when the SDK is ready; on phones it's made
+    inside the first play tap in Spotify mode (`gesture()` →
+    `makeSdkPlayerRef`, `connect()` + `activateElement()` in the tap), and
+    `startSpotify` waits up to 6 s (`sdkWaitRef`) for its device id, which
+    the server then prefers ("Music Hub (this browser)"). SDK events
+    (ready, *_error, autoplay_failed) go to the diary via `clientLog`
+    kind 'spotify'. Open questions: does it make sound on iPhone, and does
+    it keep playing with the screen locked (likely not, like YouTube mode).
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -650,3 +660,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Gentler Spotify mode (10-song hand-off + top-ups, 5 s polling), hand playback to the phone before playing, retry after waking, Spotify diary.
 - 2026-11-05: Spotify mode never switches apps (asleep/silent → YouTube for that song), play is confirmed and nudged once.
 - 2026-11-05: Spotify start tries uris → album+offset → queue+next, remembers what works.
+- 2026-11-05: Experiment: Spotify's in-hub player (Web Playback SDK) on iPhone, started from the first Play tap.
