@@ -202,6 +202,21 @@ Environment variables (set in Vercel; names only, never values):
     no longer leaves the screen behind; if Spotify's id isn't in the line-up
     (a relinked copy), it matches by name (`simpleName`), else logs 'playing
     song not in the line-up' once per song.
+    **In-hub list mode (2026-11-05, owner's test: after song 1 Spotify played
+    "Crush On You" (an old queue leftover), lock-screen skip/previous caused
+    overlapping starts and silence):** for the SDK device the hub sends
+    `inHub: true` and the route's `startInHub` plays the whole line-up (≤50)
+    as one `uris` list (no queue adds), then reads `/me/player/queue` and, if
+    old queued songs sit before ids[1], skips past them (≤20 `next`) and plays
+    the list again ('cleared old queue'); returns `mode: 'list'` (client sets
+    `run.sent = ids.length`, so no top-ups). Next in the hub = SDK
+    `nextTrack()` when the next hub song is next in the list (instant); other
+    jumps are full starts, one at a time (`startInFlightRef` /
+    `pendingStartRef`: presses during a start only change which song starts
+    next). List finished and Spotify carries on with its own picks → the hub
+    plays its next song ('list finished, hub continues'). Lock-screen claim
+    now pauses the silent loop and plays it again 150 ms later, also when the
+    watchdog notices a new song (`claimedIdRef`).
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -700,3 +715,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Lock screen shows the hub's song card (title, artist, cover) in in-hub Spotify mode; its buttons drive the hub queue.
 - 2026-11-05: In-hub Spotify: fixed end-of-song check, watchdog nudges a stuck player (resume → skip → restart from the hub).
 - 2026-11-05: In-hub Spotify: mini player / Now Playing follow the song every second (watchdog state + name match).
+- 2026-11-05: In-hub Spotify plays the hub's line-up as one list (old Spotify queue skipped), instant skip, one start at a time, lock card re-claimed on each song.
