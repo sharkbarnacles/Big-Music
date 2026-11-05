@@ -260,7 +260,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const tokenRef = useRef(0); // increases on every new play, so stale replies are ignored
   // The Spotify line-up: `ids` the songs it should play in order, `sent` how many
   // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
-  const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean } | null>(null);
+  const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean; list?: boolean } | null>(null);
+  const skipLeftoverAtRef = useRef(0);
   const startingRef = useRef(false); // a Spotify start is on its way (screen shows loading)
   const sdkLiveRef = useRef(false); // the hub's own Spotify player is the one playing
   const userPausedRef = useRef(false); // you pressed pause (so a stop isn't "the song ended")
@@ -270,10 +271,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const pendingStartRef = useRef<{ i: number; token: number; positionMs: number } | null>(null);
   const claimedIdRef = useRef<string | null>(null);
   const stallRef = useRef<{ pos: number; id: string | null; since: number; tries: number } | null>(null);
-  const keepAliveRef = useRef<HTMLAudioElement | null>(null); // silent sound that keeps the hub awake with the screen off
   const sdkStateRef = useRef<(st: any) => void>(() => {});
   const keepAwakeRef = useRef<(on: boolean) => void>(() => {});
   const keepAliveUnlockedRef = useRef(false);
+  const keepPoolRef = useRef<HTMLAudioElement[]>([]);
+  const keepActiveRef = useRef(0);
+  const unlockKeepRef = useRef<() => void>(() => {});
+  const claimLogRef = useRef(0);
   const asleepToldRef = useRef(false); // told you once that Spotify is asleep
   const wakeRef = useRef<{ token: number; body: Record<string, unknown>; retried: boolean } | null>(null); // a wake-up still waiting
   const lastPlayedEndRef = useRef(false);
@@ -411,10 +415,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Unlock the silent keep-awake sound now (iPhones only allow it from a tap).
     if (!ytModeRef.current && isPhone() && !keepAliveUnlockedRef.current) {
       keepAliveUnlockedRef.current = true;
-      keepAwakeRef.current(true);
-      setTimeout(() => {
-        if (!sdkLiveRef.current) keepAwakeRef.current(false);
-      }, 300);
+      unlockKeepRef.current();
     }
   };
 
@@ -679,7 +680,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       setDevice(data.device ?? null);
       // In the hub's own player Spotify was given the whole line-up at once.
-      if (runRef.current) runRef.current.sent = data.mode === 'list' ? runRef.current.ids.length : 1 + (Number(data.queued) || 0);
+      if (runRef.current) {
+        runRef.current.sent = data.mode === 'list' ? runRef.current.ids.length : 1 + (Number(data.queued) || 0);
+        runRef.current.list = data.mode === 'list';
+      }
       sdkLiveRef.current = Boolean(sdkDeviceRef.current && data.deviceId === sdkDeviceRef.current);
       posRef.current = { ms: positionMs, at: Date.now() };
       setPlay(true);
@@ -760,37 +764,68 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // The file is a minute long: iPhones only give the lock screen to sounds
   // that look like real music, not a 2-second blip.
   const SILENCE = '/silence.mp3'; // 60 s of silence (public/silence.mp3), looped
-  // fresh = start it over, so it becomes the newest sound on the page and the
-  // lock screen shows the hub's song card instead of "Spotify Embedded Player".
-  const keepAwake = (on: boolean, fresh = false) => {
-    try {
-      if (!on) {
-        keepAliveRef.current?.pause();
-        return;
-      }
-      if (!keepAliveRef.current) {
+  // Two silent players take turns. fresh = start the other one and then
+  // stop this one: a brand-new start makes the hub the newest sound on the
+  // page, so the lock screen shows the hub's song card instead of Spotify's
+  // blank "Spotify Embedded Player". Both are unlocked in the first tap
+  // (iPhones only let a sound start after a tap).
+  const keepPool = () => {
+    if (!keepPoolRef.current.length) {
+      for (let k = 0; k < 2; k++) {
         const a = new Audio(SILENCE);
         a.loop = true;
         a.preload = 'auto';
         a.setAttribute('playsinline', '');
-        keepAliveRef.current = a;
+        keepPoolRef.current.push(a);
       }
-      const a = keepAliveRef.current;
-      if (fresh && !a.paused) {
-        a.pause();
-        a.currentTime = 0;
-        setTimeout(() => {
-          if (sdkLiveRef.current || engineRef.current !== 'spotify') a.play().catch(() => {});
-        }, 150);
+    }
+    return keepPoolRef.current;
+  };
+  const keepAwake = (on: boolean, fresh = false) => {
+    try {
+      const pool = keepPool();
+      const cur = pool[keepActiveRef.current];
+      if (!on) {
+        pool.forEach((a) => a.pause());
         return;
       }
-      a.play().catch(() => {});
+      if (fresh && !cur.paused) {
+        const other = pool[1 - keepActiveRef.current];
+        other.currentTime = 0;
+        other
+          .play()
+          .then(() => {
+            cur.pause();
+            keepActiveRef.current = 1 - keepActiveRef.current;
+            if (claimLogRef.current++ < 6) clientLog('spotify', 'lock card claimed', { hidden: document.hidden });
+          })
+          .catch((e: Error) => {
+            if (claimLogRef.current++ < 6) clientLog('spotify', 'lock card claim refused', { hidden: document.hidden, error: e?.name ?? String(e) });
+          });
+        return;
+      }
+      cur.play().catch(() => {});
     } catch {
       /* not allowed yet; the next tap starts it */
     }
   };
+  // In the first tap: start both silent players (that unlocks them), then
+  // stop the spare one (and both if the in-hub player isn't playing).
+  const unlockKeepAwake = () => {
+    try {
+      const pool = keepPool();
+      pool.forEach((a) => a.play().catch(() => {}));
+      setTimeout(() => {
+        pool[1 - keepActiveRef.current].pause();
+        if (!sdkLiveRef.current) pool[keepActiveRef.current].pause();
+      }, 300);
+    } catch {
+      /* ignore */
+    }
+  };
 
   keepAwakeRef.current = keepAwake;
+  unlockKeepRef.current = unlockKeepAwake;
 
   // Lock screen / Control Center card: the hub's song, cover and buttons.
   const setLockScreen = (track: TrackRowData | null) => {
@@ -1199,6 +1234,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const n = nextIndex(run.idx[run.idx.length - 1]);
         clientLog('spotify', 'list finished, hub continues', { next: n });
         if (n !== null) playAt(n);
+        return;
+      }
+      // In the hub's own player Spotify was given exactly the hub's list, so a
+      // stranger is an old leftover from Spotify's queue: skip past it.
+      if (pos < 0 && run.list && sdkLiveRef.current && sdkPlayerRef.current?.nextTrack && Date.now() - skipLeftoverAtRef.current > 2500) {
+        skipLeftoverAtRef.current = Date.now();
+        clientLog('spotify', 'skipping a leftover', { name: d.trackName ?? null });
+        sdkPlayerRef.current.nextTrack().catch(() => {});
         return;
       }
       if (pos < 0) {

@@ -137,25 +137,30 @@ async function startInHub(device: Device, ids: string[], positionMs: number, rep
     return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: 0, confirmed: false });
   }
 
-  // Old songs waiting in Spotify's queue would play before the list.
-  await sleep(1000);
+  // Old songs waiting in Spotify's queue would play before the list. Spotify
+  // shows at most 20 queued songs at a time, so this runs up to 4 rounds.
   let stale = 0;
-  const qr = await spotifyFetch('/me/player/queue');
-  if (qr.ok) {
+  for (let round = 0; round < 4; round++) {
+    await sleep(round === 0 ? 1000 : 700);
+    const qr = await spotifyFetch('/me/player/queue');
+    if (!qr.ok) break;
     const q = await qr.json().catch(() => ({}));
     const items: { id?: string }[] = q.queue ?? [];
+    let n: number;
     if (ids.length > 1) {
       const at = items.findIndex((it) => it?.id === ids[1]);
-      stale = at >= 0 ? at : Math.min(items.length, 20);
-    } else stale = Math.min(items.length, 20);
+      n = at >= 0 ? at : Math.min(items.length, 20);
+    } else n = Math.min(items.length, 20);
+    if (n <= 0) break;
+    await spotifyFetch(`/me/player/pause?${target}`, { method: 'PUT' }).catch(() => null);
+    for (let k = 0; k < n; k++) {
+      await spotifyFetch(`/me/player/next?${target}`, { method: 'POST' }).catch(() => null);
+      await sleep(250);
+    }
+    stale += n;
+    res = await play();
   }
   if (stale > 0) {
-    await spotifyFetch(`/me/player/pause?${target}`, { method: 'PUT' }).catch(() => null);
-    for (let k = 0; k < Math.min(stale, 20); k++) {
-      await spotifyFetch(`/me/player/next?${target}`, { method: 'POST' }).catch(() => null);
-      await sleep(300);
-    }
-    res = await play();
     await logSpotify('cleared old queue', { skipped: stale, replayStatus: res.status });
     await sleep(800);
   }

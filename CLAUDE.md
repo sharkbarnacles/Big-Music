@@ -217,6 +217,15 @@ Environment variables (set in Vercel; names only, never values):
     plays its next song ('list finished, hub continues'). Lock-screen claim
     now pauses the silent loop and plays it again 150 ms later, also when the
     watchdog notices a new song (`claimedIdRef`).
+    **Leftovers + lock card v2 (2026-11-05, owner: after song 1 BTS "Pied
+    Piper" and wave to earth "peach eyes" played; card blank on each new song
+    while locked):** the old queue had >20 songs (Spotify lists 20), so the
+    route now clears in up to 4 rounds; and in list mode (`run.list`) any song
+    not in the hub's list is skipped with SDK `nextTrack()` ('skipping a
+    leftover'). Keep-awake is now two silent players (`keepPoolRef`), both
+    unlocked in the first tap; a claim starts the spare one and then stops the
+    other (a brand-new start, no pause gap). Claims log 'lock card claimed' /
+    'lock card claim refused' (first 6 per load) with `hidden`.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -716,3 +725,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify: fixed end-of-song check, watchdog nudges a stuck player (resume → skip → restart from the hub).
 - 2026-11-05: In-hub Spotify: mini player / Now Playing follow the song every second (watchdog state + name match).
 - 2026-11-05: In-hub Spotify plays the hub's line-up as one list (old Spotify queue skipped), instant skip, one start at a time, lock card re-claimed on each song.
+- 2026-11-05: In-hub Spotify: clears long old queues, skips leftovers itself, lock card claimed by switching between two silent players.
