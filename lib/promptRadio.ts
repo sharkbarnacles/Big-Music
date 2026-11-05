@@ -11,7 +11,8 @@
 // 4. Spread artists out. More comes from the next playlists as you listen.
 import { searchPlaylists, browseCollection, type WebSong } from './ytBrowse';
 import { findSimilarSeed, similarRadio } from './similarRadio';
-import { affinity, artistKey, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste, skipPenalty } from './taste';
+import { MOOD_TAGS, tagHits, tasteNeighbourhood } from './tasteNeighbourhood';
+import { affinity, artistKey, languageFit, loadProfiles, loadTaste, queueArtists, songLanguage, tagFit, voiceFit, type Taste, skipPenalty } from './taste';
 
 type Origin = { words: string[]; script?: RegExp; notScript?: RegExp; native?: string[] };
 // Words people use for where music is from, and how to recognise it.
@@ -149,6 +150,10 @@ function parse(q: string) {
 
 const norm = (t: string) => t.toLowerCase().normalize('NFKC');
 
+// "My taste", "my music", "something for me", "my vibe": a radio from your
+// own corner of music, no playlist search at all.
+const TASTE_ME = /\b(my|mine)\b[^.!?]{0,30}\b(taste|music|vibes?|style|faves?|favou?rites?|type|songs|sound)\b|\bfor me\b|\b(i|i'd|i would|i'll) (like|love|enjoy)\b/i;
+
 // Not a song by an artist: hour-long mixes, "lofi beats" compilations, and
 // the AI music channels that flood these searches.
 const NOT_A_SONG = /動態歌詞|动态歌词|拼音歌詞|高音質|lyrics? video|\blyrics?\b|\bcover\b|翻唱|抖音|tiktok|\b8d\b|nightcore|sped up|slowed|\b(mix|mixtape|playlist|compilation|nonstop|non-stop|1 ?hour|2 ?hours|\d+ ?hrs?|hours? of|full album|beats to|lofi beats|lo-fi beats|study music|sleep music|relaxing music|background music|type beat|bgm)\b|🎧|🎶|🎵|☕|🌙|✨|🌧/i;
@@ -178,6 +183,15 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   }
   const { origin, originWord, feel, moods, styles, scene, wantsOld } = parse(q);
   const used = new Set(state?.used ?? []);
+  const tasteMe = TASTE_ME.test(q);
+  // Genre tags that fit the words: moods → their usual genres, styles → themselves and neighbours.
+  const latin = (w: string) => /^[a-z0-9 &'/-]+$/.test(w);
+  const wanted = [
+    ...new Set([
+      ...moods.flatMap((m) => MOOD_TAGS[m] ?? []),
+      ...styles.flatMap((st) => [st, ...(STYLES[st] ?? []), ...(RELATED[st] ?? [])].filter(latin)),
+    ]),
+  ];
   const script = origin?.script;
   const o = originWord ?? '';
 
@@ -199,12 +213,25 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   } else if (feel.length > 1) {
     queries.push(feel.slice(0, 2).join(' '));
   }
-  const unique = [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 11);
+  const unique = tasteMe ? [] : [...new Set(queries.map((x) => x.trim()).filter(Boolean))].slice(0, 11);
   const empty: Taste = { own: new Map(), similar: new Map(), tags: new Map(), voice: {}, skips: new Map(), languages: { main: ['english'], branch: [] } };
-  const [found, taste] = await Promise.all([
+  const inScriptOf = (x: WebSong) => {
+    const t = `${x.title} ${x.artist}`;
+    return origin?.script ? origin.script.test(t) && !origin.notScript?.test(t) : false;
+  };
+  // Your corner of music in this mood (lib/tasteNeighbourhood.ts), searched
+  // alongside the playlists. With a language that has its own script only
+  // songs in it are kept; for other languages there's no way to tell, so
+  // only the playlists are used.
+  const useMine = tasteMe || ((moods.length > 0 || styles.length > 0) && (!origin || Boolean(origin.script)));
+  const taste = await loadTaste().catch(() => empty);
+  const [found, nb] = await Promise.all([
     Promise.all(unique.map((x) => searchPlaylists(x).catch(() => []))).then((r) => r.flat()),
-    loadTaste().catch(() => empty),
+    useMine
+      ? tasteNeighbourhood({ taste, wanted: tasteMe && !moods.length && !styles.length ? [] : wanted, used, keep: origin?.script ? inScriptOf : undefined }).catch(() => null)
+      : Promise.resolve(null),
   ]);
+  for (const v of nb?.seeds ?? []) used.add(`v:${v}`);
 
   // Score each playlist by its title.
   const mentionsOrigin = (title: string) => {
@@ -245,8 +272,10 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   // Look at a few more than needed: some turn out not to be what they say.
   const ranked = [...scored.values()].sort((a, b) => b.score - a.score);
   const candidates = ranked.slice(0, 8);
-  const debug = process.env.PROMPT_DEBUG ? [`queries: ${unique.join(' | ')}`, ...ranked.slice(0, 14).map((c) => `${c.score.toFixed(1)}  ${c.title}`)] : undefined;
-  if (!candidates.length) return { songs: [], state: null, picked: [], liked: [] };
+  const debug = process.env.PROMPT_DEBUG
+    ? [`queries: ${unique.join(' | ')}`, `your artists: ${(nb?.artists ?? []).join(', ')} (tags: ${wanted.slice(0, 12).join(', ')})`, ...ranked.slice(0, 14).map((c) => `${c.score.toFixed(1)}  ${c.title}`)]
+    : undefined;
+  if (!candidates.length && !nb?.songs.length) return { songs: [], state: null, picked: [], liked: [] };
 
   const lists = await Promise.all(candidates.map((p) => browseCollection(p.id, 120).catch(() => null)));
   // In the language's script (and, for Chinese, not Japanese or Korean, which share characters).
@@ -283,7 +312,7 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
   const rated = valid.sort((a, b) => b.score - a.score).slice(0, 3);
   const picked = rated.map((r) => r.title);
   // Profiles of the artists in these playlists (genres, tags, vocals), from the tagging job.
-  const names = rated.flatMap((r) => r.list.songs.map((x) => x.artist));
+  const names = [...rated.flatMap((r) => r.list.songs.map((x) => x.artist)), ...(nb?.songs ?? []).map((x) => x.artist)];
   const profiles = await loadProfiles(names.map(artistKey)).catch(() => new Map());
   // Artists the hub doesn't know yet get tagged later, so the next radios fit better.
   queueArtists(names.filter((n) => !profiles.has(artistKey(n)))).catch(() => {});
@@ -309,16 +338,54 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       // (a K-pop favourite shouldn't lead a metalcore radio). Untagged artists keep a little.
       if (styles.length && !styleTag) lift *= prof?.tags.length ? 0 : 0.3;
       const deep = tagFit(taste, prof) * 4 + styleTag + voiceFit(taste, songLanguage(`${x.title} ${x.artist}`, prof), prof) * 2.5;
-      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + deep + Math.random() * 3 });
+      // Taste gate: an artist far from anything you play (known genres that
+      // don't fit, no link to artists you like) sinks; unknown ones a little.
+      const near = affinity(taste, x.artist);
+      const gate = prof?.tags.length ? (tagFit(taste, prof) < 0.12 && near < 0.1 ? -6 : 0) : near > 0 ? 0 : -2;
+      pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + deep + gate + Math.random() * 3 });
     }
   }
 
-  // Best first, no repeats, no artist twice in a row, at most 3 per artist per batch.
+  // Your corner of music in this mood (radios from your own artists that fit
+  // the words): ranked by how well each artist fits the mood and your taste.
+  const poolB: { s: WebSong; rank: number }[] = [];
+  const base = rated[0]?.score ?? 10;
+  for (const x of nb?.songs ?? []) {
+    if (!isRealSong(x)) continue;
+    const prof = profiles.get(artistKey(x.artist));
+    const moodFit = prof ? Math.min(tagHits(prof.tags, wanted), 3) : 0;
+    // You asked for a mood or style and this artist's genres are known but fit none of it.
+    const off = wanted.length && prof?.tags.length && moodFit === 0 ? -5 : 0;
+    const lang = songLanguage(`${x.title} ${x.artist}`, prof);
+    poolB.push({
+      s: x,
+      rank:
+        base +
+        tagFit(taste, prof) * 4 +
+        affinity(taste, x.artist) * 3 +
+        moodFit * 2 +
+        off +
+        (origin ? 0 : languageFit(taste, lang) * 3) +
+        voiceFit(taste, lang, prof) * 2 -
+        skipPenalty(taste, x.artist) * 6 +
+        Math.random() * 3,
+    });
+  }
+  // Best first within each source, then woven: about three songs from your
+  // corner for every two from the playlists.
   pool.sort((a, b) => b.rank - a.rank);
+  poolB.sort((a, b) => b.rank - a.rank);
+  const merged: { s: WebSong; rank: number }[] = [];
+  for (let i = 0, a = 0, b = 0; a < pool.length || b < poolB.length; i++) {
+    const wantB = [1, 0, 1, 0, 1][i % 5] === 1;
+    if ((wantB && b < poolB.length) || a >= pool.length) merged.push(poolB[b++]);
+    else merged.push(pool[a++]);
+  }
+  // No repeats, no artist twice in a row, at most 3 per artist per batch.
   const seen = new Set<string>();
   const perArtist = new Map<string, number>();
   const ordered: WebSong[] = [];
-  for (const { s } of pool) {
+  for (const { s } of merged) {
     const key = `${norm(s.artist)}|${norm(s.title)}`;
     if (seen.has(s.videoId) || seen.has(key)) continue;
     const a = norm(s.artist.split(/,|&| x | feat/i)[0].trim());
