@@ -1,85 +1,66 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { db } from '@/lib/db';
-import { matchKey } from '@/lib/library';
-import { TRACK_COLUMNS, type TrackRowData } from '@/lib/tracks';
+import type { TrackRowData } from '@/lib/tracks';
 import { appendToRadioEdition, createRadioEdition } from '@/lib/radioEditions';
 import { fetchRadio } from '@/lib/ytRadio';
 import { runPromptRadio } from '@/lib/promptRadioRoute';
+import { playlistRadio } from '@/lib/playlistRadio';
+import { RADIO_SIZE, radioMode, toRadioTracks } from '@/lib/radioTracks';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // GET ?videoId=… (start) or ?continuation=… (more), &mode=familiar|mixed|new
-// Returns songs ready for the player. Songs already in your library come back
-// as your own songs; new ones get a temporary "yt:<video id>" ID and are
-// remembered in radio_songs so you can keep them or add them to a playlist.
-//   familiar = everything YouTube suggests
-//   mixed    = mostly new to you, with about one song in three you have
-//   new      = only songs that aren't in your library
+// Returns songs ready for the player (see lib/radioTracks.ts for the dial).
+// A new radio starts with 50 songs (RADIO_SIZE); more come as you listen.
+// Continuations: "p:…" = a radio from words, "pl:…" = a radio from a playlist,
+// anything else = YouTube Music's own token for a song radio.
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
-  const mode = q.get('mode') === 'new' ? 'new' : q.get('mode') === 'familiar' ? 'familiar' : 'mixed';
-  // More songs for a radio started from words.
+  const mode = radioMode(q.get('mode'));
   const token = q.get('continuation');
-  if (token?.startsWith('p:')) {
-    try {
-      return NextResponse.json(await runPromptRadio({ token, mode, editionId: q.get('editionId') }));
-    } catch (err) {
-      return NextResponse.json({ error: (err as Error).message }, { status: 502 });
-    }
-  }
+  const editionParam = q.get('editionId');
+
   try {
-    const { songs, continuation } = await fetchRadio({
-      videoId: q.get('videoId') ?? undefined,
-      continuation: q.get('continuation') ?? undefined,
-    });
-    if (!songs.length) return NextResponse.json({ tracks: [], continuation: null });
+    // More songs for a radio started from words.
+    if (token?.startsWith('p:')) {
+      return NextResponse.json(await runPromptRadio({ token, mode, editionId: editionParam }));
+    }
+    // More songs for a radio started from a playlist.
+    if (token?.startsWith('pl:')) {
+      const { tracks, continuation } = await playlistRadio({ token, mode });
+      if (editionParam) await appendToRadioEdition(editionParam, tracks).catch(() => {});
+      return NextResponse.json({ tracks, continuation, editionId: editionParam });
+    }
 
-    // Which of these are already in your library (same YouTube video, or same artist + title)?
-    // Studio audio first when YouTube Music has it; the music video is kept for the eye button.
-    for (const s of songs) if (s.audioId && s.audioId !== s.videoId) s.videoId = s.audioId;
-    const videoIds = [...new Set(songs.flatMap((s) => [s.videoId, s.mvId].filter(Boolean) as string[]))];
-    const keys = songs.map((s) => matchKey({ service: 'youtube', externalId: s.videoId, url: '', title: s.title, artist: s.artist }));
-    const [byAudio, bySource, byKey] = await Promise.all([
-      db().from('tracks').select(TRACK_COLUMNS).in('yt_audio_id', videoIds),
-      db().from('track_sources').select(`external_id, tracks(${TRACK_COLUMNS})`).eq('service', 'youtube').in('external_id', videoIds),
-      db().from('tracks').select(`match_key, ${TRACK_COLUMNS}`).in('match_key', keys),
-    ]);
-    const mine = new Map<string, TrackRowData>();
-    for (const t of (byAudio.data ?? []) as any[]) if (t.yt_audio_id) mine.set(t.yt_audio_id, t);
-    for (const r of (bySource.data ?? []) as any[]) if (r.tracks) mine.set(r.external_id, r.tracks);
-    const byMatch = new Map<string, TrackRowData>(((byKey.data ?? []) as any[]).map((t) => [t.match_key, t]));
+    const libSeen = { n: 0 };
+    const first = await fetchRadio({ videoId: q.get('videoId') ?? undefined, continuation: token ?? undefined });
+    let continuation = first.continuation;
+    const tracks: TrackRowData[] = await toRadioTracks(first.songs, mode, new Set(), libSeen);
 
-    const fresh: any[] = [];
-    let libCount = 0;
-    const tracks: TrackRowData[] = [];
-    songs.forEach((s, i) => {
-      const own = mine.get(s.videoId) ?? (s.mvId ? mine.get(s.mvId) : undefined) ?? byMatch.get(keys[i]);
-      if (own) {
-        if (mode === 'new') return;
-        if (mode === 'mixed' && libCount++ % 3 !== 0) return;
-        tracks.push({ ...own, yt_audio_id: own.yt_audio_id ?? s.videoId, video_id: own.video_id ?? s.mvId });
-        return;
+    // A new radio: keep asking until there are 50 songs (the dial can drop many).
+    if (!token) {
+      const have = new Set(tracks.map((t) => t.yt_audio_id ?? t.id));
+      for (let round = 0; round < 4 && tracks.length < RADIO_SIZE + 1 && continuation; round++) {
+        const more = await fetchRadio({ continuation });
+        continuation = more.continuation;
+        for (const t of await toRadioTracks(more.songs, mode, new Set(), libSeen)) {
+          const k = t.yt_audio_id ?? t.id;
+          if (!have.has(k)) {
+            have.add(k);
+            tracks.push(t);
+          }
+        }
       }
-      fresh.push({ video_id: s.videoId, title: s.title, artist: s.artist, album: s.album, image_url: s.image, duration_ms: s.durationMs, seen_at: new Date().toISOString() });
-      tracks.push({
-        id: `yt:${s.videoId}`,
-        title: s.title,
-        artist: s.artist,
-        album: s.album,
-        duration_ms: s.durationMs,
-        image_url: s.image,
-        video_id: s.mvId,
-        yt_audio_id: s.videoId,
-        track_sources: [{ service: 'youtube', external_id: s.videoId, url: `https://music.youtube.com/watch?v=${s.videoId}` }],
-      });
-    });
-    if (fresh.length) await db().from('radio_songs').upsert(fresh, { onConflict: 'video_id' });
+    }
+    if (!tracks.length) return NextResponse.json({ tracks: [], continuation: null });
 
     // Keep the radio in Past editions: a new edition when it starts, more songs as it goes.
-    let editionId = q.get('editionId');
+    let editionId = editionParam;
     const seedTitle = q.get('seedTitle');
-    if (!q.get('continuation') && seedTitle) {
-      // The song you started from always comes first, even if the dial filters it out.
+    let list = tracks;
+    if (!token && seedTitle) {
+      // The song you started from always comes first, even if the dial filters it out,
+      // followed by 49 more: 50 in all.
       const vid = q.get('videoId') ?? '';
       const seedId = q.get('seedId') ?? '';
       const seed: TrackRowData = {
@@ -93,12 +74,14 @@ export async function GET(req: NextRequest) {
         yt_audio_id: vid,
         track_sources: [],
       };
-      const list = [seed, ...tracks.filter((t) => t.yt_audio_id !== vid && t.id !== seedId)];
-      editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid, label: q.get('seedLabel') }, list).catch(() => null);
+      list = tracks.filter((t) => t.yt_audio_id !== vid && t.id !== seedId).slice(0, RADIO_SIZE - 1);
+      editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid, label: q.get('seedLabel') }, [seed, ...list]).catch(() => null);
+    } else if (!token) {
+      list = tracks.slice(0, RADIO_SIZE);
     } else if (editionId) {
       await appendToRadioEdition(editionId, tracks).catch(() => {});
     }
-    return NextResponse.json({ tracks, continuation, editionId: editionId ?? null });
+    return NextResponse.json({ tracks: list, continuation, editionId: editionId ?? null });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }

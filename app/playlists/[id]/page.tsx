@@ -54,7 +54,7 @@ export default async function PlaylistPage({ params }: { params: Promise<{ id: s
             pinned={Boolean(playlist.pinned_at)}
             tracks={tracks.map((t) => ({ id: t.id, title: t.title }))}
           />
-          <PlayButtons tracks={tracks} />
+          <PlayButtons tracks={tracks} radio={{ playlistId: playlist.id, name: playlist.name }} />
         </span>
       </div>
       <div className="muted small">

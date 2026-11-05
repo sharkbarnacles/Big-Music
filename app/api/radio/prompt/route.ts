@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { runPromptRadio } from '@/lib/promptRadioRoute';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // GET ?q=niche underground chill thai&mode=… → a radio built from playlists
 // people made for those words (lib/promptRadio.ts). More comes through

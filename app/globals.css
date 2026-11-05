@@ -875,3 +875,7 @@ button.pl-pick:hover { border-color: var(--line); }
 .pl-tags .tag-pill { height: 30px; padding: 0 11px; font-size: 13px; background: color-mix(in srgb, var(--c) 10%, transparent); }
 .pl-tags .tag-pill .x { opacity: .6; margin-left: 2px; }
 .tag-add { height: 30px; padding: 0 12px; font-size: 13px; border-radius: 999px; border: 1px dashed var(--muted); background: transparent; color: var(--muted); }
+
+/* Playlist radio button (UFO) beside Shuffle */
+.play-buttons .round-btn .picon { width: 26px; height: 26px; transform: translateY(1px); }
+.play-buttons .round-btn:disabled { opacity: .45; cursor: default; }

@@ -71,6 +71,7 @@ type PlayerApi = {
   addToQueue: (track: TrackRowData) => void;
   startRadio: (track: TrackRowData, label?: string) => void;
   startPromptRadio: (words: string) => Promise<void>;
+  startPlaylistRadio: (playlistId: string, name: string) => Promise<void>;
 };
 
 const PlayerContext = createContext<PlayerApi>({
@@ -81,6 +82,7 @@ const PlayerContext = createContext<PlayerApi>({
   playNext: () => {},
   startRadio: () => {},
   startPromptRadio: async () => {},
+  startPlaylistRadio: async () => {},
   addToQueue: () => {},
 });
 export const usePlayer = () => useContext(PlayerContext);
@@ -1119,6 +1121,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setRadioEdition(body.editionId ?? null);
   };
 
+  // A radio from a whole playlist: songs like the ones in it, none of its own (lib/playlistRadio.ts).
+  const startPlaylistRadio = async (playlistId: string, name: string) => {
+    const mode = readRadioMode();
+    showToast(`Starting a radio from “${name}”…`);
+    try {
+      const res = await fetch(`/api/radio/playlist?${new URLSearchParams({ id: playlistId, mode })}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.tracks?.length) throw new Error(body.error || 'The radio couldn’t start. Try again in a moment.');
+      playList(body.tracks, 0, { noShuffle: true, radio: { continuation: body.continuation ?? null, mode, editionId: body.editionId ?? null }, from: `Radio · ${name}` });
+      setRadioEdition(body.editionId ?? null);
+    } catch (err) {
+      showToast((err as Error).message || 'The radio couldn’t start. Try again in a moment.');
+    }
+  };
+
   // Play next: straight after the current song. Add to queue: after the other
   // songs you added, before the rest of the list (like Spotify's queue).
   // Each added song is a copy, so it can be told apart from the same song in the list.
@@ -1505,7 +1522,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <PlayerContext.Provider value={{ current, youtubeMode, setYoutubeMode, playList, playNext, addToQueue, startRadio, startPromptRadio }}>
+    <PlayerContext.Provider value={{ current, youtubeMode, setYoutubeMode, playList, playNext, addToQueue, startRadio, startPromptRadio, startPlaylistRadio }}>
       {children}
 
       {/* Space so the bar never covers the end of a list. */}

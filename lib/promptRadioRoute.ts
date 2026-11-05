@@ -5,6 +5,7 @@ import { appendToRadioEdition, createRadioEdition } from './radioEditions';
 import { toPlayable } from './webTracks';
 import { db } from './db';
 import { TRACK_COLUMNS } from './tracks';
+import { RADIO_SIZE } from './radioTracks';
 
 type Mode = 'familiar' | 'mixed' | 'new';
 
@@ -24,7 +25,7 @@ export async function runPromptRadio(opts: { q?: string; token?: string; mode: M
   const state: PromptState | null = opts.token ? decodeState(opts.token) : null;
   const q = state?.q ?? (opts.q ?? '').trim().slice(0, 150);
   if (!q) throw new Error('Type a genre, mood or artist first.');
-  const batch = await promptRadio(q, state);
+  let batch = await promptRadio(q, state);
   let tracks = applyMode(await toPlayable(batch.songs), opts.mode);
   // Familiar / Mixed: weave in a few of your own songs by artists from this batch you love.
   if (opts.mode !== 'new' && batch.liked.length) {
@@ -42,6 +43,21 @@ export async function runPromptRadio(opts: { q?: string; token?: string; mode: M
       });
       tracks = [...out, ...own];
     }
+  }
+  // A new radio starts with 50 songs: ask for more batches until there are.
+  if (!state) {
+    const have = new Set(tracks.map((t) => t.yt_audio_id ?? t.id));
+    for (let round = 0; round < 2 && tracks.length < RADIO_SIZE && batch.state && batch.songs.length; round++) {
+      batch = await promptRadio(q, batch.state);
+      for (const t of applyMode(await toPlayable(batch.songs), opts.mode)) {
+        const k = t.yt_audio_id ?? t.id;
+        if (!have.has(k)) {
+          have.add(k);
+          tracks.push(t);
+        }
+      }
+    }
+    tracks = tracks.slice(0, RADIO_SIZE);
   }
   const continuation = batch.state && batch.songs.length ? encodeState(batch.state) : null;
   let editionId = opts.editionId ?? null;

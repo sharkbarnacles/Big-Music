@@ -485,6 +485,18 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    confirmation auto-cancels on the phone; setup page
    https://claude.ai/artifact/QWYqPLMeZdxnmZyWHtVkY6), checked 2026-11-05.
    If a migration is needed again, try the connector first, else a page like that.
+   **Playlist radios + 50-song radios (2026-11-05):** UFO button left of
+   Shuffle on every playlist page (`PlayButtons` `radio` prop → player
+   `startPlaylistRadio`). `lib/playlistRadio.ts`: YouTube Music radios from 5
+   random songs of the playlist at once, woven one-from-each, the playlist's
+   own songs left out; top-ups are `pl:<state>` tokens (seeds used so far)
+   through `/api/radio`; start route `/api/radio/playlist?id=` saves an
+   edition "Radio: <playlist>" / "from your playlist". The dial logic moved
+   to `lib/radioTracks.ts` (`toRadioTracks`). **Every new radio starts with
+   50 songs** (`RADIO_SIZE`; owner chose "start with 50, keep going"): song
+   radios fetch continuations until 50 (seed + 49), word radios run up to
+   2 extra batches, playlist radios up to 3 rounds; they still top up as you
+   listen (~25 more for playlist radios).
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -542,3 +554,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove
 - 2026-11-05: Seamless Spotify mode (Spotify versions of YouTube-only songs, skip what Spotify lacks, YouTube fallback during time-outs); import slowed and yields to playback.
 - 2026-11-05: Home Lab; built pick L3+T3+P2+G2+E3 (Songs switch, pinned tiles, shelf, playlist tags).
+- 2026-11-05: Home shelf edge room; radios from whole playlists (UFO by Shuffle); every radio starts with 50 songs.
