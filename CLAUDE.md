@@ -121,6 +121,20 @@ Environment variables (set in Vercel; names only, never values):
     (`spotify_queue_state.updated_at`), and the hourly job runs ≤3 rounds.
     (The fast import caused two ~24 h app time-outs, which also block
     Spotify playback: 2026-11-03 and 2026-11-04 → until 11-05 09:35 UTC.)
+    **Gentler Spotify mode + diary (2026-11-05, owner: Spotify mode opened
+    the Spotify app and never played):** hand-off lines up 10 songs, not 30
+    (`QUEUE_SIZE`); the player tops up with `append: true` (next 10, no
+    restart) when Spotify is 3 songs from the end of what it was given
+    (`runRef.sent`); status polling every 5 s (was 2.5 s). Before playing,
+    a phone app that isn't the active player gets playback handed to it
+    (`PUT /me/player {device_ids, play:false}`, `makeActive`), and a refused
+    play is retried once after that. Waking: the player remembers the wake
+    (`wakeRef`); when you come back to the hub it checks once whether
+    Spotify is already playing, else sends the start again without waiting.
+    **Diary:** every step (devices seen, hand-over, play/queue refusals with
+    status + Spotify's reply, started/topped up) is logged to
+    `client_events` kind 'spotify' (`logSpotify`):
+    `select at, message, detail from client_events where kind='spotify' order by at desc limit 40;`
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -611,3 +625,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Smoother scrolling in Now Playing/queue (no always-on touch listeners; swipes pass through the video).
 - 2026-11-05: Library playlists/music switch; tap artist in Now Playing → artist page with discography (See all) + your songs; Speed Dial Lab.
 - 2026-11-05: Jump back in speed dial on Home (radios/albums/artists/songs, play button plays, tap opens).
+- 2026-11-05: Gentler Spotify mode (10-song hand-off + top-ups, 5 s polling), hand playback to the phone before playing, retry after waking, Spotify diary.

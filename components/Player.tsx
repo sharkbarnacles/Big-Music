@@ -248,7 +248,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const posRef = useRef({ ms: 0, at: 0 }); // last known Spotify position
   const draggingRef = useRef(false);
   const tokenRef = useRef(0); // increases on every new play, so stale replies are ignored
-  const runRef = useRef<{ ids: string[]; idx: number[] } | null>(null); // songs handed to Spotify
+  // The Spotify line-up: `ids` the songs it should play in order, `sent` how many
+  // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
+  const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean } | null>(null);
+  const wakeRef = useRef<{ token: number; body: Record<string, unknown>; retried: boolean } | null>(null); // a wake-up still waiting
   const lastPlayedEndRef = useRef(false);
   const pollingRef = useRef(false);
   const ytErrorsRef = useRef(0);
@@ -546,7 +549,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       ids.push(c.id);
       idx.push(j);
     }
-    runRef.current = { ids, idx };
+    runRef.current = { ids, idx, sent: 1 };
     lastPlayedEndRef.current = false;
     setPlay(true);
     setBusy(true);
@@ -588,6 +591,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       setDevice(data.device ?? null);
+      if (runRef.current) runRef.current.sent = 1 + (Number(data.queued) || 0);
       posRef.current = { ms: positionMs, at: Date.now() };
       setTimeout(() => pollSpotify(), 1500);
     } catch {
@@ -605,6 +609,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // with keepalive, so it finishes even if the hub goes into the background,
   // and the songs keep playing in Spotify with the phone locked.
   const wakeSpotify = (token: number, body: Record<string, unknown>) => {
+    wakeRef.current = { token, body, retried: false };
     setBusy(true);
     setNotice({
       text: 'Waking Spotify… your music starts in a few seconds. You can lock your phone.',
@@ -619,6 +624,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
       .then(({ ok, d }) => {
         if (token !== tokenRef.current) return;
+        if (wakeRef.current?.token === token) wakeRef.current = null;
         if (!ok) {
           setPlay(false);
           setNotice({
@@ -630,6 +636,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setNotice(null);
         setDevice(d.device ?? null);
         setPlay(true);
+        if (runRef.current) runRef.current.sent = 1 + (Number(d.queued) || 0);
         posRef.current = { ms: Number(body.positionMs) || 0, at: Date.now() };
         setTimeout(() => pollSpotify(), 1500);
       })
@@ -814,12 +821,30 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       // The last song Spotify was given has finished: the hub plays what's next
       // (for example a YouTube-only song). Only works while the hub is open.
-      const isLast = pos === run.ids.length - 1;
+      // Gentle top-up: when Spotify is 3 songs from the end of what it was
+      // given, add the next 10 (no restart, the song keeps playing).
+      if (pos >= run.sent - 3 && run.sent < run.ids.length && !run.topping) {
+        run.topping = true;
+        fetch('/api/play/spotify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: run.ids.slice(run.sent, run.sent + 10), append: true, deviceId: d.deviceId ?? null }),
+        })
+          .then((r) => r.json().then((b) => ({ ok: r.ok, b })))
+          .then(({ ok, b }) => {
+            if (ok && runRef.current === run) run.sent += Number(b.queued) || 0;
+          })
+          .catch(() => {})
+          .finally(() => {
+            run.topping = false;
+          });
+      }
+      const isLast = pos === Math.min(run.sent, run.ids.length) - 1;
       if (d.isPlaying) {
         lastPlayedEndRef.current = isLast;
         return;
       }
-      const atEdge = d.progressMs < 1500 || d.durationMs - d.progressMs < 3000;
+      const atEdge = d.progressMs < 3000 || d.durationMs - d.progressMs < 6000;
       if (isLast && lastPlayedEndRef.current && atEdge && repeatRef.current !== 'one') {
         lastPlayedEndRef.current = false;
         const n = nextIndex(qi);
@@ -1415,13 +1440,72 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (engine !== 'spotify') return;
     const tick = () => document.visibilityState === 'visible' && pollRef.current();
-    const timer = setInterval(tick, 2500);
+    const timer = setInterval(tick, 5000); // gentle: every 5 s (was 2.5 s)
     document.addEventListener('visibilitychange', tick);
     return () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', tick);
     };
   }, [engine]);
+
+  // Back from the Spotify app after a wake-up: if the music hasn't started yet
+  // (iPhones sometimes cut off the waiting request when the hub goes to the
+  // background), ask once more, now that Spotify is surely awake.
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState !== 'visible') return;
+      const w = wakeRef.current;
+      if (!w || w.retried) return;
+      w.retried = true;
+      setTimeout(async () => {
+        if (wakeRef.current !== w || w.token !== tokenRef.current) return;
+        try {
+          // Already playing (the first request got through after all)? Then just catch up.
+          const now = await fetch('/api/player/spotify', { cache: 'no-store' }).then((x) => x.json()).catch(() => null);
+          const first = Array.isArray(w.body.ids) ? (w.body.ids as string[])[0] : null;
+          if (now?.isPlaying && first && now.trackIds?.includes(first)) {
+            if (wakeRef.current === w) wakeRef.current = null;
+            setBusy(false);
+            setNotice(null);
+            setPlay(true);
+            pollRef.current();
+            return;
+          }
+          const r = await fetch('/api/play/spotify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...w.body, wait: false }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (wakeRef.current !== w || w.token !== tokenRef.current) return;
+          wakeRef.current = null;
+          setBusy(false);
+          if (!r.ok) {
+            setPlay(false);
+            setNotice({
+              text: d.message ?? 'Spotify didn’t start. Press Play again, or switch on YouTube mode.',
+              action: { label: 'Use YouTube mode', run: () => setYoutubeMode(true) },
+            });
+            return;
+          }
+          setNotice(null);
+          setDevice(d.device ?? null);
+          setPlay(true);
+          if (runRef.current) runRef.current.sent = 1 + (Number(d.queued) || 0);
+          posRef.current = { ms: Number(w.body.positionMs) || 0, at: Date.now() };
+          setTimeout(() => pollRef.current(), 1500);
+        } catch {
+          /* still offline; Play again will retry */
+        }
+      }, 2500);
+    };
+    document.addEventListener('visibilitychange', back);
+    window.addEventListener('pageshow', back);
+    return () => {
+      document.removeEventListener('visibilitychange', back);
+      window.removeEventListener('pageshow', back);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Move the progress bar smoothly.
   useEffect(() => {

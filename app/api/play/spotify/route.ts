@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { errorResponse, explainFailure, NO_DEVICE_MESSAGE, pickDevice, spotifyFetch } from '@/lib/spotifyPlayer';
+import { chooseDevice, errorResponse, explainFailure, listDevices, logSpotify, NO_DEVICE_MESSAGE, replyText, spotifyFetch, type Device } from '@/lib/spotifyPlayer';
 
 // POST { ids: ["<spotify track id>", ...], deviceId?, positionMs?, repeatOne?, wait? }
 //
@@ -16,18 +16,65 @@ import { errorResponse, explainFailure, NO_DEVICE_MESSAGE, pickDevice, spotifyFe
 // it: this request keeps checking for up to ~45 s until the app shows up,
 // then starts the music. It finishes on the server even if the hub is
 // already in the background.
+//
+// Gentler (2026-11-05, owner's choice): only 10 songs are lined up at a time
+// (about 40 minutes); `append: true` adds the next ones to the end of
+// Spotify's queue without restarting anything (the hub sends these while
+// it's open). Every step is written to the Spotify diary (logSpotify).
 export const maxDuration = 90;
 
-const QUEUE_SIZE = 30; // about two hours of music; the hub tops it up while it's open
+const QUEUE_SIZE = 10;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function findDevice(preferred: string | null, wait: boolean) {
   const until = Date.now() + (wait ? 45_000 : 0);
+  let tries = 0;
   for (;;) {
-    const device = await pickDevice(preferred);
-    if (device || Date.now() > until) return device;
-    await sleep(2000);
+    tries++;
+    const devices = await listDevices();
+    const device = chooseDevice(devices, preferred);
+    if (device || Date.now() > until) {
+      await logSpotify(device ? 'device found' : 'no device', {
+        tries,
+        waited: wait,
+        devices: devices.map((d) => ({ name: d.name, type: d.type, active: d.is_active, restricted: d.is_restricted })),
+        picked: device?.name ?? null,
+      });
+      return device;
+    }
+    await sleep(2500);
   }
+}
+
+// A phone's Spotify app that is open but not the active player often ignores
+// "play" until playback is handed to it first.
+async function makeActive(device: Device) {
+  if (device.is_active) return;
+  const res = await spotifyFetch('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [device.id], play: false }) });
+  await logSpotify('hand playback to device', { device: device.name, status: res.status, reply: res.ok ? '' : await replyText(res) });
+  await sleep(700);
+}
+
+// Adds songs to the end of Spotify's queue, one by one. Stops at the first
+// refusal and writes down why.
+async function addToQueue(ids: string[], target: string) {
+  const queued: string[] = [];
+  for (const id of ids) {
+    const q = await spotifyFetch(`/me/player/queue?uri=${encodeURIComponent(`spotify:track:${id}`)}&${target}`, { method: 'POST' });
+    if (!q.ok) {
+      await logSpotify('queue refused', {
+        added: queued.length,
+        wanted: ids.length,
+        status: q.status,
+        retryAfter: q.headers.get('retry-after'),
+        reply: await replyText(q),
+      });
+      break;
+    }
+    queued.push(id);
+    await sleep(250);
+  }
+  return queued;
 }
 
 async function loadQueued(): Promise<string[]> {
@@ -68,6 +115,14 @@ export async function POST(req: NextRequest) {
     if (!device) return NextResponse.json({ error: 'no_device', message: NO_DEVICE_MESSAGE }, { status: 409 });
     const target = `device_id=${encodeURIComponent(device.id)}`;
 
+    // More songs for a line-up that is already playing: just add them.
+    if (body.append === true) {
+      const queued = await addToQueue(ids.slice(0, QUEUE_SIZE), target);
+      await saveQueued([...(await loadQueued()), ...queued].slice(-60));
+      await logSpotify('topped up', { added: queued.length, wanted: Math.min(ids.length, QUEUE_SIZE) });
+      return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: queued.length });
+    }
+
     // 1. Skip past songs the hub queued last time and that haven't played yet.
     const leftovers = await leftoverCount(await loadQueued());
     if (leftovers > 0) {
@@ -78,30 +133,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Play the first song on its own (best effort: shuffle off first).
+    // 2. Make sure this device is the player, then play the first song on its own.
+    await makeActive(device);
     await spotifyFetch(`/me/player/shuffle?state=false&${target}`, { method: 'PUT' }).catch(() => null);
-    const res = await spotifyFetch(`/me/player/play?${target}`, {
-      method: 'PUT',
-      body: JSON.stringify({ uris: [`spotify:track:${ids[0]}`], position_ms: positionMs }),
-    });
-    if (!res.ok) return explainFailure(res);
+    const playBody = JSON.stringify({ uris: [`spotify:track:${ids[0]}`], position_ms: positionMs });
+    let res = await spotifyFetch(`/me/player/play?${target}`, { method: 'PUT', body: playBody });
+    if (!res.ok && res.status !== 429) {
+      // One more try after handing playback over (a sleepy phone app often needs it).
+      await logSpotify('play refused, trying again', { device: device.name, status: res.status, reply: await replyText(res) });
+      await makeActive({ ...device, is_active: false });
+      res = await spotifyFetch(`/me/player/play?${target}`, { method: 'PUT', body: playBody });
+    }
+    if (!res.ok) {
+      await logSpotify('play failed', { device: device.name, status: res.status, retryAfter: res.headers.get('retry-after'), reply: await replyText(res) });
+      return explainFailure(res);
+    }
     await spotifyFetch(`/me/player/repeat?state=${body.repeatOne ? 'track' : 'off'}&${target}`, { method: 'PUT' }).catch(
       () => null,
     );
 
-    // 3. Line up the rest in Spotify's own queue, in order.
-    const rest = ids.slice(1, 1 + QUEUE_SIZE);
-    const queued: string[] = [];
-    for (const id of rest) {
-      const q = await spotifyFetch(`/me/player/queue?uri=${encodeURIComponent(`spotify:track:${id}`)}&${target}`, { method: 'POST' });
-      if (!q.ok) break;
-      queued.push(id);
-      await sleep(200);
-    }
+    // 3. Line up the next few in Spotify's own queue, in order.
+    const queued = await addToQueue(ids.slice(1, 1 + QUEUE_SIZE), target);
     await saveQueued(queued);
+    await logSpotify('started', { device: device.name, waited: body.wait === true, queued: queued.length, leftoversSkipped: leftovers });
 
     return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: queued.length, skippedLeftovers: leftovers });
   } catch (err) {
+    await logSpotify('error', { message: (err as Error).message?.slice(0, 300) });
     return errorResponse(err);
   }
 }

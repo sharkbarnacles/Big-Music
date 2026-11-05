@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAccessToken, NotConnectedError } from './connections';
+import { db } from './db';
 
 // Talks to Spotify Connect: the feature that lets one device tell another
 // Spotify player what to play. Requires Spotify Premium.
@@ -47,6 +48,10 @@ export async function pickDevice(preferredId?: string | null): Promise<Device | 
   if (res.status === 429) throw new SpotifyRateLimited(Number(res.headers.get('retry-after')) || 0);
   if (!res.ok) throw new Error(`Spotify ${res.status}: ${(await res.text()).slice(0, 150)}`);
   const { devices = [] } = (await res.json()) as { devices?: Device[] };
+  return chooseDevice(devices, preferredId);
+}
+
+export function chooseDevice(devices: Device[], preferredId?: string | null): Device | null {
   const usable = devices.filter((d) => d.id && !d.is_restricted);
   return (
     (preferredId ? usable.find((d) => d.id === preferredId) : undefined) ??
@@ -56,6 +61,7 @@ export async function pickDevice(preferredId?: string | null): Promise<Device | 
     null
   );
 }
+export type { Device };
 
 // Turns a failed Spotify reply into a message a person can act on.
 export async function explainFailure(res: Response) {
@@ -83,4 +89,33 @@ export function errorResponse(err: unknown) {
     return NextResponse.json({ error: 'not_connected', message: 'Spotify isn’t connected. Connect it from the Home page.' }, { status: 401 });
   }
   return NextResponse.json({ error: 'spotify', message: (err as Error).message }, { status: 500 });
+}
+
+// Spotify-mode diary (owner asked to record why Spotify refuses things).
+// Each step of a hand-off goes to client_events with kind 'spotify'. Read with
+// `select at, message, detail from client_events where kind='spotify' order by at desc limit 40;`
+export async function logSpotify(step: string, detail: Record<string, unknown> = {}) {
+  try {
+    await db().from('client_events').insert({ kind: 'spotify', message: step.slice(0, 200), page: null, detail });
+  } catch {
+    /* the diary must never break playback */
+  }
+}
+
+// What Spotify said, short enough to keep.
+export async function replyText(res: Response): Promise<string> {
+  try {
+    return (await res.clone().text()).slice(0, 300);
+  } catch {
+    return '';
+  }
+}
+
+// Lists devices (for the diary): name, type, whether active / restricted.
+export async function listDevices(): Promise<Device[]> {
+  const res = await spotifyFetch('/me/player/devices');
+  if (res.status === 429) throw new SpotifyRateLimited(Number(res.headers.get('retry-after')) || 0);
+  if (!res.ok) return [];
+  const { devices = [] } = (await res.json()) as { devices?: Device[] };
+  return devices;
 }
