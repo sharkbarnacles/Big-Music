@@ -273,6 +273,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sdkLastRef = useRef<{ playing: boolean; pos: number; dur: number; id: string | null; at: number }>({ playing: false, pos: 0, dur: 0, id: null, at: 0 });
   // Watchdog for the in-hub Spotify player: where it was and since when.
   const startInFlightRef = useRef(false);
+  const spotifyTokenRef = useRef<{ token: string; at: number } | null>(null);
+  const forceServerRef = useRef(false);
+  const directSettingsRef = useRef(false);
+  const directLogRef = useRef(0);
+  const touchedAtRef = useRef(0);
   const pendingStartRef = useRef<{ i: number; token: number; positionMs: number } | null>(null);
   const claimedIdRef = useRef<string | null>(null);
   const stallRef = useRef<{ pos: number; id: string | null; since: number; tries: number } | null>(null);
@@ -451,9 +456,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // from YouTube (YouTube playlists, discoveries, radios), so Spotify gets the
   // whole line-up and keeps playing with the phone locked. Each song is looked
   // up once (the server remembers); this waits at most a few seconds.
-  const findSpotifyVersions = async (from: number) => {
+  const findSpotifyVersions = async (from: number, count = 40) => {
     const want = queueRef.current
-      .slice(from, from + 40)
+      .slice(from, from + count)
       .filter((t) => !sourceId(t, 'spotify') && !spotifyMatchRef.current.has(t.id));
     if (!want.length) return;
     try {
@@ -513,8 +518,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setDuration(track.duration_ms ?? 0);
 
     if (!ytModeRef.current && !videoRef.current) {
+      // Spotify versions of YouTube-only songs: wait for this song's (one
+      // quick search), give the following ones 1.2 s, and let the rest
+      // finish in the background (owner: taps felt slow on radios).
       setBusy(true);
-      await findSpotifyVersions(i);
+      if (!sourceId(track, 'spotify') && !spotifyMatchRef.current.has(track.id)) await findSpotifyVersions(i, 1);
+      await Promise.race([findSpotifyVersions(i + 1), new Promise((r) => setTimeout(r, 1200))]);
       if (token !== tokenRef.current) return;
       // busy stays on: the Spotify start right after keeps the spinner going.
     }
@@ -607,6 +616,56 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return sdkDeviceRef.current;
   };
 
+  // Spotify access token for the phone's direct requests (from the hub's
+  // server, which keeps it fresh); reused for 40 minutes.
+  const getSpotifyToken = async (fresh = false): Promise<string | null> => {
+    const c = spotifyTokenRef.current;
+    if (!fresh && c && Date.now() - c.at < 40 * 60_000) return c.token;
+    try {
+      const d = await fetch('/api/spotify/token', { cache: 'no-store' }).then((r) => r.json());
+      if (!d.token) return null;
+      spotifyTokenRef.current = { token: d.token, at: Date.now() };
+      return d.token;
+    } catch {
+      return null;
+    }
+  };
+  // Plays the line-up on the hub's own player straight from the phone.
+  const directPlay = async (ids: string[], positionMs: number, device: string): Promise<boolean> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const t = await getSpotifyToken(attempt > 0);
+      if (!t) return false;
+      const api = (path: string, init: RequestInit) =>
+        fetch(`https://api.spotify.com/v1${path}`, { ...init, headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } });
+      const res = await api(`/me/player/play?device_id=${encodeURIComponent(device)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ uris: ids.map((id) => `spotify:track:${id}`), offset: { position: 0 }, position_ms: positionMs }),
+      }).catch(() => null);
+      if (!res) return false;
+      if (res.ok) {
+        // Shuffle off (the hub orders the songs) and repeat as set, once.
+        if (!directSettingsRef.current) {
+          directSettingsRef.current = true;
+          api(`/me/player/shuffle?state=false&device_id=${encodeURIComponent(device)}`, { method: 'PUT' }).catch(() => null);
+          api(`/me/player/repeat?state=${repeatRef.current === 'one' ? 'track' : 'off'}&device_id=${encodeURIComponent(device)}`, { method: 'PUT' }).catch(() => null);
+        }
+        return true;
+      }
+      if (res.status === 401 && attempt === 0) continue; // old token: get a fresh one and try again
+      const reply = await res.text().catch(() => '');
+      clientLog('spotify', 'direct play refused', { status: res.status, reply: reply.slice(0, 200) });
+      return false;
+    }
+    return false;
+  };
+  // Lets the server know Spotify mode is playing (the library import waits
+  // while you listen), at most every 10 minutes.
+  const touchServer = () => {
+    if (Date.now() - touchedAtRef.current < 10 * 60_000) return;
+    touchedAtRef.current = Date.now();
+    fetch('/api/play/spotify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touch: true }) }).catch(() => {});
+  };
+
   const startSpotify = async (i: number, token: number, positionMs: number): Promise<void> => {
     // One start at a time: quick skips while one is on its way just change
     // which song starts next (overlapping starts left Spotify confused).
@@ -649,6 +708,45 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Spotify while the app was in the background: (re)connect and wait.
     if (!sdkDeviceRef.current) await ensureSdkDevice();
     try {
+      // Fast path: the hub's own player is connected, so the phone asks
+      // Spotify directly (one request, ~0.3 s) instead of going through the
+      // hub's server (~1.5 s). The player's own updates confirm it; if the
+      // song hasn't started 4 s later, the server way is used instead.
+      const device = sdkDeviceRef.current;
+      if (device && !forceServerRef.current) {
+        const t0 = Date.now();
+        const ok = await directPlay(ids, positionMs, device);
+        if (token !== tokenRef.current) return;
+        if (ok) {
+          if (runRef.current) {
+            runRef.current.sent = ids.length;
+            runRef.current.list = true;
+          }
+          setDevice('Music Hub (this browser)');
+          sdkLiveRef.current = true;
+          posRef.current = { ms: positionMs, at: Date.now() };
+          runStartedAtRef.current = Date.now();
+          expectPosRef.current = 0;
+          setPlay(true);
+          startingRef.current = false;
+          keepAwake(true);
+          claimLockScreen();
+          touchServer();
+          if (directLogRef.current++ < 5) clientLog('spotify', 'started directly', { songs: ids.length, ms: Date.now() - t0 });
+          const want = ids[0];
+          setTimeout(async () => {
+            if (token !== tokenRef.current || engineRef.current !== 'spotify') return;
+            const st = await sdkPlayerRef.current?.getCurrentState?.().catch?.(() => null);
+            const cur = st?.track_window?.current_track;
+            if (cur && (cur.id === want || cur.linked_from?.id === want)) return;
+            clientLog('spotify', 'direct start didn’t take, asking the server', { now: cur?.name ?? null });
+            forceServerRef.current = true;
+            playAt(i, { positionMs, back: true });
+          }, 4000);
+          return;
+        }
+      }
+      forceServerRef.current = false;
       const res = await fetch('/api/play/spotify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

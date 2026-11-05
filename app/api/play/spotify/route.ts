@@ -163,11 +163,11 @@ async function startInHub(device: Device, ids: string[], positionMs: number, rep
     nowId = (q.currently_playing?.id as string) ?? null;
     nowLinked = (q.currently_playing?.linked_from?.id as string) ?? null;
     const items: { id?: string }[] = q.queue ?? [];
-    let n: number;
-    if (ids.length > 1) {
-      const at = items.findIndex((it) => it?.id === ids[1]);
-      n = at >= 0 ? at : Math.min(items.length, 20);
-    } else n = Math.min(items.length, 20);
+    // Only songs sitting *before* the list's second song are leftovers. With a
+    // one-song list (or if that song can't be found) whatever follows is
+    // Spotify's own autoplay picks, so nothing is skipped (a one-song start
+    // once skipped 40 autoplay songs and took 26 s).
+    const n = ids.length > 1 ? items.findIndex((it) => it?.id === ids[1]) : 0;
     if (n <= 0) break;
     await spotifyFetch(`/me/player/pause?${target}`, { method: 'PUT' }).catch(() => null);
     for (let k = 0; k < n; k++) {
@@ -195,6 +195,12 @@ async function startInHub(device: Device, ids: string[], positionMs: number, rep
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+  // The phone started Spotify by itself (direct path): just note the time,
+  // so the library import keeps waiting while you listen.
+  if (body.touch === true) {
+    await saveQueued([]);
+    return NextResponse.json({ ok: true });
+  }
   const ids: string[] = Array.isArray(body.ids)
     ? body.ids.filter((id: unknown) => typeof id === 'string' && /^[A-Za-z0-9]{22}$/.test(id)).slice(0, 50)
     : [];
