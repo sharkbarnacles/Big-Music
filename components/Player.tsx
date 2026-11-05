@@ -275,6 +275,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const startInFlightRef = useRef(false);
   const spotifyTokenRef = useRef<{ token: string; at: number } | null>(null);
   const forceServerRef = useRef(false);
+  const queueCheckedRef = useRef(false);
   const directSettingsRef = useRef(false);
   const directLogRef = useRef(0);
   const touchedAtRef = useRef(0);
@@ -512,6 +513,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (historyRef.current.length > 200) historyRef.current.shift();
     }
     const token = ++tokenRef.current;
+    // Spotify mode: from this moment the old song's reports must not pull the
+    // screen back or start anything (the version lookup below can take ~1 s).
+    if (!ytModeRef.current && !videoRef.current) startingRef.current = true;
     setI(i);
     setNotice(null);
     setProgress(opts.positionMs ?? 0);
@@ -534,6 +538,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (token !== tokenRef.current) return;
       setBusy(false);
       if (!id) {
+        startingRef.current = false;
         const skips = (opts.skips ?? 0) + 1;
         const n = nextIndex(i);
         showToast(`Skipped “${track.title}”: no YouTube version yet`);
@@ -546,6 +551,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (choice.engine === 'spotify') await startSpotify(i, token, opts.positionMs ?? 0);
     else {
       setBusy(false);
+      startingRef.current = false;
       startYouTube(choice.id, opts.positionMs ?? 0);
       findVersions(track, token);
     }
@@ -666,6 +672,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     fetch('/api/play/spotify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touch: true }) }).catch(() => {});
   };
 
+  // A start that landed after you'd already moved to a YouTube song: silence
+  // it, or two songs would play at once.
+  const stopIfLeftBehind = () => {
+    if (engineRef.current !== 'spotify') sdkPlayerRef.current?.pause?.().catch?.(() => {});
+  };
+
   const startSpotify = async (i: number, token: number, positionMs: number): Promise<void> => {
     // One start at a time: quick skips while one is on its way just change
     // which song starts next (overlapping starts left Spotify confused).
@@ -716,7 +728,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (device && !forceServerRef.current) {
         const t0 = Date.now();
         const ok = await directPlay(ids, positionMs, device);
-        if (token !== tokenRef.current) return;
+        if (token !== tokenRef.current) return stopIfLeftBehind();
         if (ok) {
           if (runRef.current) {
             runRef.current.sent = ids.length;
@@ -733,12 +745,36 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           claimLockScreen();
           touchServer();
           if (directLogRef.current++ < 5) clientLog('spotify', 'started directly', { songs: ids.length, ms: Date.now() - t0 });
+          // Once per app opening: songs left in Spotify's own queue (from
+          // older hand-offs or the Spotify app) would play before the list.
+          // If there are any, the server clears them with one restart.
+          if (!queueCheckedRef.current && ids.length > 1) {
+            queueCheckedRef.current = true;
+            setTimeout(async () => {
+              if (token !== tokenRef.current || indexRef.current !== i) return;
+              const t = await getSpotifyToken();
+              if (!t) return;
+              const q = await fetch('https://api.spotify.com/v1/me/player/queue', { headers: { Authorization: `Bearer ${t}` } })
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null);
+              if (!q || token !== tokenRef.current || indexRef.current !== i) return;
+              const at = ((q.queue ?? []) as { id?: string }[]).findIndex((it) => it?.id === ids[1]);
+              if (at > 0) {
+                clientLog('spotify', 'old queue found, clearing via the server', { leftovers: at });
+                forceServerRef.current = true;
+                playAt(i, { positionMs: currentProgress(), back: true });
+              }
+            }, 1200);
+          }
           const want = ids[0];
           setTimeout(async () => {
-            if (token !== tokenRef.current || engineRef.current !== 'spotify') return;
+            if (token !== tokenRef.current || engineRef.current !== 'spotify' || indexRef.current !== i || userPausedRef.current) return;
             const st = await sdkPlayerRef.current?.getCurrentState?.().catch?.(() => null);
+            if (token !== tokenRef.current || indexRef.current !== i) return;
             const cur = st?.track_window?.current_track;
             if (cur && (cur.id === want || cur.linked_from?.id === want)) return;
+            const title = queueRef.current[i]?.title;
+            if (cur?.name && title && simpleName(cur.name) === simpleName(title)) return;
             clientLog('spotify', 'direct start didn’t take, asking the server', { now: cur?.name ?? null });
             forceServerRef.current = true;
             playAt(i, { positionMs, back: true });
@@ -759,7 +795,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (token !== tokenRef.current) return;
+      if (token !== tokenRef.current) return stopIfLeftBehind();
       // Spotify asleep on this phone, or it said yes but stayed silent: the hub
       // never switches you to the Spotify app (owner's wish, 2026-11-05).
       // This song plays through YouTube instead, right here; the next song
@@ -841,7 +877,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setNotice({ text: 'Couldn’t reach your app. Check your connection.' });
       }
     } finally {
-      startingRef.current = false;
+      if (token === tokenRef.current) startingRef.current = false;
       startInFlightRef.current = false;
       const pending = pendingStartRef.current;
       pendingStartRef.current = null;
@@ -1036,6 +1072,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       lastPos > last.dur - 8000 &&
       (st.position === 0 || ids[0] !== last.id);
     sdkLastRef.current = { playing: !st.paused, pos: st.position ?? 0, dur: st.duration ?? 0, id: ids[0] ?? null, at: Date.now() };
+    if (ended && (startingRef.current || Date.now() - runStartedAtRef.current < 5000)) return; // a new start is under way
     if (ended) {
       clientLog('spotify', 'song ended in the hub player, starting the next', { nextQueued: st.track_window?.next_tracks?.length ?? 0 });
       // Spotify moved on to the next song but stayed paused: just carry on.
@@ -1119,7 +1156,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           trackName: cur?.name ?? null,
           deviceId: sdkDeviceRef.current,
         });
-        if (userPausedRef.current) {
+        if (userPausedRef.current || Date.now() - runStartedAtRef.current < 5000) {
           stallRef.current = null;
           return;
         }
@@ -1178,6 +1215,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const startYouTube = (id: string, startMs: number) => {
     if (engineRef.current === 'spotify' && playingRef.current) spotifyAction('action=pause');
+    // The hub's own Spotify player may be mid-start: stop it locally too.
+    sdkPlayerRef.current?.pause?.().catch?.(() => {});
     runRef.current = null;
     sdkLiveRef.current = false;
     keepAwake(false);
@@ -1346,6 +1385,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setPlay(false);
         return;
       }
+      const run = runRef.current;
+      let pos = -1;
+      if (run) {
+        pos = run.ids.findIndex((id) => d.trackIds.includes(id));
+        // Spotify sometimes swaps in another copy of a song (a different id);
+        // then match by name among the songs it was given.
+        if (pos < 0 && d.trackName) {
+          const want = simpleName(d.trackName);
+          pos = run.ids.findIndex((_, k) => {
+            const t = queueRef.current[run.idx[k]];
+            return Boolean(t) && simpleName(t.title) === want;
+          });
+        }
+        // Just started: Spotify may still report the song from before (or a
+        // song further down the new list); ignore it completely (time, play
+        // icon and song) until it settles.
+        if (Date.now() - runStartedAtRef.current < 5000 && pos !== expectPosRef.current) return;
+      }
       if (!draggingRef.current) {
         posRef.current = { ms: d.progressMs, at: Date.now() };
         setProgress(d.progressMs);
@@ -1353,22 +1410,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (d.durationMs) setDuration(d.durationMs);
       if (d.deviceName !== undefined) setDevice(d.deviceName ?? null);
       setPlay(d.isPlaying);
-
-      const run = runRef.current;
       if (!run) return;
-      let pos = run.ids.findIndex((id) => d.trackIds.includes(id));
-      // Spotify sometimes swaps in another copy of a song (a different id);
-      // then match by name among the songs it was given.
-      if (pos < 0 && d.trackName) {
-        const want = simpleName(d.trackName);
-        pos = run.ids.findIndex((_, k) => {
-          const t = queueRef.current[run.idx[k]];
-          return Boolean(t) && simpleName(t.title) === want;
-        });
-      }
-      // Just started: Spotify may still report the song from before (or a
-      // song further down the new list); wait for it to settle.
-      if (Date.now() - runStartedAtRef.current < 5000 && pos !== expectPosRef.current) return;
       if (pos >= 0) strangerRef.current = null;
       if (pos < 0 && lastPlayedEndRef.current && run.sent >= run.ids.length) {
         // The whole list played and Spotify carried on with its own picks:
@@ -1543,6 +1585,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const leaving = queueRef.current[indexRef.current];
         if (leaving) historyRef.current.push(leaving);
         userPausedRef.current = false;
+        ++tokenRef.current; // any check still waiting from the last start is now out of date
         runStartedAtRef.current = Date.now();
         expectPosRef.current = pos + 1;
         setI(n);

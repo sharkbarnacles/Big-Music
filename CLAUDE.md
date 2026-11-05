@@ -256,6 +256,29 @@ Environment variables (set in Vercel; names only, never values):
     off'. The route's `findDevice` waits up to 4 s for the named device to
     appear. On phones the YouTube fallback note no longer mentions the
     Spotify app or shows "Wake Spotify".
+    **Deep check (2026-11-05, owner: "still sometimes buggy, make it clean and
+    responsive"):** (1) **Direct start:** with the in-hub player connected,
+    `startSpotify` now plays the list straight from the phone (`directPlay`:
+    Spotify Web API with the token from `/api/spotify/token`, cached 40 min,
+    retried once on 401; shuffle off / repeat set once per load) instead of
+    via `/api/play/spotify` (~0.3 s vs ~1.5 s); logs 'started directly' (first
+    5). A 4 s check (bails if the token/index moved or paused; accepts a
+    same-name copy) falls back to the server path ('direct start didn’t
+    take…', `forceServerRef`). Once per load, 1.2 s after a direct start, the
+    phone reads `/me/player/queue`; leftovers before ids[1] → server restart
+    ('old queue found…'). `touchServer()` POSTs `{touch:true}` (route saves
+    `spotify_queue_state` so imports keep yielding), ≤ every 10 min.
+    (2) Server `startInHub` skips only songs before ids[1] (never for a
+    one-song list: a one-song start had "cleared" 40 autoplay songs, 26 s).
+    (3) `playAt` sets `startingRef` at once in Spotify mode (cleared on the
+    YouTube / lookup-failure paths; the start's `finally` clears it only for
+    the newest token) and waits only for the current song's Spotify match
+    plus ≤1.2 s for the next 40. (4) From an independent code review:
+    `applySpotify` ignores time/play/song during the 5 s settle window when
+    the reported song isn't the expected one; instant Next bumps `tokenRef`;
+    stall nudges and the end-of-song restart skip the settle window / a start
+    in progress; a start that lands after you switched to a YouTube song is
+    paused (`stopIfLeftBehind`), and `startYouTube` pauses the SDK too.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -771,3 +794,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Library: Radios pill → list of every radio you've made (play button, opens its page).
 - 2026-11-05: In-hub Spotify reconnects by itself when it dropped off (no more "wake Spotify" on the phone).
 - 2026-11-05: Radios moved to a chip after "Mine" in the playlist chips (Home and Library).
+- 2026-11-05: Playback deep check: direct Spotify start from the phone, no autoplay "clearing", lookup no longer blocks taps, review fixes (settle window, stale timers, double sound).
