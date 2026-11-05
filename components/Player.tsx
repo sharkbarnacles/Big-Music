@@ -221,6 +221,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const durationRef = useRef(0);
+  durationRef.current = duration;
   const [device, setDevice] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -251,6 +253,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // The Spotify line-up: `ids` the songs it should play in order, `sent` how many
   // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
   const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean } | null>(null);
+  const startingRef = useRef(false); // a Spotify start is on its way (screen shows loading)
+  const sdkLiveRef = useRef(false); // the hub's own Spotify player is the one playing
+  const userPausedRef = useRef(false); // you pressed pause (so a stop isn't "the song ended")
+  const sdkLastRef = useRef<{ playing: boolean; pos: number; dur: number; id: string | null }>({ playing: false, pos: 0, dur: 0, id: null });
+  const keepAliveRef = useRef<HTMLAudioElement | null>(null); // silent sound that keeps the hub awake with the screen off
+  const sdkStateRef = useRef<(st: any) => void>(() => {});
+  const keepAwakeRef = useRef<(on: boolean) => void>(() => {});
+  const keepAliveUnlockedRef = useRef(false);
   const asleepToldRef = useRef(false); // told you once that Spotify is asleep
   const wakeRef = useRef<{ token: number; body: Record<string, unknown>; retried: boolean } | null>(null); // a wake-up still waiting
   const lastPlayedEndRef = useRef(false);
@@ -385,6 +395,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const gesture = () => {
     if (!sdkPlayerRef.current && sdkReadyRef.current && !ytModeRef.current) makeSdkPlayerRef.current();
     sdkPlayerRef.current?.activateElement?.();
+    // Unlock the silent keep-awake sound now (iPhones only allow it from a tap).
+    if (!ytModeRef.current && isPhone() && !keepAliveUnlockedRef.current) {
+      keepAliveUnlockedRef.current = true;
+      keepAwakeRef.current(true);
+      setTimeout(() => {
+        if (!sdkLiveRef.current) keepAwakeRef.current(false);
+      }, 300);
+    }
   };
 
   const currentProgress = () =>
@@ -559,9 +577,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       ids.push(c.id);
       idx.push(j);
     }
-    runRef.current = { ids, idx, sent: 1 };
+    runRef.current = { ids, idx, sent: 0 }; // 0 = still starting (no top-ups yet)
     lastPlayedEndRef.current = false;
-    setPlay(true);
+    // While it starts: the time stays where the song starts (it used to run
+    // on from the previous song and show thousands of seconds), and the play
+    // button shows a small spinner.
+    startingRef.current = true;
+    userPausedRef.current = false;
+    posRef.current = { ms: positionMs, at: Date.now() };
+    setProgress(positionMs);
+    setDuration(list[i]?.duration_ms ?? 0);
+    setPlay(false);
     setBusy(true);
     // The in-hub player was just made (first tap): give it a moment to connect.
     if (!sdkDeviceRef.current && sdkWaitRef.current) await sdkWaitRef.current;
@@ -630,7 +656,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       setDevice(data.device ?? null);
       if (runRef.current) runRef.current.sent = 1 + (Number(data.queued) || 0);
+      sdkLiveRef.current = Boolean(sdkDeviceRef.current && data.deviceId === sdkDeviceRef.current);
       posRef.current = { ms: positionMs, at: Date.now() };
+      setPlay(true);
+      startingRef.current = false;
+      if (sdkLiveRef.current) keepAwake(true);
       setTimeout(() => pollSpotify(), 1500);
     } catch {
       if (token === tokenRef.current) {
@@ -638,6 +668,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setNotice({ text: 'Couldn’t reach your app. Check your connection.' });
       }
     } finally {
+      startingRef.current = false;
       if (token === tokenRef.current) setBusy(false);
     }
   };
@@ -690,9 +721,90 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }, 150);
   };
 
+  // ── The hub's own Spotify player with the screen off ──
+  // iPhones freeze a web app once its sound stops, so when one song ended the
+  // next never started. A silent sound loops underneath while Spotify plays
+  // in the hub, which keeps the hub awake to start the next song, and the
+  // lock screen shows the song (Media Session) with working buttons.
+  const SILENCE = '/silence.wav'; // 2 s of silence (public/silence.wav), looped
+  const keepAwake = (on: boolean) => {
+    try {
+      if (!on) {
+        keepAliveRef.current?.pause();
+        return;
+      }
+      if (!keepAliveRef.current) {
+        const a = new Audio(SILENCE);
+        a.loop = true;
+        a.volume = 0.01;
+        a.setAttribute('playsinline', '');
+        keepAliveRef.current = a;
+      }
+      keepAliveRef.current.play().catch(() => {});
+    } catch {
+      /* not allowed yet; the next tap starts it */
+    }
+  };
+
+  keepAwakeRef.current = keepAwake;
+
+  // Every change in the hub's own Spotify player (play, pause, next song,
+  // position). Also notices when a song ended and nothing followed, and
+  // starts the next one itself.
+  sdkStateRef.current = (st: any) => {
+    if (!st || engineRef.current !== 'spotify' || !sdkLiveRef.current) return;
+    const cur = st.track_window?.current_track;
+    const ids = [cur?.id, cur?.linked_from?.id].filter(Boolean) as string[];
+    const last = sdkLastRef.current;
+    const ended =
+      st.paused &&
+      !userPausedRef.current &&
+      last.playing &&
+      last.dur > 0 &&
+      last.pos > last.dur - 8000 &&
+      (st.position === 0 || ids[0] !== last.id);
+    sdkLastRef.current = { playing: !st.paused, pos: st.position ?? 0, dur: st.duration ?? 0, id: ids[0] ?? null };
+    if (ended) {
+      clientLog('spotify', 'song ended in the hub player, starting the next', { nextQueued: st.track_window?.next_tracks?.length ?? 0 });
+      // Spotify moved on to the next song but stayed paused: just carry on.
+      if (ids[0] && ids[0] !== last.id) {
+        sdkPlayerRef.current?.resume?.().catch?.(() => {});
+      } else {
+        const n = nextIndex(indexRef.current);
+        if (n !== null) {
+          playAt(n);
+          return;
+        }
+      }
+    }
+    applySpotify({ active: true, isPlaying: !st.paused || Boolean(ended), progressMs: st.position ?? 0, durationMs: st.duration ?? 0, trackIds: ids, deviceId: sdkDeviceRef.current });
+    keepAwake(!st.paused || Boolean(ended));
+  };
+
+  // Lock screen / Control Center: the current song and its buttons.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !current) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: current.title,
+        artist: current.artist,
+        album: current.album ?? '',
+        artwork: current.image_url ? [{ src: current.image_url, sizes: '512x512' }] : [],
+      });
+      navigator.mediaSession.setActionHandler('play', () => togglePlayRef.current());
+      navigator.mediaSession.setActionHandler('pause', () => togglePlayRef.current());
+      navigator.mediaSession.setActionHandler('nexttrack', () => nextRef.current());
+      navigator.mediaSession.setActionHandler('previoustrack', () => prevRef.current());
+    } catch {
+      /* older iPhones */
+    }
+  }, [current]);
+
   const startYouTube = (id: string, startMs: number) => {
     if (engineRef.current === 'spotify' && playingRef.current) spotifyAction('action=pause');
     runRef.current = null;
+    sdkLiveRef.current = false;
+    keepAwake(false);
     setEng('youtube');
     setDevice(null);
     setPlay(true);
@@ -833,11 +945,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const pollSpotify = async () => {
     if (engineRef.current !== 'spotify' || pollingRef.current) return;
+    // Playing in the hub's own Spotify player: it reports every change itself
+    // (player_state_changed), so there's no need to ask Spotify's servers.
+    if (sdkLiveRef.current) return;
     pollingRef.current = true;
     try {
       const res = await fetch('/api/player/spotify', { cache: 'no-store' });
       if (!res.ok || engineRef.current !== 'spotify') return;
-      const d = await res.json();
+      applySpotify(await res.json());
+    } catch {
+      /* try again on the next check */
+    } finally {
+      pollingRef.current = false;
+    }
+  };
+
+  // What Spotify is playing → the hub's screen, queue position, top-ups and
+  // "last song given has finished". Fed by the poll, or by the in-hub player.
+  type SpotifyState = { active: boolean; isPlaying: boolean; progressMs: number; durationMs: number; trackIds: string[]; deviceId: string | null; deviceName?: string | null };
+  const applySpotify = (d: SpotifyState) => {
+    if (engineRef.current !== 'spotify' || startingRef.current) return;
+    {
       if (!d.active) {
         setPlay(false);
         return;
@@ -847,7 +975,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setProgress(d.progressMs);
       }
       if (d.durationMs) setDuration(d.durationMs);
-      setDevice(d.deviceName);
+      if (d.deviceName !== undefined) setDevice(d.deviceName ?? null);
       setPlay(d.isPlaying);
 
       const run = runRef.current;
@@ -861,7 +989,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // (for example a YouTube-only song). Only works while the hub is open.
       // Gentle top-up: when Spotify is 3 songs from the end of what it was
       // given, add the next 10 (no restart, the song keeps playing).
-      if (pos >= run.sent - 3 && run.sent < run.ids.length && !run.topping) {
+      if (run.sent > 0 && pos >= run.sent - 3 && run.sent < run.ids.length && !run.topping) {
         run.topping = true;
         fetch('/api/play/spotify', {
           method: 'POST',
@@ -888,10 +1016,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const n = nextIndex(qi);
         if (n !== null) playAt(n);
       }
-    } catch {
-      /* try again on the next check */
-    } finally {
-      pollingRef.current = false;
     }
   };
 
@@ -948,12 +1072,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     if (playingRef.current) {
+      userPausedRef.current = true;
+      if (sdkLiveRef.current && sdkPlayerRef.current) {
+        await sdkPlayerRef.current.pause().catch(() => {});
+        posRef.current = { ms: currentProgress(), at: Date.now() };
+        setPlay(false);
+        keepAwake(false);
+        return;
+      }
       const r = await spotifyAction('action=pause');
       if (r.ok) {
         posRef.current = { ms: currentProgress(), at: Date.now() };
         setPlay(false);
       } else setNotice({ text: r.message ?? 'Spotify didn’t pause.' });
     } else {
+      userPausedRef.current = false;
+      if (sdkLiveRef.current && sdkPlayerRef.current) {
+        keepAwake(true);
+        await sdkPlayerRef.current.resume().catch(() => {});
+        posRef.current = { ms: progress, at: Date.now() };
+        setPlay(true);
+        return;
+      }
       const r = await spotifyAction('action=resume');
       if (r.ok) {
         posRef.current = { ms: progress, at: Date.now() };
@@ -980,6 +1120,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (indexRef.current <= 0) seek(0);
     else playAt(indexRef.current - 1, { back: true });
   };
+  // The lock screen's buttons call the latest versions of these.
+  const togglePlayRef = useRef(togglePlay);
+  togglePlayRef.current = togglePlay;
+  const nextRef = useRef(next);
+  nextRef.current = next;
+  const prevRef = useRef(prev);
+  prevRef.current = prev;
 
   const seek = (ms: number) => {
     setProgress(ms);
@@ -1475,7 +1622,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       });
       player.addListener('not_ready', () => {
         sdkDeviceRef.current = null;
+        sdkLiveRef.current = false;
       });
+      player.addListener('player_state_changed', (st: any) => sdkStateRef.current(st));
       for (const ev of ['initialization_error', 'authentication_error', 'account_error', 'playback_error', 'autoplay_failed']) {
         player.addListener(ev, (e: { message?: string }) => clientLog('spotify', `in-hub player: ${ev}`, { message: e?.message ?? '' }));
       }
@@ -1584,8 +1733,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         } catch {
           /* the player is between songs; try again next tick */
         }
-      } else if (engineRef.current === 'spotify' && playingRef.current) {
-        setProgress(posRef.current.ms + (Date.now() - posRef.current.at));
+      } else if (engineRef.current === 'spotify' && playingRef.current && !startingRef.current) {
+        setProgress(Math.min(posRef.current.ms + (Date.now() - posRef.current.at), durationRef.current || Infinity));
       }
     }, 500);
     return () => clearInterval(timer);
@@ -1745,8 +1894,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             </span>
           </button>
           <div className="player-controls">
-            <button type="button" className="ctrl primary" aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
-              {playing ? icon(ICON.pause) : icon(ICON.play, true)}
+            <button type="button" className="ctrl primary" aria-label={busy ? 'Loading' : playing ? 'Pause' : 'Play'} aria-busy={busy} onClick={togglePlay}>
+              {busy ? <span className="play-spin" aria-hidden="true" /> : playing ? icon(ICON.pause) : icon(ICON.play, true)}
             </button>
             <button type="button" className="ctrl" aria-label="Next song" onClick={next}>
               {icon(ICON.next)}
@@ -1863,8 +2012,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <button type="button" className="np-skip" aria-label="Previous" onClick={prev}>
                   {picon('prev')}
                 </button>
-                <button type="button" className="np-play" aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
-                  {playing ? icon(ICON.pause) : icon(ICON.play, true)}
+                <button type="button" className="np-play" aria-label={busy ? 'Loading' : playing ? 'Pause' : 'Play'} aria-busy={busy} onClick={togglePlay}>
+                  {busy ? <span className="play-spin" aria-hidden="true" /> : playing ? icon(ICON.pause) : icon(ICON.play, true)}
                 </button>
                 <button type="button" className="np-skip" aria-label="Next" onClick={next}>
                   {picon('next')}

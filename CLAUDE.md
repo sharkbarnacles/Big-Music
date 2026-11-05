@@ -165,8 +165,24 @@ Environment variables (set in Vercel; names only, never values):
     `startSpotify` waits up to 6 s (`sdkWaitRef`) for its device id, which
     the server then prefers ("Music Hub (this browser)"). SDK events
     (ready, *_error, autoplay_failed) go to the diary via `clientLog`
-    kind 'spotify'. Open questions: does it make sound on iPhone, and does
-    it keep playing with the screen locked (likely not, like YouTube mode).
+    kind 'spotify'. **Owner: it works and is what they wanted** (diary:
+    'playing confirmed' via 'uris' on "Music Hub (this browser)").
+    **Follow-ups (2026-11-05):** (1) loading glitch: `startSpotify` now
+    holds the time at the start position (`startingRef`; the ticker used a
+    stale `posRef` → thousands of seconds, full bar), shows a spinner in
+    both play buttons while `busy` (`.play-spin`), and only sets playing
+    after the start returns. (2) double top-up during the start fixed
+    (`runRef.sent` is 0 until the start finishes). (3) screen off: one song
+    played locked, then the next didn't start and the lock-screen player
+    vanished (iPhone freezes the page when its sound stops). Now a silent
+    looping sound (`public/silence.wav`, `keepAwake`, unlocked in the first
+    tap) plays under the in-hub player to keep the hub awake; the SDK's
+    `player_state_changed` drives the screen (`applySpotify`, shared with the
+    poll; no Web API polling while `sdkLiveRef`), and a song that ended with
+    nothing after it → `resume()` if Spotify moved on but paused, else the
+    hub's next song (`playAt`); pause/resume go straight to the SDK
+    (`userPausedRef`). Media Session metadata + lock-screen buttons
+    (play/pause/next/previous) for the current song. Not yet tested locked.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -661,3 +677,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Spotify mode never switches apps (asleep/silent → YouTube for that song), play is confirmed and nudged once.
 - 2026-11-05: Spotify start tries uris → album+offset → queue+next, remembers what works.
 - 2026-11-05: Experiment: Spotify's in-hub player (Web Playback SDK) on iPhone, started from the first Play tap.
+- 2026-11-05: In-hub Spotify: loading spinner + steady time while starting, no double top-up, keep-awake sound + end-of-song handling for screen-off, lock-screen controls.

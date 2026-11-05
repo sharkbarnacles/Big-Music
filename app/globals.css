@@ -948,3 +948,9 @@ span.tag-pill { display: inline-flex; align-items: center; }
 .dial-badge.radio { color: var(--youtube); } .dial-badge.album { color: var(--accent); }
 .dial-badge.artist { color: var(--tag-amber); } .dial-badge.song { color: var(--tag-rose); }
 .dial-empty { margin: 4px 0 2px; }
+
+/* Play button while a song is loading: a small spinner instead of the icon */
+.play-spin { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; display: inline-block; animation: play-spin .8s linear infinite; }
+.ctrl.primary .play-spin { width: 18px; height: 18px; border-width: 2px; }
+@keyframes play-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .play-spin { animation-duration: 2.4s; } }
