@@ -232,6 +232,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Queue Lab (how it opens P, button H, list look L, editing E): https://claude.ai/artifact/XHkfVmvZdjt7F4jqqc73vr
 - App Icon Lab (mark M, background B, name N): https://claude.ai/artifact/9NfsRk65axr1MmKkw21Gpu
 - Playlist Tools Lab (Set aside folder F, moving M, add-to-playlist window P, multi-select S): https://claude.ai/artifact/LVa34wAaGVwoizVJzvuEf2
+- Home Lab (layout L, Playlists/Songs switch T, pinned P, tag filter G, adding tags E): https://claude.ai/artifact/ViRmYrMA6gzqjTwr1C1wMB
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -465,6 +466,12 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    top 4 songs of ~10 related artists per batch (+2 of the named artist
    early), continuation walks outwards (state `todo`/`seed` in the `p:`
    token); taste + tagFit lift, extra words favour artists tagged with them.
+   **Home Lab (2026-11-05, waiting for the owner's pick):** new Home look +
+   switch Playlists ↔ all Songs (Songs view = whole library with Play/Shuffle;
+   a chosen tag there = songs from playlists with that tag), pinned playlists
+   (planned `playlists.pinned_at`, order pinned; Pin in Home's Select bar and
+   playlist ⋯), playlist tags (planned table `playlist_tags` → existing `tags`;
+   several tags = playlists with all of them). Migration not applied yet.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -521,3 +528,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Similar-artist radios ("similar to Silica Gel").
   Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove
 - 2026-11-05: Seamless Spotify mode (Spotify versions of YouTube-only songs, skip what Spotify lacks, YouTube fallback during time-outs); import slowed and yields to playback.
+- 2026-11-05: Home Lab (new Home look, Playlists/Songs switch, pins, playlist tags).
