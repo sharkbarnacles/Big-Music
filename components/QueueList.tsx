@@ -2,7 +2,7 @@
 
 import { PLAYER_ICONS, type PlayerIconName } from '@/lib/playerIcons';
 import { splitTitle } from '@/lib/titles';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TrackRowData } from '@/lib/tracks';
 import { smallCover } from '@/lib/img';
 
@@ -156,22 +156,29 @@ export default function QueueList(p: Props) {
       const r = rowsRef.current;
       if (d.slot !== d.k && r[d.k] != null && r[d.slot] != null) propsRef.current.onMove(r[d.k], r[d.slot]);
     };
-    // iOS: stop the page from scrolling while a song is being dragged.
-    const touchMove = (e: TouchEvent) => {
-      if (dragRef.current) e.preventDefault();
-    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
-    window.addEventListener('touchmove', touchMove, { passive: false });
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
-      window.removeEventListener('touchmove', touchMove);
       cancelHold();
     };
   }, []);
+
+  // iOS: stop the sheet from scrolling while a song is lifted. This listener
+  // only exists during a drag; an always-on one made every ordinary scroll
+  // wait for the app on each finger move, which felt sticky.
+  const lifting = drag != null;
+  useLayoutEffect(() => {
+    if (!lifting) return;
+    const touchMove = (e: TouchEvent) => {
+      if (dragRef.current) e.preventDefault();
+    };
+    window.addEventListener('touchmove', touchMove, { passive: false });
+    return () => window.removeEventListener('touchmove', touchMove);
+  }, [lifting]);
 
   // Near the top or bottom edge while dragging: scroll the sheet gently.
   const dragging = drag != null;

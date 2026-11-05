@@ -901,3 +901,7 @@ button.pl-pick:hover { border-color: var(--line); }
 
 /* Tag pills outside edit mode are plain labels (no ×) */
 span.tag-pill { display: inline-flex; align-items: center; }
+
+/* Swipes that start on the video/cover scroll Now Playing (the hub has its own controls);
+   the video takes taps only while the iPhone asks for one tap to start the sound. */
+.yt-host:not([data-needs-tap]) { pointer-events: none; }

@@ -56,6 +56,9 @@ export default function PlaylistSongs({
   const listRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const rafRef = useRef(0);
+  // The page-wide "don't scroll" listener only exists while a song is lifted,
+  // so ordinary scrolling never waits for the app.
+  const touchMoveRef = useRef<((e: TouchEvent) => void) | null>(null);
 
   // ── Saving the order (after a short pause, one save at a time) ──
   const saveTimer = useRef(0);
@@ -167,6 +170,7 @@ export default function PlaylistSongs({
       moved: false,
       untick,
     };
+    if (touchMoveRef.current) window.addEventListener('touchmove', touchMoveRef.current, { passive: false });
     listRef.current?.querySelector('.list')?.classList.add('dragging');
     nodes[index].classList.add('lifted');
     rafRef.current = requestAnimationFrame(autoScroll);
@@ -187,6 +191,7 @@ export default function PlaylistSongs({
     if (!d) return;
     dragRef.current = null;
     cancelAnimationFrame(rafRef.current);
+    if (touchMoveRef.current) window.removeEventListener('touchmove', touchMoveRef.current);
     // Put everything back and apply the new order in the same moment (no jump).
     listRef.current?.querySelector('.list')?.classList.remove('dragging');
     d.nodes.forEach((n) => {
@@ -219,7 +224,7 @@ export default function PlaylistSongs({
   };
 
   // Finger and mouse tracking for the whole page while a song is lifted.
-  // touchmove is not passive, so the page doesn't scroll under the finger.
+  // touchmove (added only during a drag) is not passive, so the page doesn't scroll under the finger.
   useEffect(() => {
     const onTouchMove = (e: TouchEvent) => {
       const d = dragRef.current;
@@ -238,7 +243,7 @@ export default function PlaylistSongs({
     const onPointerUp = (e: PointerEvent) => {
       if (dragRef.current && (!dragRef.current.touch || e.pointerType !== 'mouse')) end();
     };
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    touchMoveRef.current = onTouchMove;
     window.addEventListener('touchend', onTouchEnd);
     window.addEventListener('touchcancel', onTouchEnd);
     window.addEventListener('pointermove', onPointerMove);

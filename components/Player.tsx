@@ -1528,7 +1528,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       {/* Space so the bar never covers the end of a list. */}
       {current && <div aria-hidden="true" style={{ height: BAR_HEIGHT + 24 + 0 }} />}
 
-      <div ref={hostRef} className={`yt-host${ytActive && (!sheetOpen || !video) ? ' square' : ''}`} style={hostStyle} />
+      {/* The video ignores touches (so a swipe that starts on it scrolls Now Playing),
+          except while the iPhone is asking for one tap to start the sound. */}
+      <div
+        ref={hostRef}
+        className={`yt-host${ytActive && (!sheetOpen || !video) ? ' square' : ''}`}
+        data-needs-tap={notice?.text.startsWith('Your iPhone wants one tap') ? '' : undefined}
+        style={hostStyle}
+      />
 
       {(toast || notice) && !sheetOpen && (
         <div className="player-float" style={{ bottom: `calc(var(--nav-h) + ${current ? BAR_HEIGHT + 16 : 10}px + env(safe-area-inset-bottom))` }}>

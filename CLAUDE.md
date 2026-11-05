@@ -497,6 +497,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    radios fetch continuations until 50 (seed + 49), word radios run up to
    2 extra batches, playlist radios up to 3 rounds; they still top up as you
    listen (~25 more for playlist radios).
+   **Smoother scrolling (2026-11-05, owner: queue scrolling from mid-screen
+   still sticky):** the non-passive window `touchmove` listeners (queue and
+   playlist drag) now exist only while a song is lifted, so normal scrolls
+   never wait on JS; queue rows were never draggable except by the grip.
+   The YouTube layer (`.yt-host`) ignores touches so a swipe starting on the
+   cover/video scrolls the sheet, except while the "one tap to start the
+   sound" notice shows (`data-needs-tap`).
    **Playlist edit mode + reorder (2026-11-05):** holding a song (400 ms)
    on a playlist page opens edit mode (`components/PlaylistSongs.tsx`): the
    song is ticked and, in hub playlists, picked up so the same finger drags
@@ -571,3 +578,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Home Lab; built pick L3+T3+P2+G2+E3 (Songs switch, pinned tiles, shelf, playlist tags).
 - 2026-11-05: Home shelf edge room; radios from whole playlists (UFO by Shuffle); every radio starts with 50 songs.
 - 2026-11-05: Hold a song = edit mode; drag to reorder hub playlists (grip or hold-and-drag), order saves itself.
+- 2026-11-05: Smoother scrolling in Now Playing/queue (no always-on touch listeners; swipes pass through the video).
