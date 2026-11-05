@@ -276,6 +276,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const spotifyTokenRef = useRef<{ token: string; at: number } | null>(null);
   const forceServerRef = useRef(false);
   const queueCheckedRef = useRef(false);
+  const getSpotifyTokenRef = useRef<(fresh?: boolean) => Promise<string | null>>(async () => null);
+  const ensureSdkRef = useRef<(hard?: boolean) => Promise<string | null>>(async () => null);
   const directSettingsRef = useRef(false);
   const directLogRef = useRef(0);
   const touchedAtRef = useRef(0);
@@ -598,7 +600,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Make sure the hub's own Spotify player is connected (owner 2026-11-05:
   // after a while away the hub said "wake Spotify" because the in-hub player
   // had dropped off Spotify's device list). Waits up to 8 s.
-  const ensureSdkDevice = async (): Promise<string | null> => {
+  const ensureSdkDevice = async (hard = false): Promise<string | null> => {
+    if (hard) sdkDeviceRef.current = null;
     if (sdkDeviceRef.current) return sdkDeviceRef.current;
     const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const until = Date.now() + 8000;
@@ -611,7 +614,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const p = sdkPlayerRef.current;
     if (!p) return null;
     if (!fresh) {
-      clientLog('spotify', 'reconnecting in-hub player');
+      // Spotify can forget the player while the app sleeps without the
+      // player noticing, so a plain connect() may do nothing: hang up first.
+      clientLog('spotify', 'reconnecting in-hub player', { hard });
+      try {
+        p.disconnect();
+      } catch {
+        /* ignore */
+      }
+      await pause(300);
       try {
         p.connect();
       } catch {
@@ -637,17 +648,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
   // Plays the line-up on the hub's own player straight from the phone.
-  const directPlay = async (ids: string[], positionMs: number, device: string): Promise<boolean> => {
+  const directPlay = async (ids: string[], positionMs: number, device: string): Promise<'ok' | 'gone' | 'fail'> => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const t = await getSpotifyToken(attempt > 0);
-      if (!t) return false;
+      if (!t) return 'fail';
       const api = (path: string, init: RequestInit) =>
         fetch(`https://api.spotify.com/v1${path}`, { ...init, headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } });
       const res = await api(`/me/player/play?device_id=${encodeURIComponent(device)}`, {
         method: 'PUT',
         body: JSON.stringify({ uris: ids.map((id) => `spotify:track:${id}`), offset: { position: 0 }, position_ms: positionMs }),
       }).catch(() => null);
-      if (!res) return false;
+      if (!res) return 'fail';
       if (res.ok) {
         // Shuffle off (the hub orders the songs) and repeat as set, once.
         if (!directSettingsRef.current) {
@@ -655,21 +666,38 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           api(`/me/player/shuffle?state=false&device_id=${encodeURIComponent(device)}`, { method: 'PUT' }).catch(() => null);
           api(`/me/player/repeat?state=${repeatRef.current === 'one' ? 'track' : 'off'}&device_id=${encodeURIComponent(device)}`, { method: 'PUT' }).catch(() => null);
         }
-        return true;
+        return 'ok';
       }
+      // Spotify forgot the hub's player (the app slept): reconnect and retry.
+      if (res.status === 404) return 'gone';
       if (res.status === 401 && attempt === 0) continue; // old token: get a fresh one and try again
       const reply = await res.text().catch(() => '');
       clientLog('spotify', 'direct play refused', { status: res.status, reply: reply.slice(0, 200) });
-      return false;
+      return 'fail';
     }
-    return false;
+    return 'fail';
   };
+  getSpotifyTokenRef.current = getSpotifyToken;
+  ensureSdkRef.current = ensureSdkDevice;
+
   // Lets the server know Spotify mode is playing (the library import waits
   // while you listen), at most every 10 minutes.
   const touchServer = () => {
     if (Date.now() - touchedAtRef.current < 10 * 60_000) return;
     touchedAtRef.current = Date.now();
     fetch('/api/play/spotify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touch: true }) }).catch(() => {});
+  };
+
+  // After a YouTube stand-in: reconnect the hub's Spotify player and, if the
+  // song is still in its first 45 s, carry on with Spotify from that spot.
+  const handBackToSpotify = async (i: number, token: number) => {
+    const fresh = await ensureSdkDevice(true);
+    if (!fresh || token !== tokenRef.current || indexRef.current !== i || ytModeRef.current) return;
+    if (engineRef.current !== 'youtube' || !wantPlayRef.current) return;
+    const at = currentProgress();
+    if (at > 45_000) return;
+    clientLog('spotify', 'player back, moving this song to Spotify', { atMs: Math.round(at) });
+    playAt(i, { positionMs: at, back: true });
   };
 
   // A start that landed after you'd already moved to a YouTube song: silence
@@ -727,9 +755,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const device = sdkDeviceRef.current;
       if (device && !forceServerRef.current) {
         const t0 = Date.now();
-        const ok = await directPlay(ids, positionMs, device);
+        let result = await directPlay(ids, positionMs, device);
         if (token !== tokenRef.current) return stopIfLeftBehind();
-        if (ok) {
+        if (result === 'gone') {
+          const fresh = await ensureSdkDevice(true);
+          if (token !== tokenRef.current) return stopIfLeftBehind();
+          clientLog('spotify', fresh ? 'player was forgotten, reconnected' : 'player was forgotten, reconnect failed');
+          if (fresh) result = await directPlay(ids, positionMs, fresh);
+          if (token !== tokenRef.current) return stopIfLeftBehind();
+        }
+        if (result === 'ok') {
           if (runRef.current) {
             runRef.current.sent = ids.length;
             runRef.current.list = true;
@@ -825,6 +860,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           );
           asleepToldRef.current = true;
           startYouTube(yt, positionMs);
+          // Keep trying to bring the hub's Spotify player back in the
+          // background; if it returns early in the song, Spotify takes over
+          // where YouTube is (so the music carries on with the screen off).
+          if (isPhone()) handBackToSpotify(i, token);
           return;
         }
         setPlay(false);
@@ -2067,6 +2106,35 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
     // Make the YouTube player now, so the first Play tap starts the sound.
     warmYouTube().catch(() => {});
+  }, []);
+
+  // Coming back to the app in Spotify mode: check Spotify still knows the
+  // hub's player (it forgets it after a while asleep) and reconnect now, so
+  // the next tap plays through Spotify straight away.
+  useEffect(() => {
+    let last = 0;
+    const check = async () => {
+      if (document.visibilityState !== 'visible' || ytModeRef.current || !sdkPlayerRef.current) return;
+      if (Date.now() - last < 20_000 || startingRef.current) return;
+      last = Date.now();
+      const t = await getSpotifyTokenRef.current();
+      if (!t) return;
+      const d = await fetch('https://api.spotify.com/v1/me/player/devices', { headers: { Authorization: `Bearer ${t}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (!d) return;
+      const known = ((d.devices ?? []) as { id?: string }[]).some((x) => x.id && x.id === sdkDeviceRef.current);
+      if (!known && !startingRef.current) {
+        clientLog('spotify', 'player missing on return, reconnecting');
+        ensureSdkRef.current(true);
+      }
+    };
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('pageshow', check);
+    return () => {
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('pageshow', check);
+    };
   }, []);
 
   // Coming back to the app: if iPhone paused your music while you were away, carry on.

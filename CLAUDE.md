@@ -279,6 +279,18 @@ Environment variables (set in Vercel; names only, never values):
     stall nudges and the end-of-song restart skip the settle window / a start
     in progress; a start that lands after you switched to a YouTube song is
     paused (`stopIfLeftBehind`), and `startYouTube` pauses the SDK too.
+    **Forgotten player (owner 13:25 UTC: radios kept falling back to YouTube,
+    which stops when the app closes; diary: direct play 404 "Device not
+    found", device list empty, though matches were found for 90% of songs):**
+    Spotify forgets the SDK device while the app sleeps without the SDK
+    firing `not_ready`. Now `directPlay` returns 'gone' on 404 →
+    `ensureSdkDevice(true)` (disconnect + connect, wait ≤8 s) → retry
+    ('player was forgotten, reconnected'). After a YouTube stand-in on a
+    phone, `handBackToSpotify` reconnects in the background and, if the song
+    is still in its first 45 s, restarts it on Spotify at the same spot
+    ('player back, moving this song to Spotify'). On returning to the app the
+    phone checks `/me/player/devices` (≤ every 20 s) and reconnects if the
+    hub's player is missing ('player missing on return, reconnecting').
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -795,3 +807,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify reconnects by itself when it dropped off (no more "wake Spotify" on the phone).
 - 2026-11-05: Radios moved to a chip after "Mine" in the playlist chips (Home and Library).
 - 2026-11-05: Playback deep check: direct Spotify start from the phone, no autoplay "clearing", lookup no longer blocks taps, review fixes (settle window, stale timers, double sound).
+- 2026-11-05: In-hub Spotify: reconnects when Spotify forgot the player (no more YouTube stand-ins), moves a stand-in song back to Spotify.
