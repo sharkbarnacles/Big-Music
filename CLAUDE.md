@@ -233,7 +233,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - App Icon Lab (mark M, background B, name N): https://claude.ai/artifact/9NfsRk65axr1MmKkw21Gpu
 - Playlist Tools Lab (Set aside folder F, moving M, add-to-playlist window P, multi-select S): https://claude.ai/artifact/LVa34wAaGVwoizVJzvuEf2
 - Home Lab (layout L, Playlists/Songs switch T, pinned P, tag filter G, adding tags E): https://claude.ai/artifact/ViRmYrMA6gzqjTwr1C1wMB
-- Speed Dial Lab (Home speed dial: look S, contents C, labels T, placement P, tap A, name N; waiting for pick): https://claude.ai/artifact/6qwGLdZZVYwXLXwpE6aFNo
+- Speed Dial Lab (Home speed dial: look S, contents C, labels T, placement P, tap A, name N; picked S1+C3+T1+P1+A1+N1): https://claude.ai/artifact/6qwGLdZZVYwXLXwpE6aFNo
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
@@ -535,7 +535,20 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    musicTwoRowItemRenderer; probed on The Cure: 29 albums), the rest, and
    "In your library" (your songs by that name, `library_page` main_artist).
    `probe_ytm.mjs` now also saves artist discography pages.
-   **Speed dial (Home playlist view only):** lab published, waiting for pick.
+   **Jump back in (Speed Dial pick S1 + C3 + T1 + P1 + A1 + N1, 2026-11-05):**
+   `components/SpeedDial.tsx` at the top of Home's playlist view only
+   (`PlaylistBrowser` `dial` prop; not in Library, not while selecting):
+   chips Radios / Albums / Artists / Songs (last one in localStorage
+   `mh-dial-kind`), 3×2 grid, badge under each name. Owner's change: the
+   round play button on the cover plays at once; anywhere else opens the
+   radio (`/discover/<id>`), album (`/album?name=&artist=` →
+   `lib/findAlbum.ts` YouTube Music album search → `/web/album/MPRE…`) or
+   artist (`/artist?name=`); songs have no page, so a tap plays them (then
+   your other recent songs). Data `lib/speedDial.ts`: radios = newest 6
+   radio editions; songs/albums/artists from `plays` (60 days; album needs
+   2 songs or 3 plays, artist 2 plays). Play: `/api/speed-dial/play`
+   (?radio= edition songs, ?album= whole YouTube album else your songs,
+   ?artist= your songs by them shuffled through the player's `source`).
 4. Polish: (done: reorder songs in hub playlists)
    save the current queue as a playlist.
 
@@ -597,3 +610,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Hold a song = edit mode; drag to reorder hub playlists (grip or hold-and-drag), order saves itself.
 - 2026-11-05: Smoother scrolling in Now Playing/queue (no always-on touch listeners; swipes pass through the video).
 - 2026-11-05: Library playlists/music switch; tap artist in Now Playing → artist page with discography (See all) + your songs; Speed Dial Lab.
+- 2026-11-05: Jump back in speed dial on Home (radios/albums/artists/songs, play button plays, tap opens).

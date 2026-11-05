@@ -7,6 +7,8 @@ import { usePlaylistPicker } from './PlaylistPicker';
 import LibraryList from './LibraryList';
 import PlayButtons from './PlayButtons';
 import TagSheet from './TagSheet';
+import SpeedDial from './SpeedDial';
+import type { SpeedDial as Dial } from '@/lib/speedDial';
 import { smallCover } from '@/lib/img';
 import type { Tag } from '@/lib/tagTypes';
 import type { TrackRowData } from '@/lib/tracks';
@@ -89,7 +91,9 @@ export default function PlaylistBrowser({
   initialTags,
   songs,
   base = '/',
+  dial,
 }: {
+  dial?: Dial; // Home only: "Jump back in" (recent radios, albums, artists, songs)
   base?: '/' | '/library'; // Home, or the Library tab's playlist view
   playlists: PlaylistCard[];
   tags: Tag[];
@@ -369,6 +373,9 @@ export default function PlaylistBrowser({
           </span>
         )}
       </div>
+
+      {/* Jump back in (Speed Dial pick P1): top of Home's playlist view */}
+      {view === 'playlists' && showTop && dial && <SpeedDial dial={dial} />}
 
       {/* P2: pinned playlists as quick tiles */}
       {view === 'playlists' && showTop && pinnedList.length > 0 && (

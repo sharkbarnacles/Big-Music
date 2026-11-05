@@ -7,6 +7,7 @@ import { loadPlaylistCards } from '@/lib/playlistCards';
 import { trackQueryString, type TrackQuery } from '@/lib/libraryParams';
 import { loadTracks } from '@/lib/libraryQuery';
 import { listTags } from '@/lib/playlistTags';
+import { loadSpeedDial } from '@/lib/speedDial';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +33,12 @@ export default async function Home({
   const songSort = SONG_SORTS.includes(sp.ssort ?? '') ? sp.ssort! : 'recent';
 
   const songQuery: TrackQuery = { sort: songSort, tags: chosen.join(',') || undefined };
-  const [playlistsRes, tracksRes, tags, songPage] = await Promise.all([
+  const [playlistsRes, tracksRes, tags, songPage, dial] = await Promise.all([
     loadPlaylistCards(),
     db().from('tracks').select('id', { count: 'exact', head: true }),
     listTags().catch(() => []),
     view === 'songs' ? loadTracks(songQuery, 0, 200) : Promise.resolve(null),
+    view === 'playlists' ? loadSpeedDial().catch(() => undefined) : Promise.resolve(undefined),
   ]);
   const cards = playlistsRes.cards;
   const songs: HomeSongs | undefined = songPage
@@ -65,7 +67,7 @@ export default async function Home({
         <b>{(tracksRes.count ?? 0).toLocaleString()}</b> songs · <b>{cards.length.toLocaleString()}</b> playlists
       </p>
 
-      <PlaylistBrowser playlists={cards} tags={tags} view={view} initialTags={chosen} songs={songs} />
+      <PlaylistBrowser playlists={cards} tags={tags} view={view} initialTags={chosen} songs={songs} dial={dial} />
     </main>
   );
 }

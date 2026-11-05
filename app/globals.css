@@ -923,3 +923,28 @@ span.tag-pill { display: inline-flex; align-items: center; }
 .web-tiles.grid { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); overflow: visible; margin: 0; padding: 0; row-gap: 16px; }
 @media (max-width: 420px) { .web-tiles.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .web-tiles.grid .web-cover { width: 100%; height: auto; aspect-ratio: 1; }
+
+/* Jump back in (Speed Dial pick S1 + C3 + T1): chips, 3×2 grid, play button on the cover */
+.dial { margin: 2px 0 10px; }
+.dial-head { margin-top: 4px; }
+.dial-chips { display: flex; gap: 6px; margin: 0 0 10px; overflow-x: auto; scrollbar-width: none; }
+.dial-chips::-webkit-scrollbar { display: none; }
+.dial-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; }
+.dial-tile { display: grid; gap: 3px; min-width: 0; color: inherit; cursor: pointer; }
+.dial-tile:hover { color: inherit; }
+.dial-art { position: relative; display: block; width: 100%; aspect-ratio: 1; max-width: 100%; border-radius: 10px; overflow: hidden; background: var(--panel-2); }
+.dial-art img, .dial-art .ph { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dial-play {
+  position: absolute; right: 6px; bottom: 6px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent); display: grid; place-items: center;
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, .7);
+}
+.dial-play svg { width: 14px; height: 14px; fill: currentColor; margin-left: 2px; }
+.dial-play:hover { border: 0; }
+.dial-play.busy { opacity: .6; }
+.dial-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+.dial-sub { font-size: 11px; color: var(--muted); display: flex; gap: 4px; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dial-badge { flex: none; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--panel-2); }
+.dial-badge.radio { color: var(--youtube); } .dial-badge.album { color: var(--accent); }
+.dial-badge.artist { color: var(--tag-amber); } .dial-badge.song { color: var(--tag-rose); }
+.dial-empty { margin: 4px 0 2px; }
