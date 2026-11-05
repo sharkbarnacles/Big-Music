@@ -30,3 +30,18 @@ if (pl) save('browse_playlist', await call('browse', { browseId: pl }));
 if (al) save('browse_album', await call('browse', { browseId: al }));
 if (ar) save('browse_artist', await call('browse', { browseId: ar }));
 console.log({ pl, al, ar, status: Object.fromEntries(Object.entries(res).map(([k, v]) => [k, v.status])) });
+// The artist page's "More" / "See all" links (full albums / singles lists).
+if (ar) {
+  const page = await call('browse', { browseId: ar });
+  const found = [];
+  const walk = (o) => {
+    if (!o || typeof o !== 'object') return;
+    const be = o.browseEndpoint;
+    if (be?.params && be?.browseId) found.push({ browseId: be.browseId, params: be.params });
+    for (const v of Object.values(o)) walk(v);
+  };
+  walk(page.json?.contents);
+  const uniq = [...new Map(found.map((f) => [f.browseId + f.params, f])).values()].slice(0, 3);
+  save('artist_more_links', uniq);
+  for (let i = 0; i < uniq.length; i++) save(`browse_artist_more_${i}`, await call('browse', uniq[i]));
+}
