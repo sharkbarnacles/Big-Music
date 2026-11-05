@@ -257,7 +257,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const startingRef = useRef(false); // a Spotify start is on its way (screen shows loading)
   const sdkLiveRef = useRef(false); // the hub's own Spotify player is the one playing
   const userPausedRef = useRef(false); // you pressed pause (so a stop isn't "the song ended")
-  const sdkLastRef = useRef<{ playing: boolean; pos: number; dur: number; id: string | null }>({ playing: false, pos: 0, dur: 0, id: null });
+  const sdkLastRef = useRef<{ playing: boolean; pos: number; dur: number; id: string | null; at: number }>({ playing: false, pos: 0, dur: 0, id: null, at: 0 });
+  // Watchdog for the in-hub Spotify player: where it was and since when.
+  const stallRef = useRef<{ pos: number; id: string | null; since: number; tries: number } | null>(null);
   const keepAliveRef = useRef<HTMLAudioElement | null>(null); // silent sound that keeps the hub awake with the screen off
   const sdkStateRef = useRef<(st: any) => void>(() => {});
   const keepAwakeRef = useRef<(on: boolean) => void>(() => {});
@@ -813,14 +815,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const cur = st.track_window?.current_track;
     const ids = [cur?.id, cur?.linked_from?.id].filter(Boolean) as string[];
     const last = sdkLastRef.current;
+    // The player only reports at changes (start, pause, new song), so work
+    // out where the song had got to by now from the last report.
+    const lastPos = last.pos + (last.playing ? Date.now() - last.at : 0);
     const ended =
       st.paused &&
       !userPausedRef.current &&
       last.playing &&
       last.dur > 0 &&
-      last.pos > last.dur - 8000 &&
+      lastPos > last.dur - 8000 &&
       (st.position === 0 || ids[0] !== last.id);
-    sdkLastRef.current = { playing: !st.paused, pos: st.position ?? 0, dur: st.duration ?? 0, id: ids[0] ?? null };
+    sdkLastRef.current = { playing: !st.paused, pos: st.position ?? 0, dur: st.duration ?? 0, id: ids[0] ?? null, at: Date.now() };
     if (ended) {
       clientLog('spotify', 'song ended in the hub player, starting the next', { nextQueued: st.track_window?.next_tracks?.length ?? 0 });
       // Spotify moved on to the next song but stayed paused: just carry on.
@@ -841,6 +846,77 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!st.paused && (!last.playing || ids[0] !== last.id)) claimLockScreen();
     else setLockPosition(st.position ?? 0, st.duration ?? 0, !st.paused);
   };
+
+  // The in-hub player sometimes stops by itself (seen: it froze ~2 s before a
+  // song's end and waited for a tap). Nudge it, a bit harder each time:
+  // 1) resume, 2) near the end: skip to Spotify's next song, 3) start the
+  // right song again from the hub (the next one if it was near the end).
+  const nudgeSpotify = (st: any, why: string) => {
+    const id = st.track_window?.current_track?.id ?? null;
+    const pos = st.position ?? 0;
+    const dur = st.duration ?? 0;
+    const nearEnd = dur > 0 && pos > dur - 6000;
+    const s = stallRef.current ?? { pos, id, since: Date.now(), tries: 0 };
+    s.tries++;
+    s.since = Date.now();
+    stallRef.current = s;
+    clientLog('spotify', `stuck (${why}), nudge ${s.tries}`, { pos, dur, paused: Boolean(st.paused), nearEnd, nextQueued: st.track_window?.next_tracks?.length ?? 0 });
+    const p = sdkPlayerRef.current;
+    keepAwake(true);
+    if (s.tries === 1 && p) {
+      p.resume?.().catch?.(() => {});
+      return;
+    }
+    if (s.tries === 2 && p && nearEnd) {
+      p.nextTrack?.().catch?.(() => {});
+      return;
+    }
+    if (s.tries < 3 && !nearEnd) return; // give a plain resume one more go
+    stallRef.current = null;
+    const n = nearEnd ? nextIndex(indexRef.current) : indexRef.current;
+    if (n !== null) playAt(n, nearEnd ? {} : { positionMs: pos });
+  };
+  const nudgeRef = useRef(nudgeSpotify);
+  nudgeRef.current = nudgeSpotify;
+
+  // Watchdog: once a second, while the in-hub player should be playing, check
+  // that the song is really moving. Stuck for 2.5 s → nudge (above).
+  useEffect(() => {
+    let checking = false;
+    const iv = setInterval(async () => {
+      if (checking) return;
+      if (engineRef.current !== 'spotify' || !sdkLiveRef.current || userPausedRef.current || startingRef.current) {
+        stallRef.current = null;
+        return;
+      }
+      const p = sdkPlayerRef.current;
+      if (!p?.getCurrentState) return;
+      checking = true;
+      try {
+        const st = await p.getCurrentState().catch(() => null);
+        if (!st) return;
+        const id = st.track_window?.current_track?.id ?? null;
+        const pos = st.position ?? 0;
+        const dur = st.duration ?? 0;
+        const nearEnd = dur > 0 && pos > dur - 6000;
+        // Paused in the middle of a song by something else: leave it.
+        if (st.paused && !nearEnd && pos > 1500) {
+          stallRef.current = null;
+          return;
+        }
+        const s = stallRef.current;
+        if (!s || s.id !== id || Math.abs(pos - s.pos) > 400) {
+          stallRef.current = { pos, id, since: Date.now(), tries: 0 };
+          return;
+        }
+        if (Date.now() - s.since < 2500) return;
+        nudgeRef.current(st, st.paused ? 'paused' : 'not moving');
+      } finally {
+        checking = false;
+      }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, []);
 
   // Lock screen / Control Center: the current song and its buttons. The
   // buttons drive the hub (its queue, its next / previous), for both engines.

@@ -189,6 +189,13 @@ Environment variables (set in Vercel; names only, never values):
     sounds) 0.6 s after Spotify starts / changes song / resumes, then re-sets
     metadata + position (`setLockScreen`, `setLockPosition`). Lock-screen button
     presses in Spotify mode are logged as 'lock screen: <action>' in the diary.
+    **Stall watchdog (2026-11-05, owner: locked, the song froze ~2 s before
+    its end until they tapped play):** the end check used the position from the
+    last SDK event (often the song's start), so it never fired; it now adds the
+    time since. A 1 s watchdog (`getCurrentState`, `stallRef`) nudges a player
+    stuck 2.5 s: resume → near the end `nextTrack()` → start the right song from
+    the hub (`nudgeSpotify`); logged as 'stuck (…), nudge n'. `clientLog` now
+    allows 80 'spotify' notes per page load (was 20 for everything).
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -685,3 +692,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Experiment: Spotify's in-hub player (Web Playback SDK) on iPhone, started from the first Play tap.
 - 2026-11-05: In-hub Spotify: loading spinner + steady time while starting, no double top-up, keep-awake sound + end-of-song handling for screen-off, lock-screen controls.
 - 2026-11-05: Lock screen shows the hub's song card (title, artist, cover) in in-hub Spotify mode; its buttons drive the hub queue.
+- 2026-11-05: In-hub Spotify: fixed end-of-song check, watchdog nudges a stuck player (resume → skip → restart from the hub).
