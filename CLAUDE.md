@@ -497,7 +497,21 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    radios fetch continuations until 50 (seed + 49), word radios run up to
    2 extra batches, playlist radios up to 3 rounds; they still top up as you
    listen (~25 more for playlist radios).
-4. Polish: reorder songs in hub playlists;
+   **Playlist edit mode + reorder (2026-11-05):** holding a song (400 ms)
+   on a playlist page opens edit mode (`components/PlaylistSongs.tsx`): the
+   song is ticked and, in hub playlists, picked up so the same finger drags
+   it; every row also gets a ≡ grip (`TrackRow` `grip`, `.edit-grip`,
+   touch-action none). Drag engine moves DOM nodes directly (no re-render per
+   move): row centers measured at start, others slide by the lifted row's
+   height, window touchmove is non-passive so the page doesn't scroll, and
+   it auto-scrolls near the top (160 px) / above the player. Order saves
+   700 ms after a drop via PATCH `/api/hub-playlists/[id]/items {order}`
+   (`reorderHubPlaylist`: writes the new order at fresh positions after the
+   old ones, then deletes the old rows, so nothing can be lost; returns the
+   new positions, which the page maps in). Move/Remove/Done flush the save
+   first; leaving the page sends it with keepalive. Spotify/YouTube
+   playlists: hold opens edit mode for selecting/copying only.
+4. Polish: (done: reorder songs in hub playlists)
    save the current queue as a playlist.
 
 ## Session log
@@ -555,3 +569,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Seamless Spotify mode (Spotify versions of YouTube-only songs, skip what Spotify lacks, YouTube fallback during time-outs); import slowed and yields to playback.
 - 2026-11-05: Home Lab; built pick L3+T3+P2+G2+E3 (Songs switch, pinned tiles, shelf, playlist tags).
 - 2026-11-05: Home shelf edge room; radios from whole playlists (UFO by Shuffle); every radio starts with 50 songs.
+- 2026-11-05: Hold a song = edit mode; drag to reorder hub playlists (grip or hold-and-drag), order saves itself.

@@ -27,6 +27,8 @@ export default function TrackRow({
   selecting = false,
   checked = false,
   onHold,
+  grip = false,
+  onGrip,
 }: {
   track: TrackRowData;
   active: boolean;
@@ -43,9 +45,13 @@ export default function TrackRow({
   // selecting; while selecting, a tap ticks or unticks the song.
   selecting?: boolean;
   checked?: boolean;
-  onHold?: () => void;
+  // Hold: passes where the finger is, so the song can be picked up and dragged straight away.
+  onHold?: (at: { y: number; touch: boolean }) => void;
+  // Edit mode in your own playlists: a ≡ grip to drag the song to a new place.
+  grip?: boolean;
+  onGrip?: (at: { y: number; touch: boolean }) => void;
 }) {
-  const hold = useRef<{ timer: number; x: number; y: number; fired: boolean } | null>(null);
+  const hold = useRef<{ timer: number; x: number; y: number; fired: boolean; touch: boolean } | null>(null);
   const clearHold = () => {
     if (hold.current) window.clearTimeout(hold.current.timer);
   };
@@ -54,20 +60,31 @@ export default function TrackRow({
         onPointerDown: (e: React.PointerEvent) => {
           if (e.pointerType === 'mouse' && e.button !== 0) return;
           clearHold();
-          const h = { timer: 0, x: e.clientX, y: e.clientY, fired: false };
+          const h = { timer: 0, x: e.clientX, y: e.clientY, fired: false, touch: e.pointerType !== 'mouse' };
           h.timer = window.setTimeout(() => {
             h.fired = true;
-            onHold();
-          }, 450);
+            try {
+              navigator.vibrate?.(10);
+            } catch {
+              /* not on iPhone */
+            }
+            onHold({ y: h.y, touch: h.touch });
+          }, 400);
           hold.current = h;
         },
         onPointerMove: (e: React.PointerEvent) => {
           const h = hold.current;
-          if (h && !h.fired && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 10) clearHold();
+          if (!h || h.fired) return;
+          if (Math.hypot(e.clientX - h.x, e.clientY - h.y) > 10) clearHold();
+          else h.y = e.clientY;
         },
         onPointerUp: clearHold,
-        onPointerCancel: clearHold,
-        onPointerLeave: clearHold,
+        onPointerCancel: () => {
+          if (!hold.current?.fired) clearHold();
+        },
+        onPointerLeave: () => {
+          if (!hold.current?.fired) clearHold();
+        },
         onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
       }
     : {};
@@ -103,7 +120,24 @@ export default function TrackRow({
         </div>
       </button>
       {selecting ? (
-        <span className={`tick${checked ? ' on' : ''}`} aria-hidden="true" onClick={onPlay} />
+        <>
+          <span className={`tick${checked ? ' on' : ''}`} aria-hidden="true" onClick={onPlay} />
+          {grip && (
+            <span
+              className="edit-grip"
+              role="button"
+              aria-label={`Drag ${track.title} to a new place`}
+              onPointerDown={(e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                e.preventDefault();
+                onGrip?.({ y: e.clientY, touch: e.pointerType !== 'mouse' });
+              }}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14" /></svg>
+            </span>
+          )}
+        </>
       ) : (
       <div className="end">
         <span className="dur">{formatDuration(track.duration_ms)}</span>

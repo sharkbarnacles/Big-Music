@@ -19,6 +19,8 @@ export default function TrackList({
   selected,
   onHold,
   onToggle,
+  grips = false,
+  onGrip,
 }: {
   tracks: TrackRowData[];
   video?: boolean;
@@ -26,8 +28,11 @@ export default function TrackList({
   onRemove?: (index: number) => void;
   // Select mode: `selected` (null = not selecting), hold to start, tap to tick.
   selected?: Set<number> | null;
-  onHold?: (index: number) => void;
+  onHold?: (index: number, at: { y: number; touch: boolean }) => void;
   onToggle?: (index: number) => void;
+  // Edit mode in your own playlists: drag grips for reordering.
+  grips?: boolean;
+  onGrip?: (index: number, at: { y: number; touch: boolean }) => void;
 }) {
   const selecting = !!selected;
   const player = usePlayer();
@@ -45,7 +50,9 @@ export default function TrackList({
           menuOpen={menuFor === i}
           selecting={selecting}
           checked={!!selected?.has(i)}
-          onHold={onHold && !selecting ? () => onHold(i) : undefined}
+          onHold={onHold ? (at) => onHold(i, at) : undefined}
+          grip={selecting && grips}
+          onGrip={onGrip ? (at) => onGrip(i, at) : undefined}
           onPlay={() => (selecting ? onToggle?.(i) : player.playList(tracks, i, { video, source }))}
           onVideo={() => player.playList(tracks, i, { video: true, source })}
           onMenu={(open) => setMenuFor(open ? i : null)}

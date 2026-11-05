@@ -93,6 +93,32 @@ export async function removeFromHubPlaylist(id: string, positions: number[]) {
   }
 }
 
+// Puts a hub playlist's songs in a new order. `order` lists the songs'
+// current places (positions) in the order you want them. The new order is
+// written first at fresh places after the old ones, and only then are the old
+// rows removed, so a failure can never lose songs. Returns the new places.
+export async function reorderHubPlaylist(id: string, order: number[]): Promise<number[]> {
+  await requireHub(id);
+  const { rows, error } = await fetchAllRows<{ position: number; track_id: string }>((from, to) =>
+    db().from('playlist_items').select('position, track_id').eq('playlist_id', id).order('position').range(from, to),
+  );
+  if (error) throw new Error(error);
+  const byPos = new Map(rows.map((r) => [r.position, r.track_id]));
+  const clean = order.map(Number);
+  if (clean.length !== rows.length || new Set(clean).size !== clean.length || clean.some((p) => !byPos.has(p))) {
+    throw new Error('This playlist changed somewhere else. Pull down to refresh, then try again.');
+  }
+  const base = rows.length ? rows[rows.length - 1].position + 1 : 0;
+  const fresh = clean.map((p, i) => ({ playlist_id: id, position: base + i, track_id: byPos.get(p)! }));
+  for (const part of chunk(fresh, 500)) {
+    const { error: e } = await db().from('playlist_items').insert(part);
+    if (e) throw new Error(e.message);
+  }
+  const { error: e2 } = await db().from('playlist_items').delete().eq('playlist_id', id).lt('position', base);
+  if (e2) throw new Error(e2.message);
+  return fresh.map((r) => r.position);
+}
+
 // "Set aside" (Playlist Tools Lab F2 + M3): any playlist (Spotify, YouTube or
 // yours) can go in the Set aside folder. It still plays, but songs that are
 // only in set-aside playlists stop shaping your taste (SQL taste_artists).

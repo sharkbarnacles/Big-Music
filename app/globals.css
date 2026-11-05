@@ -879,3 +879,22 @@ button.pl-pick:hover { border-color: var(--line); }
 /* Playlist radio button (UFO) beside Shuffle */
 .play-buttons .round-btn .picon { width: 26px; height: 26px; transform: translateY(1px); }
 .play-buttons .round-btn:disabled { opacity: .45; cursor: default; }
+
+/* Playlist edit mode (hold a song): ≡ grips, the lifted song, others sliding */
+.edit-grip {
+  flex: none; width: 40px; height: 44px; margin-right: -6px; display: grid; place-items: center;
+  color: var(--muted); touch-action: none; cursor: grab; -webkit-user-select: none; user-select: none;
+}
+.edit-grip svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.edit-list .item { background: var(--bg); }
+.edit-list .list.dragging .item { transition: transform .16s ease; }
+.edit-list .list.dragging .item.lifted {
+  transition: none; z-index: 5; position: relative;
+  background: var(--panel-2); border-radius: 10px; border-bottom-color: transparent;
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, .8), 0 0 0 1px var(--line);
+}
+.edit-list .list.dragging .item.lifted .edit-grip { color: var(--accent); cursor: grabbing; }
+.edit-list .list.dragging { -webkit-user-select: none; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .edit-list .list.dragging .item { transition: none; } }
+.sel-tip { margin: 0; text-align: center; }
+.sel-saved { font-weight: 400; }
