@@ -466,12 +466,25 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    top 4 songs of ~10 related artists per batch (+2 of the named artist
    early), continuation walks outwards (state `todo`/`seed` in the `p:`
    token); taste + tagFit lift, extra words favour artists tagged with them.
-   **Home Lab (2026-11-05, waiting for the owner's pick):** new Home look +
-   switch Playlists ↔ all Songs (Songs view = whole library with Play/Shuffle;
-   a chosen tag there = songs from playlists with that tag), pinned playlists
-   (planned `playlists.pinned_at`, order pinned; Pin in Home's Select bar and
-   playlist ⋯), playlist tags (planned table `playlist_tags` → existing `tags`;
-   several tags = playlists with all of them). Migration not applied yet.
+   **Home Lab pick L3 + T3 + P2 + G2 + E3 (2026-11-05):** `components/PlaylistBrowser.tsx`
+   + `app/page.tsx`. T3: two-icon switch at the start of the controls line,
+   Playlists ↔ Songs (`/?view=songs`, last choice in cookie `mh-home-view`;
+   Songs = `library_page` with `?ssort=` recent/artist/title). P2: pinned
+   playlists (`playlists.pinned_at`, oldest pin first) as 2-column quick
+   tiles above the controls; Pin/Unpin in Home's Select bar and the playlist
+   ⋯ menu (`/api/playlists/pin`, `lib/playlistTags.ts`). L3: "Recently
+   updated" shelf (12 covers) then "All playlists". G2: "Tags" button →
+   tick-box menu; several = playlists with all of them; in Songs view the
+   songs from those playlists (`library_page(tag_ids uuid[])`, `?tags=id,id`).
+   E3: tags = existing `tags` table (color = palette name teal/purple/amber/
+   rose/blue/green, `--tag-*` in globals.css) + new `playlist_tags`;
+   `components/TagSheet.tsx` (Select → "Tag…", and "+ Tag" on playlist
+   pages via `PlaylistTags.tsx`, pills tap to remove); `/api/playlists/tags`.
+   Home now reads all playlists page by page (`fetchAllRows`, >1,000 safe).
+   **The SQL could not be applied from the session** (Supabase confirmation
+   auto-cancelled on the phone); owner runs it in the SQL Editor from
+   https://claude.ai/artifact/QWYqPLMeZdxnmZyWHtVkY6 . Push the app code only
+   after `select pinned_at from playlists limit 1` works.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
@@ -528,4 +541,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Similar-artist radios ("similar to Silica Gel").
   Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove
 - 2026-11-05: Seamless Spotify mode (Spotify versions of YouTube-only songs, skip what Spotify lacks, YouTube fallback during time-outs); import slowed and yields to playback.
-- 2026-11-05: Home Lab (new Home look, Playlists/Songs switch, pins, playlist tags).
+- 2026-11-05: Home Lab; built pick L3+T3+P2+G2+E3 (Songs switch, pinned tiles, shelf, playlist tags).
