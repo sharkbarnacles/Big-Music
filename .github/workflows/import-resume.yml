@@ -33,7 +33,9 @@ jobs:
             curl -sS "$SUPABASE_URL/rest/v1/import_progress?service=eq.spotify&select=done,blocked_until,next_offset,total" \
               -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY"
           }
-          for round in $(seq 1 40); do
+          # At most 3 rounds (~12 min) an hour: a steady, slow import keeps Spotify
+          # from putting the app on a time-out (which also stops Spotify playback).
+          for round in $(seq 1 3); do
             row=$(status | jq -c '.[0] // empty')
             if [ -z "$row" ] || [ "$(jq -r '.done' <<<"$row")" = "true" ]; then
               echo "Nothing waiting."; exit 0

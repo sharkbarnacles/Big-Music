@@ -9,6 +9,26 @@ const API = 'https://api.spotify.com/v1';
 export const NO_DEVICE_MESSAGE =
   'Spotify is asleep on this phone. Open the Spotify app for a moment, then come back. Or switch on YouTube mode to play here instead.';
 
+// Spotify put the app on a time-out (HTTP 429); `secs` is how long.
+export class SpotifyRateLimited extends Error {
+  constructor(public secs: number) {
+    super('rate_limited');
+  }
+}
+
+function rateLimitedReply(secs: number) {
+  const when =
+    secs > 5400 ? `about ${Math.round(secs / 3600)} hours` : secs > 90 ? `about ${Math.round(secs / 60)} minutes` : 'a moment';
+  return NextResponse.json(
+    {
+      error: 'rate_limited',
+      retryAfter: secs,
+      message: `Spotify has paused the app for ${when} (too many requests). Playing through YouTube meanwhile.`,
+    },
+    { status: 429 },
+  );
+}
+
 type Device = { id: string; name: string; type: string; is_active: boolean; is_restricted: boolean };
 
 export async function spotifyFetch(path: string, init: { method?: string; body?: string } = {}) {
@@ -24,6 +44,7 @@ export async function spotifyFetch(path: string, init: { method?: string; body?:
 // else the one already playing, else your phone, else any open Spotify app.
 export async function pickDevice(preferredId?: string | null): Promise<Device | null> {
   const res = await spotifyFetch('/me/player/devices');
+  if (res.status === 429) throw new SpotifyRateLimited(Number(res.headers.get('retry-after')) || 0);
   if (!res.ok) throw new Error(`Spotify ${res.status}: ${(await res.text()).slice(0, 150)}`);
   const { devices = [] } = (await res.json()) as { devices?: Device[] };
   const usable = devices.filter((d) => d.id && !d.is_restricted);
@@ -39,6 +60,8 @@ export async function pickDevice(preferredId?: string | null): Promise<Device | 
 // Turns a failed Spotify reply into a message a person can act on.
 export async function explainFailure(res: Response) {
   const text = await res.text();
+  // Spotify puts the whole app on a time-out when it gets too many requests.
+  if (res.status === 429) return rateLimitedReply(Number(res.headers.get('retry-after')) || 0);
   if (res.status === 404 || text.includes('NO_ACTIVE_DEVICE')) {
     return NextResponse.json({ error: 'no_device', message: NO_DEVICE_MESSAGE }, { status: 409 });
   }
@@ -55,6 +78,7 @@ export async function explainFailure(res: Response) {
 }
 
 export function errorResponse(err: unknown) {
+  if (err instanceof SpotifyRateLimited) return rateLimitedReply(err.secs);
   if (err instanceof NotConnectedError) {
     return NextResponse.json({ error: 'not_connected', message: 'Spotify isn’t connected. Connect it from the Home page.' }, { status: 401 });
   }

@@ -159,6 +159,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const historyRef = useRef<TrackRowData[]>([]); // songs you were on before, newest last (for Back)
   const ytIdRef = useRef<string | null>(null); // the YouTube video loaded right now
   const versionsAskedRef = useRef(new Set<string>()); // songs already asked about
+  // Spotify versions found for songs that came from YouTube (song id → Spotify id, null = not on Spotify).
+  const spotifyMatchRef = useRef(new Map<string, string | null>());
 
   // Crash log. Errors anywhere in the app are noted, and so is a restart that
   // happens while music was playing: iOS shutting the home-screen app down
@@ -371,7 +373,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const decide = (track: TrackRowData, wantVideo: boolean): Choice => {
     if (wantVideo && track.video_id) return { engine: 'youtube', id: track.video_id };
-    const spotify = sourceId(track, 'spotify');
+    const spotify = sourceId(track, 'spotify') ?? spotifyMatchRef.current.get(track.id) ?? null;
     if (!ytModeRef.current && spotify) return { engine: 'spotify', id: spotify };
     const yt = track.yt_audio_id ?? sourceId(track, 'youtube') ?? track.video_id;
     if (yt) return { engine: 'youtube', id: yt };
@@ -383,6 +385,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (i + 1 < n) return i + 1;
     if (repeatRef.current === 'all' && n > 0) return 0;
     return null;
+  };
+
+  // Spotify mode: find Spotify versions of the coming songs that only came
+  // from YouTube (YouTube playlists, discoveries, radios), so Spotify gets the
+  // whole line-up and keeps playing with the phone locked. Each song is looked
+  // up once (the server remembers); this waits at most a few seconds.
+  const findSpotifyVersions = async (from: number) => {
+    const want = queueRef.current
+      .slice(from, from + 40)
+      .filter((t) => !sourceId(t, 'spotify') && !spotifyMatchRef.current.has(t.id));
+    if (!want.length) return;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch('/api/spotify/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songs: want.map((t) => ({ key: t.id, title: t.title, artist: t.artist })) }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      const data = await res.json().catch(() => ({}));
+      for (const [k, v] of Object.entries((data.matches ?? {}) as Record<string, string | null>)) spotifyMatchRef.current.set(k, v);
+    } catch {
+      /* play what we can; the rest plays through YouTube while the hub is open */
+    }
   };
 
   // Asks the server to find a YouTube version of a Spotify-only song.
@@ -424,6 +452,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setProgress(opts.positionMs ?? 0);
     setDuration(track.duration_ms ?? 0);
 
+    if (!ytModeRef.current && !videoRef.current) {
+      setBusy(true);
+      await findSpotifyVersions(i);
+      if (token !== tokenRef.current) return;
+      setBusy(false);
+    }
     let choice = decide(track, videoRef.current);
     if (choice.engine === 'lookup') {
       setBusy(true);
@@ -494,9 +528,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const list = queueRef.current;
     const ids: string[] = [];
     const idx: number[] = [];
-    for (let j = i; j < list.length && ids.length < 50; j++) {
+    // Songs Spotify doesn't have are skipped, so the music never stops
+    // with the phone locked (the hub would need to be open to play them).
+    for (let j = i; j < list.length && j < i + 150 && ids.length < 50; j++) {
       const c = decide(list[j], videoRef.current);
-      if (c.engine !== 'spotify') break;
+      if (c.engine !== 'spotify') continue;
       ids.push(c.id);
       idx.push(j);
     }
@@ -521,6 +557,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         // Spotify is asleep: wake it up for you and let the server start the music.
         wakeSpotify(token, { ids, positionMs, deviceId: sdkDeviceRef.current, repeatOne: repeatRef.current === 'one' });
         return;
+      }
+      if (!res.ok && data.error === 'rate_limited') {
+        // Spotify has the app on a time-out: play this song through YouTube instead.
+        const yt = list[i].yt_audio_id ?? sourceId(list[i], 'youtube') ?? list[i].video_id;
+        showToast(data.message);
+        if (yt) {
+          startYouTube(yt, positionMs);
+          return;
+        }
       }
       if (!res.ok) {
         setPlay(false);
@@ -781,11 +826,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // give Spotify the new line-up, continuing the current song where it is.
   const resyncSpotify = () => {
     if (engineRef.current !== 'spotify' || !runRef.current) return;
+    // New songs from YouTube get their Spotify versions looked up first.
+    findSpotifyVersions(indexRef.current).then(resyncNow);
+  };
+  const resyncNow = () => {
+    if (engineRef.current !== 'spotify' || !runRef.current) return;
     const list = queueRef.current;
     const ids: string[] = [];
-    for (let j = indexRef.current; j < list.length && ids.length < 50; j++) {
+    for (let j = indexRef.current; j < list.length && j < indexRef.current + 150 && ids.length < 50; j++) {
       const c = decide(list[j], videoRef.current);
-      if (c.engine !== 'spotify') break;
+      if (c.engine !== 'spotify') continue;
       ids.push(c.id);
     }
     const run = runRef.current;

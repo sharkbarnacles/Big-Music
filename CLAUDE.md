@@ -108,9 +108,19 @@ Environment variables (set in Vercel; names only, never values):
     keeps playing with the phone locked); leftovers from the last handoff
     (`spotify_queue_state`) are skipped with next. No device → the player
     opens `spotify:` and a keepalive POST with `wait:true` polls devices
-    server-side for 45 s, then starts. Untested on the phone yet (Spotify
-    time-out until 2026-11-04 08:31 UTC). Discoveries have no Spotify IDs, so
-    they still need YouTube mode.
+    server-side for 45 s, then starts. Untested on the phone yet.
+    **Seamless Spotify mode (2026-11-05):** songs without a Spotify ID
+    (YouTube playlists, discoveries, radios) get looked up with Spotify search
+    before each hand-off (`/api/spotify/match`, `lib/spotifyMatch.ts`, cached
+    in `spotify_matches`, ≤12 searches per call; player `findSpotifyVersions`,
+    `spotifyMatchRef`); songs Spotify lacks are skipped in the hand-off so
+    the music never stops when locked. A Spotify 429 (app time-out) →
+    `rate_limited` reply and the player plays that song via YouTube.
+    **Imports yield to playback:** 1 request/s, any 429 longer than 10 s
+    stops the import for ≥1 h, no import within 3 h of Spotify-mode playback
+    (`spotify_queue_state.updated_at`), and the hourly job runs ≤3 rounds.
+    (The fast import caused two ~24 h app time-outs, which also block
+    Spotify playback: 2026-11-03 and 2026-11-04 → until 11-05 09:35 UTC.)
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -230,8 +240,9 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   but **Spotify was incomplete** (243 of the owner's several thousand) and
   playlist dates were missing, so Home's "Recently updated" sort did nothing.
   Owner asked to re-run Import for Spotify (rounds) and YouTube (dates).
-  2026-11-03: Spotify put the app on a ~21 h time-out (until 2026-11-04
-  08:31 UTC); the hourly job resumes the Spotify import after that by itself.
+  Spotify time-outs from the import: until 2026-11-04 08:31 UTC, then again
+  until 2026-11-05 09:35 UTC (332 of 3,357 playlists done). The import is
+  now much slower and pauses while Spotify mode is in use.
   Check: `select * from import_progress;`
 - Background finder is still filling YouTube versions (started 2026-11-03,
   expected to cover the library within about a day). Check progress:
@@ -509,3 +520,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   Goth/emo/metal/visual kei/cottagecore… styles; Daily discover leans English + Korean.
   Similar-artist radios ("similar to Silica Gel").
   Playlist Tools F2+M3+P3+S2 built: Set aside folder (out of taste), searchable add window, hold-to-select move/copy/remove
+- 2026-11-05: Seamless Spotify mode (Spotify versions of YouTube-only songs, skip what Spotify lacks, YouTube fallback during time-outs); import slowed and yields to playback.

@@ -26,9 +26,10 @@ export class SpotifyPaused extends Error {
   }
 }
 
-// Keep a calm pace (about 3 requests a second) so Spotify doesn't put the
-// app on a long time-out, which happened once with a big library.
-const MIN_GAP_MS = 330;
+// Keep a slow pace (about 1 request a second) so Spotify doesn't put the
+// app on a long time-out. A time-out blocks playback in Spotify mode too
+// (it happened twice with a big library at ~3 requests a second).
+const MIN_GAP_MS = 1000;
 let lastCallAt = 0;
 async function pace() {
   const wait = lastCallAt + MIN_GAP_MS - Date.now();
@@ -44,8 +45,9 @@ async function call(token: string, pathOrUrl: string): Promise<any> {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (res.status === 429) {
       const wait = Number(res.headers.get('retry-after')) || 2;
-      // A long wait would outlast the 5-minute limit; stop and let the next round retry.
-      if (wait > 30) throw new SpotifyPaused(new Date(Date.now() + wait * 1000));
+      // Anything but a short wait: stop and leave Spotify alone for at least an
+      // hour, so playing music in Spotify mode isn't blocked by the import.
+      if (wait > 10) throw new SpotifyPaused(new Date(Date.now() + Math.max(wait, 3600) * 1000));
       await new Promise((r) => setTimeout(r, wait * 1000));
       continue;
     }
@@ -95,6 +97,7 @@ function toTrack(t: any): ImportedTrack | null {
 // next time only fetch songs for playlists whose snapshot is different.
 
 const ROUND_MS = 240_000; // stop starting new playlists after 4 minutes
+const PLAYBACK_QUIET_MS = 3 * 60 * 60 * 1000; // no importing within 3 h of Spotify-mode playback
 const RESUME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // an unfinished import older than a week starts over
 
 export type RoundResult = ImportSummary & {
@@ -209,6 +212,17 @@ export async function importSpotify(): Promise<RoundResult> {
       service: 'spotify', playlists: saved.playlists, songs: saved.songs, excluded: saved.excluded,
       skipped: saved.skipped ?? [], unchanged: saved.unchanged, done: false, total: saved.total,
       processed: saved.next_offset, paused: true, blockedUntil: saved.blocked_until,
+    };
+  }
+  // Music is playing (or played recently) through Spotify: playback comes
+  // first, so the import waits until Spotify mode has been idle for 3 hours.
+  const { data: qs } = await db().from('spotify_queue_state').select('updated_at').eq('id', 1).maybeSingle();
+  const playedAt = qs?.updated_at ? Date.parse(qs.updated_at) : 0;
+  if (saved && !saved.done && Date.now() - playedAt < PLAYBACK_QUIET_MS) {
+    return {
+      service: 'spotify', playlists: saved.playlists, songs: saved.songs, excluded: saved.excluded,
+      skipped: saved.skipped ?? [], unchanged: saved.unchanged, done: false, total: saved.total,
+      processed: saved.next_offset, paused: true, blockedUntil: new Date(playedAt + PLAYBACK_QUIET_MS).toISOString(),
     };
   }
   const resume = saved && !saved.done && Date.now() - Date.parse(saved.updated_at) < RESUME_WINDOW_MS;

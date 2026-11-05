@@ -581,3 +581,15 @@ create or replace function set_aside_track_list()
 returns uuid[] language sql stable as $$
   select coalesce(array_agg(track_id), '{}') from set_aside_track_ids();
 $$;
+
+-- ── Spotify versions of songs that only came from YouTube ───────────
+-- Spotify mode hands Spotify a whole line-up so it keeps playing with the
+-- phone locked. Songs without a Spotify ID (YouTube-only songs, discoveries,
+-- radio songs) are looked up once with Spotify search and remembered here
+-- (spotify_id null = not on Spotify). Key: simplified "artist|title".
+create table if not exists spotify_matches (
+  match_key  text primary key,
+  spotify_id text,
+  checked_at timestamptz not null default now()
+);
+alter table spotify_matches enable row level security;
