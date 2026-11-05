@@ -860,12 +860,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // after Spotify's so ours is the newest, then put our song card back.
   const claimRef = useRef<() => void>(() => {});
   const seekRef = useRef<(ms: number) => void>(() => {});
-  // Spotify's player keeps loading for a few seconds after a song change and
-  // can take the lock screen back late, so the hub claims it three times.
+  // Once, 0.6 s after the hub itself starts a song or skips (not on Spotify's
+  // own automatic song changes: claiming then made iOS flip between cards).
   const claimTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const claimLockScreen = () => {
     claimTimersRef.current.forEach(clearTimeout);
-    claimTimersRef.current = [600, 3000, 8000].map((ms) =>
+    claimTimersRef.current = [600].map((ms) =>
       setTimeout(() => {
         if (engineRef.current !== 'spotify' || !sdkLiveRef.current) return;
         keepAwake(true, true);
@@ -911,11 +911,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     keepAwake(!st.paused || Boolean(ended));
     // A new song or playing again after a pause: Spotify's frame just took the
     // lock screen, so take it back for the hub's card.
-    if (!st.paused && (!last.playing || ids[0] !== last.id)) {
-      claimedIdRef.current = ids[0] ?? null;
-      claimLockScreen();
-    }
-    else setLockPosition(st.position ?? 0, st.duration ?? 0, !st.paused);
+    // The lock-screen card is claimed only when the hub itself starts or
+    // skips (see claimLockScreen); claiming on every automatic song change
+    // made iOS flip between two cards (owner, 2026-11-05).
   };
 
   // The in-hub player sometimes stops by itself (seen: it froze ~2 s before a
@@ -979,10 +977,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           trackName: cur?.name ?? null,
           deviceId: sdkDeviceRef.current,
         });
-        if (!st.paused && cur?.id && cur.id !== claimedIdRef.current) {
-          claimedIdRef.current = cur.id;
-          claimRef.current();
-        }
         if (userPausedRef.current) {
           stallRef.current = null;
           return;

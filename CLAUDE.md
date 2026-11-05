@@ -231,6 +231,11 @@ Environment variables (set in Vercel; names only, never values):
     (play() allowed, hidden:true) yet the card still went blank, so iOS seems
     to pick Spotify's frame regardless; now claims run 0.6 s, 3 s and 8 s after
     each change. If still blank, it's likely an iOS limit (tell the owner).
+    **Rolled back (owner 12:10 UTC: card still blank, glitchier, ±10 s buttons
+    instead of skips, time out of sync):** claims now happen only once, 0.6 s
+    after the hub itself starts or skips a song; no claims or position updates
+    on Spotify's automatic song changes. Blank card on automatic changes =
+    accepted iOS limit unless the owner wants more tries.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -732,3 +737,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify plays the hub's line-up as one list (old Spotify queue skipped), instant skip, one start at a time, lock card re-claimed on each song.
 - 2026-11-05: In-hub Spotify: clears long old queues, skips leftovers itself, lock card claimed by switching between two silent players.
 - 2026-11-05: Lock card claimed three times after each song change (old 54-song queue cleared once).
+- 2026-11-05: Lock card: back to one claim when the hub starts/skips (repeated claims made it flip and lose skip buttons).
