@@ -648,6 +648,24 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    `loadTaste()` (cache now 10 min) adds `skips` (decayed, half-life 30 d,
    first skip free, loved artists judged gently) and `languages`.
    `discover.py` leaves out related artists with ≥3 decayed skips.
+   **Word radios from your corner (2026-11-05, owner: word radios "often felt
+   random and unfitting"; e.g. "dreamy rainy night" → 2000s R&B, "Rainy day"
+   → nu metal, "beautifully my music taste" → generic classic hits):**
+   `lib/tasteNeighbourhood.ts`: moods → genre tags (`MOOD_TAGS`), styles →
+   their words + RELATED; your top 300 artists whose MusicBrainz tags contain
+   a wanted tag (`tagHits`, one-way match) are picked weighted (hits² ×
+   liking, × (1−skip)), 5 of their library songs (with yt_audio_id) seed
+   YouTube Music radios, woven ("v:<id>" seeds go into `state.used`). In
+   `promptRadio`: runs alongside the playlist search when there's a mood or
+   style (with an origin only if it has a script; songs kept only in that
+   script); `TASTE_ME` prompts ("my taste", "for me"…) use only this, with
+   every artist you like. Playlists: dropped if <8% of their first 40 songs
+   are near you (no origin asked), −10 if their known artists' genres miss
+   the mood (≥5 known, <15%), +6×near. Playlist songs by far artists are
+   dropped once your corner has ≥25 songs. Final order weaves about 3 songs
+   from your corner to 2 from playlists. Tested with try-prompt.yml on
+   dreamy rainy night / Rainy day / dark goth / happy summer / experimental
+   mandarin / chill thai / sad korean indie / my music taste.
    **Similar-artist radios:** "similar to / like / sounds like / artists
    like / fans of <artist> [but <words>]" (`lib/similarRadio.ts`): YouTube
    Music artist search (`searchArtists`), its "Fans might also like" →
@@ -826,3 +844,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Playback deep check: direct Spotify start from the phone, no autoplay "clearing", lookup no longer blocks taps, review fixes (settle window, stale timers, double sound).
 - 2026-11-05: In-hub Spotify: reconnects when Spotify forgot the player (no more YouTube stand-ins), moves a stand-in song back to Spotify.
 - 2026-11-05: Taste in every radio (song + playlist radios ranked by your tags, artists, languages, voices), skips learned (Next on songs you didn't pick), Discover avoids often-skipped artists.
+- 2026-11-05: Word radios built from your own corner of music in that mood (your artists' genres → seed radios), playlists must be near your taste and sound like the mood; "my taste" prompts use only your music.

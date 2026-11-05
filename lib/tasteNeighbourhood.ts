@@ -17,7 +17,7 @@ import type { WebSong } from './ytBrowse';
 
 // Genre tags that usually carry each mood (MusicBrainz / Last.fm style names).
 export const MOOD_TAGS: Record<string, string[]> = {
-  chill: ['chillwave', 'bedroom pop', 'lo-fi', 'neo soul', 'alternative r&b', 'indie pop', 'dream pop', 'jazz', 'trip hop', 'r&b'],
+  chill: ['chillwave', 'bedroom pop', 'lo-fi', 'neo soul', 'alternative r&b', 'indie pop', 'dream pop', 'jazz', 'trip hop'],
   dark: ['darkwave', 'post-punk', 'gothic rock', 'trip hop', 'industrial', 'coldwave', 'doom', 'black metal', 'shoegaze'],
   sad: ['sadcore', 'slowcore', 'emo', 'indie folk', 'singer-songwriter', 'ballad', 'midwest emo', 'shoegaze'],
   happy: ['indie pop', 'city pop', 'funk', 'disco', 'k-pop', 'power pop', 'pop'],
@@ -27,7 +27,7 @@ export const MOOD_TAGS: Record<string, string[]> = {
   dreamy: ['dream pop', 'shoegaze', 'ambient', 'ethereal', 'bedroom pop', 'chillwave', 'neo-psychedelia', 'ethereal wave', 'slowcore'],
   soft: ['bedroom pop', 'indie folk', 'acoustic', 'dream pop', 'chamber pop', 'singer-songwriter', 'indie pop'],
   whimsical: ['chamber pop', 'baroque pop', 'indie folk', 'art pop', 'freak folk', 'twee pop', 'psychedelic pop'],
-  night: ['alternative r&b', 'r&b', 'synthwave', 'dream pop', 'trip hop', 'neo soul', 'city pop', 'chillwave'],
+  night: ['alternative r&b', 'synthwave', 'dream pop', 'trip hop', 'neo soul', 'city pop', 'chillwave'],
   rainy: ['indie folk', 'slowcore', 'sadcore', 'acoustic', 'singer-songwriter', 'dream pop', 'lo-fi', 'ambient', 'jazz'],
   sleep: ['ambient', 'dream pop', 'slowcore', 'neoclassical', 'acoustic'],
   focus: ['ambient', 'post-rock', 'instrumental', 'math rock', 'neoclassical', 'jazz'],
