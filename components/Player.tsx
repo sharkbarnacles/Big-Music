@@ -262,6 +262,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
   const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean; list?: boolean } | null>(null);
   const skipLeftoverAtRef = useRef(0);
+  // When the current line-up started, and a stranger song seen since when:
+  // right after a start Spotify still reports the old song for a moment.
+  const runStartedAtRef = useRef(0);
+  const expectPosRef = useRef(0);
+  const strangerRef = useRef<{ key: string; since: number } | null>(null);
   const startingRef = useRef(false); // a Spotify start is on its way (screen shows loading)
   const sdkLiveRef = useRef(false); // the hub's own Spotify player is the one playing
   const userPausedRef = useRef(false); // you pressed pause (so a stop isn't "the song ended")
@@ -511,7 +516,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setBusy(true);
       await findSpotifyVersions(i);
       if (token !== tokenRef.current) return;
-      setBusy(false);
+      // busy stays on: the Spotify start right after keeps the spinner going.
     }
     let choice = decide(track, videoRef.current);
     if (choice.engine === 'lookup') {
@@ -531,6 +536,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
     if (choice.engine === 'spotify') await startSpotify(i, token, opts.positionMs ?? 0);
     else {
+      setBusy(false);
       startYouTube(choice.id, opts.positionMs ?? 0);
       findVersions(track, token);
     }
@@ -686,6 +692,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       sdkLiveRef.current = Boolean(sdkDeviceRef.current && data.deviceId === sdkDeviceRef.current);
       posRef.current = { ms: positionMs, at: Date.now() };
+      runStartedAtRef.current = Date.now();
+      expectPosRef.current = 0;
       setPlay(true);
       startingRef.current = false;
       if (sdkLiveRef.current) {
@@ -1224,6 +1232,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           return Boolean(t) && simpleName(t.title) === want;
         });
       }
+      // Just started: Spotify may still report the song from before (or a
+      // song further down the new list); wait for it to settle.
+      if (Date.now() - runStartedAtRef.current < 5000 && pos !== expectPosRef.current) return;
+      if (pos >= 0) strangerRef.current = null;
       if (pos < 0 && lastPlayedEndRef.current && run.sent >= run.ids.length) {
         // The whole list played and Spotify carried on with its own picks:
         // the hub takes over with the song after the list.
@@ -1235,7 +1247,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       // In the hub's own player Spotify was given exactly the hub's list, so a
       // stranger is an old leftover from Spotify's queue: skip past it.
-      if (pos < 0 && run.list && sdkLiveRef.current && sdkPlayerRef.current?.nextTrack && Date.now() - skipLeftoverAtRef.current > 2500) {
+      const strangerKey = d.trackIds[0] ?? d.trackName ?? '';
+      if (pos < 0 && strangerRef.current?.key !== strangerKey) strangerRef.current = { key: strangerKey, since: Date.now() };
+      if (
+        pos < 0 &&
+        run.list &&
+        sdkLiveRef.current &&
+        sdkPlayerRef.current?.nextTrack &&
+        Date.now() - (strangerRef.current?.since ?? Date.now()) > 2500 &&
+        Date.now() - skipLeftoverAtRef.current > 2500
+      ) {
         skipLeftoverAtRef.current = Date.now();
         clientLog('spotify', 'skipping a leftover', { name: d.trackName ?? null });
         sdkPlayerRef.current.nextTrack().catch(() => {});
@@ -1388,6 +1409,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const leaving = queueRef.current[indexRef.current];
         if (leaving) historyRef.current.push(leaving);
         userPausedRef.current = false;
+        runStartedAtRef.current = Date.now();
+        expectPosRef.current = pos + 1;
         setI(n);
         setProgress(0);
         posRef.current = { ms: 0, at: Date.now() };

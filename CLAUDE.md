@@ -236,6 +236,17 @@ Environment variables (set in Vercel; names only, never values):
     after the hub itself starts or skips a song; no claims or position updates
     on Spotify's automatic song changes. Blank card on automatic changes =
     accepted iOS limit unless the owner wants more tries.
+    **Quicker, steadier starts (owner 12:28 UTC: lag between taps, wrong song
+    sometimes, play icon gone instead of a spinner):** `startInHub` no longer
+    hands over first (only on a 404), runs shuffle/repeat/save in parallel,
+    reads the queue once after 0.5 s (its `currently_playing` confirms) and
+    checks `/me/player` once more only if needed (~1.5 s instead of ~4.5 s).
+    Client: for 5 s after a start / instant skip, Spotify states that aren't
+    the expected list position are ignored (`runStartedAtRef`,
+    `expectPosRef`; Spotify briefly still reports the previous song, which
+    moved the hub to the wrong song or triggered 'skipping a leftover');
+    a stranger must persist 2.5 s before it's skipped (`strangerRef`);
+    `playAt` keeps `busy` on through the Spotify version lookup.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -738,3 +749,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify: clears long old queues, skips leftovers itself, lock card claimed by switching between two silent players.
 - 2026-11-05: Lock card claimed three times after each song change (old 54-song queue cleared once).
 - 2026-11-05: Lock card: back to one claim when the hub starts/skips (repeated claims made it flip and lose skip buttons).
+- 2026-11-05: In-hub Spotify: faster starts, no wrong-song jumps right after a tap, spinner stays during loading.

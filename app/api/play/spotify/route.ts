@@ -118,16 +118,22 @@ async function leftoverCount(previous: string[]): Promise<number> {
 // Spotify plays its queue before the list, so songs left in the queue by
 // earlier hand-offs are skipped past first (then the list is started again).
 async function startInHub(device: Device, ids: string[], positionMs: number, repeatOne: boolean) {
+  // Kept quick (owner: lag between taps): no hand-over step (play with the
+  // device id moves playback there), settings in parallel, one queue read
+  // that also tells what is playing.
   const target = `device_id=${encodeURIComponent(device.id)}`;
   const want = ids[0];
-  await makeActive(device);
-  await spotifyFetch(`/me/player/shuffle?state=false&${target}`, { method: 'PUT' }).catch(() => null);
   const play = () =>
     spotifyFetch(`/me/player/play?${target}`, {
       method: 'PUT',
       body: JSON.stringify({ uris: ids.map((id) => `spotify:track:${id}`), offset: { position: 0 }, position_ms: positionMs }),
     });
   let res = await play();
+  if (res.status === 404 && !device.is_active) {
+    // Not the active player yet and Spotify wants a hand-over first.
+    await makeActive(device);
+    res = await play();
+  }
   if (res.status === 429) {
     await logSpotify('play failed', { method: 'in-hub list', status: 429, retryAfter: res.headers.get('retry-after') });
     return explainFailure(res);
@@ -136,15 +142,24 @@ async function startInHub(device: Device, ids: string[], positionMs: number, rep
     await logSpotify('play refused', { method: 'in-hub list', status: res.status, reply: await replyText(res) });
     return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: 0, confirmed: false });
   }
+  const settings = Promise.all([
+    spotifyFetch(`/me/player/shuffle?state=false&${target}`, { method: 'PUT' }).catch(() => null),
+    spotifyFetch(`/me/player/repeat?state=${repeatOne ? 'track' : 'off'}&${target}`, { method: 'PUT' }).catch(() => null),
+    saveQueued([]),
+  ]);
 
   // Old songs waiting in Spotify's queue would play before the list. Spotify
   // shows at most 20 queued songs at a time, so this runs up to 4 rounds.
   let stale = 0;
+  let nowId: string | null = null;
+  let nowLinked: string | null = null;
   for (let round = 0; round < 4; round++) {
-    await sleep(round === 0 ? 1000 : 700);
+    await sleep(round === 0 ? 500 : 700);
     const qr = await spotifyFetch('/me/player/queue');
     if (!qr.ok) break;
     const q = await qr.json().catch(() => ({}));
+    nowId = (q.currently_playing?.id as string) ?? null;
+    nowLinked = (q.currently_playing?.linked_from?.id as string) ?? null;
     const items: { id?: string }[] = q.queue ?? [];
     let n: number;
     if (ids.length > 1) {
@@ -159,29 +174,21 @@ async function startInHub(device: Device, ids: string[], positionMs: number, rep
     }
     stale += n;
     res = await play();
+    nowId = null;
   }
-  if (stale > 0) {
-    await logSpotify('cleared old queue', { skipped: stale, replayStatus: res.status });
+  await settings;
+  if (stale > 0) await logSpotify('cleared old queue', { skipped: stale, replayStatus: res.status });
+  if (stale > 0 || (nowId !== want && nowLinked !== want)) {
+    // Spotify may still be switching over: look once more.
     await sleep(800);
+    const r = await spotifyFetch('/me/player');
+    const p = r.ok && r.status !== 204 ? await r.json().catch(() => ({})) : {};
+    nowId = (p.item?.id as string) ?? null;
+    nowLinked = (p.item?.linked_from?.id as string) ?? null;
   }
-  await saveQueued([]);
-  await spotifyFetch(`/me/player/repeat?state=${repeatOne ? 'track' : 'off'}&${target}`, { method: 'PUT' }).catch(() => null);
-
-  await sleep(700);
-  const r = await spotifyFetch('/me/player');
-  const p = r.ok && r.status !== 204 ? await r.json().catch(() => ({})) : {};
-  const item = (p.item?.id as string) ?? null;
-  const linked = (p.item?.linked_from?.id as string) ?? null;
-  const playing = Boolean(p.is_playing) && (item === want || linked === want);
-  await logSpotify(playing ? 'playing confirmed' : 'said yes but silent', { method: 'in-hub list', songs: ids.length, item, wanted: want, staleSkipped: stale });
-  return NextResponse.json({
-    ok: true,
-    device: device.name,
-    deviceId: device.id,
-    queued: ids.length - 1,
-    confirmed: playing || item === want || linked === want,
-    mode: 'list',
-  });
+  const confirmed = nowId === want || nowLinked === want;
+  await logSpotify(confirmed ? 'playing confirmed' : 'said yes but silent', { method: 'in-hub list', songs: ids.length, item: nowId, wanted: want, staleSkipped: stale });
+  return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: ids.length - 1, confirmed, mode: 'list' });
 }
 
 export async function POST(req: NextRequest) {
