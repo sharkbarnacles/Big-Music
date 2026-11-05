@@ -225,7 +225,12 @@ Environment variables (set in Vercel; names only, never values):
     leftover'). Keep-awake is now two silent players (`keepPoolRef`), both
     unlocked in the first tap; a claim starts the spare one and then stops the
     other (a brand-new start, no pause gap). Claims log 'lock card claimed' /
-    'lock card claim refused' (first 6 per load) with `hidden`.
+    'lock card claim refused' (first 12 per load) with `hidden`.
+    Test 11:54 UTC: the old queue held 54 leftovers (cleared once, ~30 s, then
+    starts were quick with 0 leftovers). Claims while locked logged 'claimed'
+    (play() allowed, hidden:true) yet the card still went blank, so iOS seems
+    to pick Spotify's frame regardless; now claims run 0.6 s, 3 s and 8 s after
+    each change. If still blank, it's likely an iOS limit (tell the owner).
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -726,3 +731,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify: mini player / Now Playing follow the song every second (watchdog state + name match).
 - 2026-11-05: In-hub Spotify plays the hub's line-up as one list (old Spotify queue skipped), instant skip, one start at a time, lock card re-claimed on each song.
 - 2026-11-05: In-hub Spotify: clears long old queues, skips leftovers itself, lock card claimed by switching between two silent players.
+- 2026-11-05: Lock card claimed three times after each song change (old 54-song queue cleared once).

@@ -797,10 +797,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           .then(() => {
             cur.pause();
             keepActiveRef.current = 1 - keepActiveRef.current;
-            if (claimLogRef.current++ < 6) clientLog('spotify', 'lock card claimed', { hidden: document.hidden });
+            if (claimLogRef.current++ < 12) clientLog('spotify', 'lock card claimed', { hidden: document.hidden });
           })
           .catch((e: Error) => {
-            if (claimLogRef.current++ < 6) clientLog('spotify', 'lock card claim refused', { hidden: document.hidden, error: e?.name ?? String(e) });
+            if (claimLogRef.current++ < 12) clientLog('spotify', 'lock card claim refused', { hidden: document.hidden, error: e?.name ?? String(e) });
           });
         return;
       }
@@ -858,18 +858,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
   // While the hub's own Spotify player plays: restart the silent sound just
   // after Spotify's so ours is the newest, then put our song card back.
-  const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const claimRef = useRef<() => void>(() => {});
   const seekRef = useRef<(ms: number) => void>(() => {});
+  // Spotify's player keeps loading for a few seconds after a song change and
+  // can take the lock screen back late, so the hub claims it three times.
+  const claimTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const claimLockScreen = () => {
-    if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
-    claimTimerRef.current = setTimeout(() => {
-      if (engineRef.current !== 'spotify' || !sdkLiveRef.current) return;
-      keepAwake(true, true);
-      setLockScreen(queueRef.current[indexRef.current] ?? null);
-      const d = durationRef.current;
-      setLockPosition(currentProgress(), d, true);
-    }, 600);
+    claimTimersRef.current.forEach(clearTimeout);
+    claimTimersRef.current = [600, 3000, 8000].map((ms) =>
+      setTimeout(() => {
+        if (engineRef.current !== 'spotify' || !sdkLiveRef.current) return;
+        keepAwake(true, true);
+        setLockScreen(queueRef.current[indexRef.current] ?? null);
+        setLockPosition(currentProgress(), durationRef.current, true);
+      }, ms),
+    );
   };
 
   // Every change in the hub's own Spotify player (play, pause, next song,
