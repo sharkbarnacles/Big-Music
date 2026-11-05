@@ -580,6 +580,33 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Make sure the hub's own Spotify player is connected (owner 2026-11-05:
+  // after a while away the hub said "wake Spotify" because the in-hub player
+  // had dropped off Spotify's device list). Waits up to 8 s.
+  const ensureSdkDevice = async (): Promise<string | null> => {
+    if (sdkDeviceRef.current) return sdkDeviceRef.current;
+    const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const until = Date.now() + 8000;
+    while (!sdkReadyRef.current && Date.now() < until) await pause(200);
+    let fresh = false;
+    if (!sdkPlayerRef.current && sdkReadyRef.current) {
+      makeSdkPlayerRef.current();
+      fresh = true;
+    }
+    const p = sdkPlayerRef.current;
+    if (!p) return null;
+    if (!fresh) {
+      clientLog('spotify', 'reconnecting in-hub player');
+      try {
+        p.connect();
+      } catch {
+        /* ignore */
+      }
+    }
+    while (!sdkDeviceRef.current && Date.now() < until) await pause(200);
+    return sdkDeviceRef.current;
+  };
+
   const startSpotify = async (i: number, token: number, positionMs: number): Promise<void> => {
     // One start at a time: quick skips while one is on its way just change
     // which song starts next (overlapping starts left Spotify confused).
@@ -618,8 +645,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setDuration(list[i]?.duration_ms ?? 0);
     setPlay(false);
     setBusy(true);
-    // The in-hub player was just made (first tap): give it a moment to connect.
-    if (!sdkDeviceRef.current && sdkWaitRef.current) await sdkWaitRef.current;
+    // The in-hub player was just made (first tap), or it dropped its link to
+    // Spotify while the app was in the background: (re)connect and wait.
+    if (!sdkDeviceRef.current) await ensureSdkDevice();
     try {
       const res = await fetch('/api/play/spotify', {
         method: 'POST',
@@ -647,12 +675,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         if (silent) spotifyAction('action=pause').catch(() => null);
         if (yt) {
           // Say it once per visit, not on every song.
-          if (!asleepToldRef.current) setNotice({
-            text: asleep
-              ? 'Spotify is asleep on this phone, so this plays through YouTube. Spotify takes over by itself once its app is awake.'
-              : 'Spotify didn’t start the song, so it plays through YouTube.',
-            link: { href: 'spotify:', label: 'Wake Spotify' },
-          });
+          if (!asleepToldRef.current) setNotice(
+            isPhone()
+              ? {
+                  text: asleep
+                    ? 'Spotify’s player in the hub didn’t connect in time, so this song plays through YouTube. The next song tries Spotify again.'
+                    : 'Spotify didn’t start the song, so it plays through YouTube.',
+                }
+              : {
+                  text: asleep
+                    ? 'Spotify is asleep, so this plays through YouTube. Spotify takes over by itself once it’s awake.'
+                    : 'Spotify didn’t start the song, so it plays through YouTube.',
+                  link: { href: 'spotify:', label: 'Wake Spotify' },
+                },
+          );
           asleepToldRef.current = true;
           startYouTube(yt, positionMs);
           return;
@@ -1940,6 +1976,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       player.addListener('not_ready', () => {
         sdkDeviceRef.current = null;
         sdkLiveRef.current = false;
+        clientLog('spotify', 'in-hub player dropped off');
       });
       player.addListener('player_state_changed', (st: any) => sdkStateRef.current(st));
       for (const ev of ['initialization_error', 'authentication_error', 'account_error', 'playback_error', 'autoplay_failed']) {

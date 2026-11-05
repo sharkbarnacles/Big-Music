@@ -27,13 +27,15 @@ const QUEUE_SIZE = 10;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function findDevice(preferred: string | null, wait: boolean) {
-  const until = Date.now() + (wait ? 45_000 : 0);
+  // The hub's own player can take a few seconds to show up in Spotify's
+  // device list after it (re)connects, so a named device gets 4 s.
+  const until = Date.now() + (wait ? 45_000 : preferred ? 4_000 : 0);
   let tries = 0;
   for (;;) {
     tries++;
     const devices = await listDevices();
     const device = chooseDevice(devices, preferred);
-    if (device || Date.now() > until) {
+    if ((device && (!preferred || device.id === preferred)) || Date.now() > until) {
       await logSpotify(device ? 'device found' : 'no device', {
         tries,
         waited: wait,
@@ -42,7 +44,7 @@ async function findDevice(preferred: string | null, wait: boolean) {
       });
       return device;
     }
-    await sleep(2500);
+    await sleep(preferred && !wait ? 700 : 2500);
   }
 }
 

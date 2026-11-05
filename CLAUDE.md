@@ -247,6 +247,15 @@ Environment variables (set in Vercel; names only, never values):
     moved the hub to the wrong song or triggered 'skipping a leftover');
     a stranger must persist 2.5 s before it's skipped (`strangerRef`);
     `playAt` keeps `busy` on through the Spotify version lookup.
+    **Reconnect instead of "wake Spotify" (owner 12:55 UTC: the hub asked to
+    wake Spotify in the app; diary: 'no device', device list empty, no
+    'in-hub player ready' since the app reopened):** `startSpotify` now calls
+    `ensureSdkDevice()` (waits for the SDK script, makes the player if
+    missing, otherwise `connect()` again, waits up to 8 s for 'ready'; logs
+    'reconnecting in-hub player'); `not_ready` logs 'in-hub player dropped
+    off'. The route's `findDevice` waits up to 4 s for the named device to
+    appear. On phones the YouTube fallback note no longer mentions the
+    Spotify app or shows "Wake Spotify".
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -758,3 +767,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Lock card: back to one claim when the hub starts/skips (repeated claims made it flip and lose skip buttons).
 - 2026-11-05: In-hub Spotify: faster starts, no wrong-song jumps right after a tap, spinner stays during loading.
 - 2026-11-05: Library: Radios pill → list of every radio you've made (play button, opens its page).
+- 2026-11-05: In-hub Spotify reconnects by itself when it dropped off (no more "wake Spotify" on the phone).
