@@ -826,7 +826,8 @@ button.pl-pick:hover { border-color: var(--line); }
 
 /* L3: Recently updated shelf */
 .pl-sec { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
-.pl-shelf { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; scroll-snap-type: x proximity; }
+.pl-shelf { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; }
+.pl-shelf::after { content: ""; flex: 0 0 4px; } /* room after the last cover */
 .pl-shelf::-webkit-scrollbar { display: none; }
 .shelf-tile { flex: none; width: 118px; display: grid; gap: 3px; scroll-snap-align: start; }
 .shelf-tile img, .shelf-tile .ph { width: 118px; height: 118px; max-width: 100%; border-radius: 10px; object-fit: cover; background: var(--panel-2); }
