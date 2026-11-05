@@ -145,6 +145,18 @@ Environment variables (set in Vercel; names only, never values):
     right away with a one-time note + optional "Wake Spotify" link; the next
     song tries Spotify again. An iPhone can't be woken without opening the
     Spotify app (no Web Playback SDK on iOS, Connect needs the app running).
+    **Three ways to start a song (2026-11-05):** the diary showed that even
+    with the iPhone awake and active, `play {uris:[track]}` returned OK and
+    `/me/player` then had **no item at all** (not even a wrong song). The
+    route now tries methods in turn, checking `/me/player` (playing + the
+    wanted id or its linked_from) after each: 'uris'; 'album' (`GET
+    /tracks/{id}` → `context_uri` album + `offset.uri` the track; the hub's
+    queue plays before the album continues); 'next' (queue the track, then
+    skip to it, then seek). The one that works is saved in `taste_settings`
+    key 'spotify_method' and tried first next time. None works →
+    `confirmed:false` → the hub plays that song via YouTube. The owner's
+    tries at 10:18–10:19 UTC still ran the old client (wake/switch path)
+    because the app hadn't reloaded after the deploy.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -637,3 +649,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Jump back in speed dial on Home (radios/albums/artists/songs, play button plays, tap opens).
 - 2026-11-05: Gentler Spotify mode (10-song hand-off + top-ups, 5 s polling), hand playback to the phone before playing, retry after waking, Spotify diary.
 - 2026-11-05: Spotify mode never switches apps (asleep/silent → YouTube for that song), play is confirmed and nudged once.
+- 2026-11-05: Spotify start tries uris → album+offset → queue+next, remembers what works.

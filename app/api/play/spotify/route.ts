@@ -77,6 +77,17 @@ async function addToQueue(ids: string[], target: string) {
   return queued;
 }
 
+type Method = 'uris' | 'album' | 'next';
+const METHODS: Method[] = ['uris', 'album', 'next'];
+async function loadMethod(): Promise<Method | null> {
+  const { data } = await db().from('taste_settings').select('value').eq('key', 'spotify_method').maybeSingle();
+  const m = (data?.value as { method?: string } | null)?.method;
+  return METHODS.includes(m as Method) ? (m as Method) : null;
+}
+async function saveMethod(method: Method) {
+  await db().from('taste_settings').upsert({ key: 'spotify_method', value: { method }, updated_at: new Date().toISOString() });
+}
+
 async function loadQueued(): Promise<string[]> {
   const { data } = await db().from('spotify_queue_state').select('queued').eq('id', 1).maybeSingle();
   return (data?.queued as string[] | undefined) ?? [];
@@ -133,48 +144,86 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Make sure this device is the player, then play the first song on its own.
+    // 2. Make sure this device is the player, then start the first song.
     await makeActive(device);
     await spotifyFetch(`/me/player/shuffle?state=false&${target}`, { method: 'PUT' }).catch(() => null);
-    const playBody = JSON.stringify({ uris: [`spotify:track:${ids[0]}`], position_ms: positionMs });
-    let res = await spotifyFetch(`/me/player/play?${target}`, { method: 'PUT', body: playBody });
-    if (!res.ok && res.status !== 429) {
-      // One more try after handing playback over (a sleepy phone app often needs it).
-      await logSpotify('play refused, trying again', { device: device.name, status: res.status, reply: await replyText(res) });
-      await makeActive({ ...device, is_active: false });
-      res = await spotifyFetch(`/me/player/play?${target}`, { method: 'PUT', body: playBody });
-    }
-    if (!res.ok) {
-      await logSpotify('play failed', { device: device.name, status: res.status, retryAfter: res.headers.get('retry-after'), reply: await replyText(res) });
-      return explainFailure(res);
-    }
-    await spotifyFetch(`/me/player/repeat?state=${body.repeatOne ? 'track' : 'off'}&${target}`, { method: 'PUT' }).catch(
-      () => null,
-    );
 
-    // Check that Spotify really plays it (on 2026-11-05 it said yes twice and
-    // stayed silent). If not, nudge it once with "resume".
+    // Spotify's iPhone app (Nov 2026) can say yes to "play this song" and then
+    // load nothing at all. So there are three ways to ask, tried in turn, and
+    // the one that worked is remembered for next time (taste_settings
+    // 'spotify_method'). After each, /me/player shows whether it really plays.
+    const want = ids[0];
     const check = async () => {
       await sleep(1500);
       const r = await spotifyFetch('/me/player');
-      if (r.status === 204 || !r.ok) return { playing: false, status: r.status, item: null as string | null, device: null as string | null };
+      if (r.status === 204 || !r.ok) return { playing: false, item: null as string | null, status: r.status };
       const p = await r.json().catch(() => ({}));
-      return { playing: Boolean(p.is_playing), status: r.status, item: (p.item?.id as string) ?? null, device: (p.device?.name as string) ?? null };
+      const item = (p.item?.id as string) ?? null;
+      const linked = (p.item?.linked_from?.id as string) ?? null;
+      return { playing: Boolean(p.is_playing) && (item === want || linked === want), item, status: r.status };
     };
-    let state = await check();
-    if (!state.playing) {
-      await logSpotify('said yes but silent, nudging', { ...state, wanted: ids[0] });
-      await spotifyFetch(`/me/player/play?${target}`, { method: 'PUT' }).catch(() => null);
+    const tryMethod = async (m: Method): Promise<Response | null> => {
+      if (m === 'uris') {
+        return spotifyFetch(`/me/player/play?${target}`, { method: 'PUT', body: JSON.stringify({ uris: [`spotify:track:${want}`], position_ms: positionMs }) });
+      }
+      if (m === 'album') {
+        // Play the song inside its album; the hub's queue (added next) plays before the album would continue.
+        const t = await spotifyFetch(`/tracks/${want}`);
+        if (!t.ok) return t;
+        const album = (await t.json().catch(() => ({})))?.album?.uri as string | undefined;
+        if (!album) return null;
+        return spotifyFetch(`/me/player/play?${target}`, {
+          method: 'PUT',
+          body: JSON.stringify({ context_uri: album, offset: { uri: `spotify:track:${want}` }, position_ms: positionMs }),
+        });
+      }
+      // 'next': put the song at the front of Spotify's queue and skip to it.
+      const q = await spotifyFetch(`/me/player/queue?uri=${encodeURIComponent(`spotify:track:${want}`)}&${target}`, { method: 'POST' });
+      if (!q.ok) return q;
+      await sleep(400);
+      const n = await spotifyFetch(`/me/player/next?${target}`, { method: 'POST' });
+      if (n.ok && positionMs > 0) {
+        await sleep(600);
+        await spotifyFetch(`/me/player/seek?position_ms=${positionMs}&${target}`, { method: 'PUT' }).catch(() => null);
+      }
+      return n;
+    };
+    const saved = await loadMethod();
+    const order: Method[] = [saved, ...METHODS.filter((m) => m !== saved)].filter(Boolean) as Method[];
+    let worked: Method | null = null;
+    let state = { playing: false, item: null as string | null, status: 0 };
+    for (const m of order) {
+      const res = await tryMethod(m);
+      if (res && res.status === 429) {
+        await logSpotify('play failed', { method: m, status: 429, retryAfter: res.headers.get('retry-after') });
+        return explainFailure(res);
+      }
+      if (!res || !res.ok) {
+        await logSpotify('play refused', { method: m, status: res?.status ?? null, reply: res ? await replyText(res) : 'no album' });
+        continue;
+      }
       state = await check();
+      await logSpotify(state.playing ? 'playing confirmed' : 'said yes but silent', { method: m, ...state, wanted: want });
+      if (state.playing) {
+        worked = m;
+        break;
+      }
     }
-    await logSpotify(state.playing ? 'playing confirmed' : 'still silent', { ...state, wanted: ids[0] });
+    if (worked && worked !== saved) await saveMethod(worked);
+    await spotifyFetch(`/me/player/repeat?state=${body.repeatOne ? 'track' : 'off'}&${target}`, { method: 'PUT' }).catch(
+      () => null,
+    );
+    if (!worked) {
+      // None worked: tell the hub, which plays the song through YouTube instead.
+      return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: 0, confirmed: false });
+    }
 
     // 3. Line up the next few in Spotify's own queue, in order.
     const queued = await addToQueue(ids.slice(1, 1 + QUEUE_SIZE), target);
     await saveQueued(queued);
     await logSpotify('started', { device: device.name, waited: body.wait === true, queued: queued.length, leftoversSkipped: leftovers });
 
-    return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: queued.length, skippedLeftovers: leftovers, confirmed: state.playing });
+    return NextResponse.json({ ok: true, device: device.name, deviceId: device.id, queued: queued.length, skippedLeftovers: leftovers, confirmed: true, method: worked });
   } catch (err) {
     await logSpotify('error', { message: (err as Error).message?.slice(0, 300) });
     return errorResponse(err);
