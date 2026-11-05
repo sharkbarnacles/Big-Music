@@ -37,7 +37,7 @@ if (ar) {
   const walk = (o) => {
     if (!o || typeof o !== 'object') return;
     const be = o.browseEndpoint;
-    if (be?.params && be?.browseId) found.push({ browseId: be.browseId, params: be.params });
+    if (be?.params && be?.browseId && /DISCOGRAPHY/.test(JSON.stringify(be))) found.push({ browseId: be.browseId, params: decodeURIComponent(be.params) });
     for (const v of Object.values(o)) walk(v);
   };
   walk(page.json?.contents);
