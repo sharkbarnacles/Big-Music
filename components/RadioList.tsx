@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { smallCover } from '@/lib/img';
-import { PLAYER_ICONS } from '@/lib/playerIcons';
 import type { RadioCard } from '@/lib/radioList';
 import { usePlayer } from './Player';
 
@@ -84,15 +83,5 @@ export default function RadioList({ radios }: { radios: RadioCard[] }) {
       </ul>
       {shown.length === 0 && <p className="muted small">No radio matches “{q}”.</p>}
     </>
-  );
-}
-
-// The pill on the Library pages that opens this list.
-export function RadiosPill({ on = false }: { on?: boolean }) {
-  return (
-    <Link href={on ? '/library' : '/library?view=radios'} className={`radios-pill${on ? ' on' : ''}`} aria-pressed={on}>
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="picon" dangerouslySetInnerHTML={{ __html: PLAYER_ICONS.radio }} />
-      Radios
-    </Link>
   );
 }

@@ -8,7 +8,7 @@ import PlaylistBrowser from '@/components/PlaylistBrowser';
 import { loadPlaylistCards } from '@/lib/playlistCards';
 import { listTags } from '@/lib/playlistTags';
 import PlayButtons from '@/components/PlayButtons';
-import RadioList, { RadiosPill } from '@/components/RadioList';
+import RadioList from '@/components/RadioList';
 import { loadRadios } from '@/lib/radioList';
 import WebResults from '@/components/WebResults';
 import { db } from '@/lib/db';
@@ -70,18 +70,17 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  // ── Radios (the pill beside the numbers) ──
+  // ── Radios (also the "Radios" chip in the playlist view) ──
   if (sp.view === 'radios') {
     const { radios, error } = await loadRadios();
     return (
       <main className="wrap">
         <Header />
         <Title title="Radios" />
-        <p className="lib-line with-pill">
+        <p className="lib-line">
           <span>
             <b>{radios.length.toLocaleString()}</b> {radios.length === 1 ? 'radio' : 'radios'}
           </span>
-          <RadiosPill on />
         </p>
         {error && <div className="notice error">{error}</div>}
         <div style={{ marginTop: 8 }}>
@@ -99,11 +98,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       <main className="wrap">
         <Header />
         <Title title="Library" />
-        <p className="lib-line with-pill">
+        <p className="lib-line">
           <span>
             <b>{total.toLocaleString()}</b> songs · <b>{cards.length.toLocaleString()}</b> playlists
           </span>
-          <RadiosPill />
         </p>
         {error && <div className="notice error">{error}</div>}
         <PlaylistBrowser playlists={cards} tags={tags} view="playlists" initialTags={chosen} base="/library" />
@@ -123,11 +121,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       <main className="wrap">
         <Header />
         <Title title="Artists" />
-        <p className="lib-line with-pill">
+        <p className="lib-line">
           <span>
             <b>{total.toLocaleString()}</b> songs · <b>{withVideo.toLocaleString()}</b> videos
           </span>
-          <RadiosPill />
         </p>
         <SearchRow params={params} placeholder="Search artists" />
         {error && <div className="notice error">{error}</div>}
@@ -189,7 +186,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         video={isVideos}
         source={{ query, total: matching }}
       />
-      <p className="lib-line with-pill">
+      <p className="lib-line">
         <span>
         {filtered ? (
           <>
@@ -201,7 +198,6 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           </>
         )}
         </span>
-        {!params.search && <RadiosPill />}
       </p>
       <SearchRow params={params} placeholder={isVideos ? 'Search music videos' : 'Search title, artist or album'} />
       {(params.search || search) && !isVideos && <WhereSwitch q={search} web={false} />}

@@ -7,6 +7,9 @@ import { usePlaylistPicker } from './PlaylistPicker';
 import LibraryList from './LibraryList';
 import PlayButtons from './PlayButtons';
 import TagSheet from './TagSheet';
+import RadioList from './RadioList';
+import type { RadioCard } from '@/lib/radioList';
+import { PLAYER_ICONS } from '@/lib/playerIcons';
 import SpeedDial from './SpeedDial';
 import type { SpeedDial as Dial } from '@/lib/speedDial';
 import { smallCover } from '@/lib/img';
@@ -39,7 +42,7 @@ export type HomeSongs = { tracks: TrackRowData[]; total: number; query: string; 
 export type HomeView = 'playlists' | 'songs';
 
 type Sort = 'recent' | 'az' | 'size';
-type Show = 'all' | 'hub' | 'spotify' | 'youtube' | 'aside';
+type Show = 'all' | 'hub' | 'spotify' | 'youtube' | 'aside' | 'radios';
 
 const SORTS: { id: Sort; label: string; short: string }[] = [
   { id: 'recent', label: 'Recently updated', short: 'Recent' },
@@ -103,6 +106,16 @@ export default function PlaylistBrowser({
 }) {
   const [sort, setSort] = useState<Sort>('recent');
   const [show, setShow] = useState<Show>('all');
+  // The "Radios" chip (after Mine): every radio you've made, loaded when first shown.
+  const [radios, setRadios] = useState<RadioCard[] | null>(null);
+  const [radiosError, setRadiosError] = useState<string | null>(null);
+  useEffect(() => {
+    if (show !== 'radios' || radios) return;
+    fetch('/api/radios')
+      .then((r) => r.json())
+      .then((d) => (d.radios ? setRadios(d.radios) : setRadiosError(d.error ?? 'Couldn’t load your radios.')))
+      .catch(() => setRadiosError('Couldn’t load your radios.'));
+  }, [show, radios]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagMenu, setTagMenu] = useState(false);
   const [chosen, setChosen] = useState<string[]>(initialTags);
@@ -137,7 +150,7 @@ export default function PlaylistBrowser({
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved?.sort && SORTS.some((s) => s.id === saved.sort)) setSort(saved.sort);
-      if (saved?.show && (saved.show === 'aside' || SHOWS.some((s) => s.id === saved.show))) setShow(saved.show);
+      if (saved?.show && (saved.show === 'aside' || saved.show === 'radios' || SHOWS.some((s) => s.id === saved.show))) setShow(saved.show);
     } catch {
       /* ignore */
     }
@@ -416,7 +429,23 @@ export default function PlaylistBrowser({
                   {s.id !== 'all' && <span className={`dot ${s.id}`} />}
                   {s.label}
                 </button>
-              ))}
+              )).flatMap((chip, k) =>
+                SHOWS[k].id === 'hub'
+                  ? [
+                      chip,
+                      <button
+                        key="radios"
+                        type="button"
+                        className="pl-chip pl-radios-chip"
+                        aria-pressed={show === 'radios'}
+                        onClick={() => setShow(show === 'radios' ? 'all' : 'radios')}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="picon" dangerouslySetInnerHTML={{ __html: PLAYER_ICONS.radio }} />
+                        Radios
+                      </button>,
+                    ]
+                  : [chip],
+              )}
               {(asideCount > 0 || show === 'aside') && (
                 <button
                   type="button"
@@ -521,8 +550,17 @@ export default function PlaylistBrowser({
         </div>
       )}
 
+      {/* ── Radios (chip after Mine) ── */}
+      {view === 'playlists' && show === 'radios' && (
+        <div style={{ marginTop: 8 }}>
+          {radiosError && <div className="notice error">{radiosError}</div>}
+          {!radios && !radiosError && <p className="small muted">Loading your radios…</p>}
+          {radios && <RadioList radios={radios} />}
+        </div>
+      )}
+
       {/* ── Playlists ── */}
-      {view === 'playlists' && (
+      {view === 'playlists' && show !== 'radios' && (
         <>
           {show === 'aside' && (
             <p className="small muted pl-aside-note">Kept out of your taste profile. They still play as usual.</p>
