@@ -284,6 +284,11 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
     return origin?.script ? origin.script.test(t) && !origin.notScript?.test(t) : false;
   };
   const usedNow = candidates.filter((_, i) => lists[i]).map((c) => c.id);
+  // Genres of the artists in these playlists, to check each playlist really
+  // sounds like the words (and like you), not just has them in its title.
+  const listProfiles = await loadProfiles(
+    lists.flatMap((l) => (l?.songs ?? []).slice(0, 40).map((x) => artistKey(x.artist))),
+  ).catch(() => new Map());
   // Each playlist: does it fit the words (title score), is it really in the
   // language you asked for, and how close is it to your taste?
   const valid = lists
@@ -295,7 +300,23 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       if (origin?.script && share < 0.3) return null;
       const sample = list.songs.slice(0, 60);
       const fit = sample.reduce((sum, x) => sum + affinity(taste, x.artist), 0) / sample.length;
-      return { list, share, title: candidates[i].title, score: candidates[i].score + fit * 12 };
+      let score = candidates[i].score + fit * 12;
+      // How much of it is near your taste (artists you like or ones like them,
+      // or genres you play), and how much sounds like the mood/style asked
+      // for (by the artists' genres, where known).
+      const profs = sample.slice(0, 40).map((x) => listProfiles.get(artistKey(x.artist)));
+      const near = sample.slice(0, 40).filter((x, j) => affinity(taste, x.artist) > 0 || tagFit(taste, profs[j]) >= 0.2).length / Math.min(40, sample.length);
+      const known = profs.filter((p) => p?.tags.length);
+      const moodShare = known.length ? known.filter((p) => tagHits(p!.tags, wanted) > 0).length / known.length : 1;
+      // Nothing in it is anywhere near you: someone else's world (owner:
+      // "dreamy rainy night" brought 2000s R&B). Not applied to a language
+      // you asked for, where your library may simply not reach.
+      if (!origin && taste.own.size && near < 0.08) return null;
+      // Its artists' genres don't match the mood/style at all (a "rainy day
+      // metal" playlist for "rainy day").
+      if (wanted.length && known.length >= 5 && moodShare < 0.15) score -= 10;
+      score += near * 6;
+      return { list, share, title: candidates[i].title, score };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
   // You described a sound: real playlists for a niche style share artists with
