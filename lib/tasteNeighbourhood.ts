@@ -50,7 +50,10 @@ const asWeb = (s: RadioSong): WebSong => ({
 export function tagHits(tags: string[], wanted: string[]): number {
   if (!wanted.length) return 0;
   const low = tags.map((t) => t.toLowerCase());
-  return wanted.filter((w) => low.some((t) => t.includes(w) || (w.length > 4 && w.includes(t) && t.length > 3))).length;
+  // Only the tag containing the wanted genre counts ("dream pop/shoegaze" has
+  // "shoegaze"); the other way round "rock" matched "gothic rock" and put a
+  // K-rock band in a goth radio.
+  return wanted.filter((w) => low.some((t) => t === w || t.includes(w))).length;
 }
 
 export async function tasteNeighbourhood(opts: {
@@ -68,7 +71,8 @@ export async function tasteNeighbourhood(opts: {
       const p = profiles.get(k);
       const hits = p ? tagHits(p.tags, wanted) : 0;
       const skip = taste.skips.get(k) ?? 0;
-      return { k, weight: (wanted.length ? hits * (0.4 + w) : 0.2 + w) * (1 - skip) };
+      // Several matching genres matter more than how much you play them.
+      return { k, weight: (wanted.length ? hits * hits * (0.3 + w) : 0.2 + w) * (1 - skip) };
     })
     .filter((x) => x.weight > 0);
   if (!pool.length) return { songs: [], seeds: [], artists: [] };

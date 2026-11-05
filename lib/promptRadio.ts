@@ -362,7 +362,12 @@ export async function promptRadio(q: string, state: PromptState | null): Promise
       // Taste gate: an artist far from anything you play (known genres that
       // don't fit, no link to artists you like) sinks; unknown ones a little.
       const near = affinity(taste, x.artist);
-      const gate = prof?.tags.length ? (tagFit(taste, prof) < 0.12 && near < 0.1 ? -6 : 0) : near > 0 ? 0 : -2;
+      const moodOk = prof?.tags.length ? tagHits(prof.tags, wanted) > 0 : false;
+      const far = prof?.tags.length ? tagFit(taste, prof) < 0.12 && near < 0.1 && !moodOk : near === 0;
+      // With enough songs from your own corner, playlist songs by artists far
+      // from you (or unknown and unrelated to anyone you like) are left out.
+      if (far && (nb?.songs.length ?? 0) >= 25 && !origin) continue;
+      const gate = far ? (prof?.tags.length ? -6 : -3) : 0;
       pool.push({ s: x, rank: r.score + official + (mine ? 2 : 0) + lift + deep + gate + Math.random() * 3 });
     }
   }
