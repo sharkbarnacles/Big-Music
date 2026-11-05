@@ -182,7 +182,13 @@ Environment variables (set in Vercel; names only, never values):
     nothing after it → `resume()` if Spotify moved on but paused, else the
     hub's next song (`playAt`); pause/resume go straight to the SDK
     (`userPausedRef`). Media Session metadata + lock-screen buttons
-    (play/pause/next/previous) for the current song. Not yet tested locked.
+    (play/pause/next/previous/seek) for the current song. Not yet tested locked.
+    **Lock-screen card (2026-11-05):** iOS showed a blank "Spotify Embedded
+    Player" (the SDK's iframe owns the newest sound). `claimLockScreen` restarts
+    the silent loop (now `public/silence.mp3`, 60 s; iOS may ignore very short
+    sounds) 0.6 s after Spotify starts / changes song / resumes, then re-sets
+    metadata + position (`setLockScreen`, `setLockPosition`). Lock-screen button
+    presses in Spotify mode are logged as 'lock screen: <action>' in the diary.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -678,3 +684,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Spotify start tries uris → album+offset → queue+next, remembers what works.
 - 2026-11-05: Experiment: Spotify's in-hub player (Web Playback SDK) on iPhone, started from the first Play tap.
 - 2026-11-05: In-hub Spotify: loading spinner + steady time while starting, no double top-up, keep-awake sound + end-of-song handling for screen-off, lock-screen controls.
+- 2026-11-05: Lock screen shows the hub's song card (title, artist, cover) in in-hub Spotify mode; its buttons drive the hub queue.

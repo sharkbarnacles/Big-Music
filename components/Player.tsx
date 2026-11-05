@@ -10,6 +10,7 @@ import SafeBoundary from './SafeBoundary';
 import { clientLog } from '@/lib/clientLog';
 import { sourceId, sourceUrl, type TrackRowData } from '@/lib/tracks';
 import { smallCover } from '@/lib/img';
+import { splitTitle } from '@/lib/titles';
 
 // ── How playback works ────────────────────────────────────────────────
 // The hub owns the queue: which songs, in what order, shuffle and repeat.
@@ -660,7 +661,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       posRef.current = { ms: positionMs, at: Date.now() };
       setPlay(true);
       startingRef.current = false;
-      if (sdkLiveRef.current) keepAwake(true);
+      if (sdkLiveRef.current) {
+        keepAwake(true);
+        claimLockScreen();
+      }
       setTimeout(() => pollSpotify(), 1500);
     } catch {
       if (token === tokenRef.current) {
@@ -726,8 +730,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // next never started. A silent sound loops underneath while Spotify plays
   // in the hub, which keeps the hub awake to start the next song, and the
   // lock screen shows the song (Media Session) with working buttons.
-  const SILENCE = '/silence.wav'; // 2 s of silence (public/silence.wav), looped
-  const keepAwake = (on: boolean) => {
+  // The file is a minute long: iPhones only give the lock screen to sounds
+  // that look like real music, not a 2-second blip.
+  const SILENCE = '/silence.mp3'; // 60 s of silence (public/silence.mp3), looped
+  // fresh = start it over, so it becomes the newest sound on the page and the
+  // lock screen shows the hub's song card instead of "Spotify Embedded Player".
+  const keepAwake = (on: boolean, fresh = false) => {
     try {
       if (!on) {
         keepAliveRef.current?.pause();
@@ -736,17 +744,66 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!keepAliveRef.current) {
         const a = new Audio(SILENCE);
         a.loop = true;
-        a.volume = 0.01;
+        a.preload = 'auto';
         a.setAttribute('playsinline', '');
         keepAliveRef.current = a;
       }
-      keepAliveRef.current.play().catch(() => {});
+      const a = keepAliveRef.current;
+      if (fresh && !a.paused) {
+        a.pause();
+        a.currentTime = 0;
+      }
+      a.play().catch(() => {});
     } catch {
       /* not allowed yet; the next tap starts it */
     }
   };
 
   keepAwakeRef.current = keepAwake;
+
+  // Lock screen / Control Center card: the hub's song, cover and buttons.
+  const setLockScreen = (track: TrackRowData | null) => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !track) return;
+    try {
+      const art = track.image_url;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: splitTitle(track.title).title || track.title,
+        artist: track.artist,
+        album: track.album ?? '',
+        artwork: art
+          ? [
+              { src: art, sizes: '300x300', type: 'image/jpeg' },
+              { src: art, sizes: '640x640', type: 'image/jpeg' },
+            ]
+          : [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
+      });
+    } catch {
+      /* older iPhones */
+    }
+  };
+  const setLockPosition = (posMs: number, durMs: number, playing: boolean) => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+      if (durMs > 0) navigator.mediaSession.setPositionState?.({ duration: durMs / 1000, position: Math.min(posMs, durMs) / 1000, playbackRate: 1 });
+    } catch {
+      /* ignore */
+    }
+  };
+  // While the hub's own Spotify player plays: restart the silent sound just
+  // after Spotify's so ours is the newest, then put our song card back.
+  const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekRef = useRef<(ms: number) => void>(() => {});
+  const claimLockScreen = () => {
+    if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
+    claimTimerRef.current = setTimeout(() => {
+      if (engineRef.current !== 'spotify' || !sdkLiveRef.current) return;
+      keepAwake(true, true);
+      setLockScreen(queueRef.current[indexRef.current] ?? null);
+      const d = durationRef.current;
+      setLockPosition(currentProgress(), d, true);
+    }, 600);
+  };
 
   // Every change in the hub's own Spotify player (play, pause, next song,
   // position). Also notices when a song ended and nothing followed, and
@@ -779,25 +836,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
     applySpotify({ active: true, isPlaying: !st.paused || Boolean(ended), progressMs: st.position ?? 0, durationMs: st.duration ?? 0, trackIds: ids, deviceId: sdkDeviceRef.current });
     keepAwake(!st.paused || Boolean(ended));
+    // A new song or playing again after a pause: Spotify's frame just took the
+    // lock screen, so take it back for the hub's card.
+    if (!st.paused && (!last.playing || ids[0] !== last.id)) claimLockScreen();
+    else setLockPosition(st.position ?? 0, st.duration ?? 0, !st.paused);
   };
 
-  // Lock screen / Control Center: the current song and its buttons.
+  // Lock screen / Control Center: the current song and its buttons. The
+  // buttons drive the hub (its queue, its next / previous), for both engines.
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !current) return;
-    try {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: current.title,
-        artist: current.artist,
-        album: current.album ?? '',
-        artwork: current.image_url ? [{ src: current.image_url, sizes: '512x512' }] : [],
-      });
-      navigator.mediaSession.setActionHandler('play', () => togglePlayRef.current());
-      navigator.mediaSession.setActionHandler('pause', () => togglePlayRef.current());
-      navigator.mediaSession.setActionHandler('nexttrack', () => nextRef.current());
-      navigator.mediaSession.setActionHandler('previoustrack', () => prevRef.current());
-    } catch {
-      /* older iPhones */
-    }
+    if (!current) return;
+    setLockScreen(current);
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const on = (action: string, fn: (d: any) => void) => {
+      try {
+        ms.setActionHandler(action as MediaSessionAction, (d: any) => {
+          if (engineRef.current === 'spotify') clientLog('spotify', `lock screen: ${action}`, { song: current.title });
+          fn(d);
+        });
+      } catch {
+        /* this iPhone doesn't offer that button */
+      }
+    };
+    on('play', () => {
+      if (!playingRef.current) togglePlayRef.current();
+    });
+    on('pause', () => {
+      if (playingRef.current) togglePlayRef.current();
+    });
+    on('nexttrack', () => nextRef.current());
+    on('previoustrack', () => prevRef.current());
+    on('seekto', (d) => {
+      if (typeof d?.seekTime === 'number') seekRef.current(d.seekTime * 1000);
+    });
   }, [current]);
 
   const startYouTube = (id: string, startMs: number) => {
@@ -1133,9 +1205,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (engineRef.current === 'youtube') ytPlayerRef.current?.seekTo?.(ms / 1000, true);
     if (engineRef.current === 'spotify') {
       posRef.current = { ms, at: Date.now() };
-      spotifyAction(`action=seek&positionMs=${Math.floor(ms)}`);
+      if (sdkLiveRef.current && sdkPlayerRef.current?.seek) sdkPlayerRef.current.seek(Math.floor(ms)).catch(() => {});
+      else spotifyAction(`action=seek&positionMs=${Math.floor(ms)}`);
     }
   };
+  seekRef.current = seek;
 
   const toggleShuffle = () => {
     const cur = queueRef.current[indexRef.current];
