@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
 // L3 + T3 + P2 + G2 + E3 below): small header, one line of numbers, then
 // your playlists or, with the switch, every song in your library.
 // ?view=playlists|songs (else the last one you used, cookie mh-home-view),
-// ?tags=id,id (chosen tags), ?ssort= (song order).
+// ?tags=id,id (chosen tags), ?ssort= (song order). Needs playlists.pinned_at,
+// playlist_tags and library_page(tag_ids) from supabase/schema.sql.
 
 type PlaylistRow = {
   id: string;

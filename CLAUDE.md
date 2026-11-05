@@ -481,10 +481,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    `components/TagSheet.tsx` (Select → "Tag…", and "+ Tag" on playlist
    pages via `PlaylistTags.tsx`, pills tap to remove); `/api/playlists/tags`.
    Home now reads all playlists page by page (`fetchAllRows`, >1,000 safe).
-   **The SQL could not be applied from the session** (Supabase confirmation
-   auto-cancelled on the phone); owner runs it in the SQL Editor from
-   https://claude.ai/artifact/QWYqPLMeZdxnmZyWHtVkY6 . Push the app code only
-   after `select pinned_at from playlists limit 1` works.
+   The SQL was run by the owner in Supabase's SQL Editor (the connector's
+   confirmation auto-cancels on the phone; setup page
+   https://claude.ai/artifact/QWYqPLMeZdxnmZyWHtVkY6), checked 2026-11-05.
+   If a migration is needed again, try the connector first, else a page like that.
 4. Polish: reorder songs in hub playlists;
    save the current queue as a playlist.
 
