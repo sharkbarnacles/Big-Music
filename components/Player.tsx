@@ -427,7 +427,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!sdkPlayerRef.current && sdkReadyRef.current && !ytModeRef.current) makeSdkPlayerRef.current();
     sdkPlayerRef.current?.activateElement?.();
     // Unlock the silent keep-awake sound now (iPhones only allow it from a tap).
-    if (!ytModeRef.current && isPhone() && !keepAliveUnlockedRef.current) {
+    // Both modes: YouTube mode uses it too, so the hub stays awake to start
+    // the next song with the screen off.
+    if (isPhone() && !keepAliveUnlockedRef.current) {
       keepAliveUnlockedRef.current = true;
       unlockKeepRef.current();
     }
@@ -1040,7 +1042,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       pool.forEach((a) => a.play().catch(() => {}));
       setTimeout(() => {
         pool[1 - keepActiveRef.current].pause();
-        if (!sdkLiveRef.current) pool[keepActiveRef.current].pause();
+        const ytWants = engineRef.current === 'youtube' && wantPlayRef.current;
+        if (!sdkLiveRef.current && !ytWants) pool[keepActiveRef.current].pause();
       }, 300);
     } catch {
       /* ignore */
@@ -1238,7 +1241,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const on = (action: string, fn: (d: any) => void) => {
       try {
         ms.setActionHandler(action as MediaSessionAction, (d: any) => {
-          if (engineRef.current === 'spotify') clientLog('spotify', `lock screen: ${action}`, { song: current.title });
+          clientLog(engineRef.current === 'spotify' ? 'spotify' : 'youtube', `lock screen: ${action}`, { song: current.title });
           fn(d);
         });
       } catch {
@@ -1264,7 +1267,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     sdkPlayerRef.current?.pause?.().catch?.(() => {});
     runRef.current = null;
     sdkLiveRef.current = false;
-    keepAwake(false);
+    // Phones: the silent loop keeps playing under the YouTube player, so the
+    // hub isn't frozen when a song ends with the screen off and can start
+    // the next one (iPhones freeze a page the moment its sound stops).
+    keepAwake(isPhone());
     setEng('youtube');
     setDevice(null);
     setPlay(true);
@@ -1379,15 +1385,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setNotice((n) => (n?.text.startsWith('Your iPhone wants one tap') ? null : n));
     }
     if (state === 2) setPlay(false);
-    if (state === 0) {
-      if (repeatRef.current === 'one') {
-        ytPlayerRef.current?.seekTo(0, true);
-        ytPlayerRef.current?.playVideo();
-        return;
-      }
-      const n = nextIndex(indexRef.current);
-      if (n !== null) playAt(n, { reason: 'auto' });
-      else setPlay(false);
+    if (state === 0) ytEnded('event');
+  };
+
+  // A YouTube song finished: next song (or the same one on repeat-one). Three
+  // things can notice the end (YouTube's own report, the 1 s watchdog, and
+  // coming back to the app), so each song moves on only once.
+  const endedForRef = useRef(-1); // tokenRef of the song already moved on from
+  const ytEnded = (why: string) => {
+    if (engineRef.current !== 'youtube' || endedForRef.current === tokenRef.current) return;
+    if (repeatRef.current === 'one') {
+      ytPlayerRef.current?.seekTo(0, true);
+      ytPlayerRef.current?.playVideo();
+      return;
+    }
+    endedForRef.current = tokenRef.current;
+    if (why !== 'event' || document.hidden) clientLog('youtube', `song ended (${why}), next`, { hidden: document.hidden });
+    const n = nextIndex(indexRef.current);
+    if (n !== null) playAt(n, { reason: 'auto' });
+    else {
+      setPlay(false);
+      wantPlayRef.current = false;
+      keepAwake(false);
     }
   };
 
@@ -1580,11 +1599,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (playingRef.current) {
         wantPlayRef.current = false;
         ytPlayerRef.current?.pauseVideo?.();
+        keepAwake(false);
       } else {
         wantPlayRef.current = true;
         setNotice(null);
-        ytPlayerRef.current?.playVideo?.();
-        watchYouTubeStart();
+        keepAwake(isPhone());
+        // Back on a song that had already finished (e.g. it ended while the
+        // hub was frozen): go on to the next one instead of replaying it.
+        if (ytState() === 0 && endedForRef.current !== tokenRef.current) ytEnded('play on ended');
+        else {
+          ytPlayerRef.current?.playVideo?.();
+          watchYouTubeStart();
+        }
       }
       return;
     }
@@ -2113,6 +2139,58 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Lets YouTube's callbacks reach the latest versions of these functions.
   const api = useRef({ onYouTubeState, onYouTubeError });
   api.current = { onYouTubeState, onYouTubeError };
+  const endedRef = useRef(ytEnded);
+  endedRef.current = ytEnded;
+
+  // YouTube watchdog: once a second while a YouTube song should be playing.
+  // With the screen off YouTube's "ended" report can go missing, so this
+  // checks for itself: finished, or stuck at the very end → next song;
+  // paused by the phone (not by you) while the screen is off → play again.
+  // It also keeps the lock screen's time bar right.
+  const ytWatchRef = useRef<{ t: number; since: number; token: number; tries: number } | null>(null);
+  useEffect(() => {
+    let beat = 0;
+    const iv = setInterval(() => {
+      if (engineRef.current !== 'youtube' || !wantPlayRef.current || !ytPlayerRef.current) {
+        ytWatchRef.current = null;
+        return;
+      }
+      let t = 0;
+      let d = 0;
+      try {
+        t = ytPlayerRef.current.getCurrentTime?.() ?? 0;
+        d = ytPlayerRef.current.getDuration?.() ?? 0;
+      } catch {
+        return;
+      }
+      const st = ytState();
+      const token = tokenRef.current;
+      if (++beat % 5 === 0) setLockPosition(t * 1000, d * 1000, st === 1);
+      if (st === 0) {
+        endedRef.current('watchdog');
+        return;
+      }
+      const w = ytWatchRef.current;
+      if (!w || w.token !== token || Math.abs(t - w.t) > 0.3) {
+        ytWatchRef.current = { t, since: Date.now(), token, tries: w?.token === token ? w.tries : 0 };
+        return;
+      }
+      const stillFor = Date.now() - w.since;
+      if (d > 0 && t >= d - 1.5 && stillFor > 3000) {
+        endedRef.current('stuck at the end');
+        return;
+      }
+      if (st === 2 && document.hidden && d > 0 && t < d - 1.5 && stillFor > 2000 && w.tries < 3) {
+        w.tries++;
+        w.since = Date.now();
+        clientLog('youtube', `paused by the phone, play again ${w.tries}`, { t: Math.round(t), d: Math.round(d) });
+        keepAwake(true);
+        ytPlayerRef.current?.playVideo?.();
+      }
+    }, 1000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const pollRef = useRef(pollSpotify);
   pollRef.current = pollSpotify;
 
@@ -2172,6 +2250,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
       if (engineRef.current === 'youtube' && wantPlayRef.current && ![1, 3].includes(ytState())) {
+        // The song finished while you were away (the hub was frozen and
+        // missed it): move on. Before, this replayed the finished song.
+        if (ytState() === 0) {
+          endedRef.current('back in the app');
+          return;
+        }
         ytPlayerRef.current?.playVideo?.();
         watchYouTubeStart();
       }

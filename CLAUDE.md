@@ -100,6 +100,15 @@ Environment variables (set in Vercel; names only, never values):
     app opens (`warmYouTube`) so a Play tap reaches it synchronously (iOS
     needs a tap for sound); `watchYouTubeStart` nudges playVideo() and then
     asks for one tap; `wantPlayRef` resumes on returning to the app.
+    **Screen off (2026-11-05, owner: next YouTube song didn't start with the
+    phone locked; reopening replayed the finished song):** on phones the
+    silent loop (`keepAwake`) now also plays under the YouTube player (unlocked
+    in the first tap in either mode) so iOS doesn't freeze the hub when a song
+    ends. Ends go through `ytEnded` (once per song via `endedForRef`), fed by
+    YouTube's report, a 1 s watchdog (ended / stuck at the end → next; paused
+    by the phone while hidden → playVideo, 3 tries) and coming back to the app
+    (an ended song now moves on instead of replaying). Diary kind 'youtube'
+    (80 per page load). Not yet tested locked.
   - **Spotify** (switch YouTube mode off): Spotify Connect remote control via
     `app/api/play/spotify` and `app/api/player/spotify`; on computers the
     Spotify Web Playback SDK plays in the tab (`app/api/spotify/token`).
@@ -845,3 +854,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: In-hub Spotify: reconnects when Spotify forgot the player (no more YouTube stand-ins), moves a stand-in song back to Spotify.
 - 2026-11-05: Taste in every radio (song + playlist radios ranked by your tags, artists, languages, voices), skips learned (Next on songs you didn't pick), Discover avoids often-skipped artists.
 - 2026-11-05: Word radios built from your own corner of music in that mood (your artists' genres → seed radios), playlists must be near your taste and sound like the mood; "my taste" prompts use only your music.
+- 2026-11-05: YouTube mode with the screen off: keep-awake sound under YouTube, watchdog moves on when a song ends, coming back no longer replays the finished song.
