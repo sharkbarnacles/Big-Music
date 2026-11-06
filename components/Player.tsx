@@ -1022,10 +1022,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           .then(() => {
             cur.pause();
             keepActiveRef.current = 1 - keepActiveRef.current;
-            if (claimLogRef.current++ < 12) clientLog('spotify', 'lock card claimed', { hidden: document.hidden });
+            if (claimLogRef.current++ < 12) clientLog(engineRef.current === 'youtube' ? 'youtube' : 'spotify', 'lock card claimed', { hidden: document.hidden });
           })
           .catch((e: Error) => {
-            if (claimLogRef.current++ < 12) clientLog('spotify', 'lock card claim refused', { hidden: document.hidden, error: e?.name ?? String(e) });
+            if (claimLogRef.current++ < 12) clientLog(engineRef.current === 'youtube' ? 'youtube' : 'spotify', 'lock card claim refused', { hidden: document.hidden, error: e?.name ?? String(e) });
           });
         return;
       }
@@ -1383,9 +1383,33 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setPlay(true);
       startWatchRef.current.forEach(clearTimeout);
       setNotice((n) => (n?.text.startsWith('Your iPhone wants one tap') ? null : n));
+      claimForYouTube();
     }
     if (state === 2) setPlay(false);
     if (state === 0) ytEnded('event');
+  };
+
+  // Lock screen in YouTube mode: the iPhone gives the lock-screen card to the
+  // newest sound on the page. Each new YouTube song starts after the silent
+  // keep-awake sound, so YouTube's own card took over (±10 s buttons, no
+  // skips). Once per song (and after you resume), 0.6 s after it really
+  // plays, restart the silent sound so the hub's card comes back with
+  // previous / next. Only once: repeated claims made the card flip.
+  const ytClaimedRef = useRef(-1); // tokenRef of the song already claimed for
+  const claimForYouTube = () => {
+    if (!isPhone() || ytClaimedRef.current === tokenRef.current) return;
+    ytClaimedRef.current = tokenRef.current;
+    const token = tokenRef.current;
+    setTimeout(() => {
+      if (token !== tokenRef.current || engineRef.current !== 'youtube' || !wantPlayRef.current || ytState() !== 1) return;
+      keepAwake(true, true);
+      setLockScreen(queueRef.current[indexRef.current] ?? null);
+      try {
+        setLockPosition((ytPlayerRef.current?.getCurrentTime?.() ?? 0) * 1000, (ytPlayerRef.current?.getDuration?.() ?? 0) * 1000, true);
+      } catch {
+        /* ignore */
+      }
+    }, 600);
   };
 
   // A YouTube song finished: next song (or the same one on repeat-one). Three
@@ -1600,6 +1624,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         wantPlayRef.current = false;
         ytPlayerRef.current?.pauseVideo?.();
         keepAwake(false);
+        ytClaimedRef.current = -1; // claim the card again when you resume
       } else {
         wantPlayRef.current = true;
         setNotice(null);

@@ -108,7 +108,11 @@ Environment variables (set in Vercel; names only, never values):
     YouTube's report, a 1 s watchdog (ended / stuck at the end → next; paused
     by the phone while hidden → playVideo, 3 tries) and coming back to the app
     (an ended song now moves on instead of replaying). Diary kind 'youtube'
-    (80 per page load). Not yet tested locked.
+    (80 per page load). **Lock card (owner 04:58 UTC: ±10 s buttons came
+    back):** each YouTube start became the newest sound, so YouTube's card won;
+    `claimForYouTube` swaps the silent loop once per song (and after a resume)
+    0.6 s after state 1, then re-sets metadata/position; logs 'lock card
+    claimed' kind 'youtube'.
   - **Spotify** (switch YouTube mode off): Spotify Connect remote control via
     `app/api/play/spotify` and `app/api/player/spotify`; on computers the
     Spotify Web Playback SDK plays in the tab (`app/api/spotify/token`).
@@ -855,3 +859,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Taste in every radio (song + playlist radios ranked by your tags, artists, languages, voices), skips learned (Next on songs you didn't pick), Discover avoids often-skipped artists.
 - 2026-11-05: Word radios built from your own corner of music in that mood (your artists' genres → seed radios), playlists must be near your taste and sound like the mood; "my taste" prompts use only your music.
 - 2026-11-05: YouTube mode with the screen off: keep-awake sound under YouTube, watchdog moves on when a song ends, coming back no longer replays the finished song.
+- 2026-11-05: YouTube mode lock screen: hub's card (with skip buttons) claimed back once per song.
