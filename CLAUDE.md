@@ -331,6 +331,16 @@ Environment variables (set in Vercel; names only, never values):
     on automatic song changes while the screen is off (was off since the
     rollback; owner still saw ±10 s). `resyncNow` compares only the overlap.
     Not yet tested by the owner.
+    **Lock-screen buttons (2026-11-08, owner's screenshot: the hub's own card
+    — title, artist, cover, time — but ±10 s buttons):** WebKit drops Media
+    Session action handlers whenever a sound becomes "now playing" (first
+    play, new song, each claim) and falls back to ±10 s. `lockButtons()`
+    (via `lockButtonsRef`) now re-registers on every 'playing' event of the
+    silent keep-awake players, on each song, and on visibilitychange /
+    pageshow; `seekbackward` / `seekforward` are set to null; and
+    `navigator.audioSession.type = 'playback'` (Safari 17+). Source:
+    dev.to "Getting my iPhone music app to keep playing on the lock screen",
+    thecrateapp/crate PR #281.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -888,3 +898,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: YouTube mode with the screen off: keep-awake sound under YouTube, watchdog moves on when a song ends, coming back no longer replays the finished song.
 - 2026-11-05: YouTube mode lock screen: hub's card (with skip buttons) claimed back once per song.
 - 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.
+- 2026-11-08: Lock-screen skip buttons: handlers re-set every time the hub's sound starts (iOS drops them → ±10 s), seek actions nulled, audio session = playback.

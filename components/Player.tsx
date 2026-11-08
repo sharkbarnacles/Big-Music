@@ -295,6 +295,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sdkStateRef = useRef<(st: any) => void>(() => {});
   const keepAwakeRef = useRef<(on: boolean) => void>(() => {});
   const keepAliveUnlockedRef = useRef(false);
+  const lockButtonsRef = useRef<() => void>(() => {});
   const keepPoolRef = useRef<HTMLAudioElement[]>([]);
   const keepActiveRef = useRef(0);
   const unlockKeepRef = useRef<() => void>(() => {});
@@ -1040,6 +1041,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         a.loop = true;
         a.preload = 'auto';
         a.setAttribute('playsinline', '');
+        // Each time this silent sound starts, it becomes the lock screen's
+        // "now playing" and iOS forgets the buttons: set them again right away.
+        a.addEventListener('playing', () => {
+          lockButtonsRef.current();
+          setLockScreen(queueRef.current[indexRef.current] ?? null);
+        });
         keepPoolRef.current.push(a);
       }
     }
@@ -1282,21 +1289,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Lock screen / Control Center: the current song and its buttons. The
   // buttons drive the hub (its queue, its next / previous), for both engines.
-  useEffect(() => {
-    if (!current) return;
-    setLockScreen(current);
+  // iPhones throw these buttons away whenever a sound becomes the one "now
+  // playing" (first play, each new song, each lock-card claim) and then show
+  // their default ±10 s buttons, even on the hub's own card (owner's
+  // screenshot, 2026-11-08). So they're set again every time one of the hub's
+  // silent sounds starts playing, on each song, and on coming back to the
+  // app; and the ±10 s actions are switched off explicitly.
+  const lockButtons = () => {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const ms = navigator.mediaSession;
-    const on = (action: string, fn: (d: any) => void) => {
+    const on = (action: string, fn: ((d: any) => void) | null) => {
       try {
-        ms.setActionHandler(action as MediaSessionAction, (d: any) => {
-          clientLog(engineRef.current === 'spotify' ? 'spotify' : 'youtube', `lock screen: ${action}`, { song: current.title });
-          fn(d);
-        });
+        ms.setActionHandler(
+          action as MediaSessionAction,
+          fn &&
+            ((d: any) => {
+              clientLog(engineRef.current === 'spotify' ? 'spotify' : 'youtube', `lock screen: ${action}`, { song: queueRef.current[indexRef.current]?.title ?? null });
+              fn(d);
+            }),
+        );
       } catch {
         /* this iPhone doesn't offer that button */
       }
     };
+    on('seekbackward', null);
+    on('seekforward', null);
     on('play', () => {
       if (!playingRef.current) togglePlayRef.current();
     });
@@ -1308,7 +1325,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     on('seekto', (d) => {
       if (typeof d?.seekTime === 'number') seekRef.current(d.seekTime * 1000);
     });
+  };
+  lockButtonsRef.current = lockButtons;
+  useEffect(() => {
+    if (!current) return;
+    setLockScreen(current);
+    lockButtons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
+  useEffect(() => {
+    // Tell iPhones this is music playback (Safari 17+), and re-set the buttons
+    // when you come back to the app.
+    try {
+      const as = (navigator as any).audioSession;
+      if (as && as.type !== 'playback') as.type = 'playback';
+    } catch {
+      /* older iPhones */
+    }
+    const again = () => lockButtonsRef.current();
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('pageshow', again);
+    return () => {
+      document.removeEventListener('visibilitychange', again);
+      window.removeEventListener('pageshow', again);
+    };
+  }, []);
 
   const startYouTube = (id: string, startMs: number) => {
     if (engineRef.current === 'spotify' && playingRef.current) spotifyAction('action=pause');
