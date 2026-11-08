@@ -341,6 +341,16 @@ Environment variables (set in Vercel; names only, never values):
     `navigator.audioSession.type = 'playback'` (Safari 17+). Source:
     dev.to "Getting my iPhone music app to keep playing on the lock screen",
     thecrateapp/crate PR #281.
+    **Leftover fix (2026-11-08, owner: an unshuffled album "skipping all
+    weird"; diary: 13 'skipping a leftover' in a row):** each start was 1 song
+    (album songs not yet matched) + 4 queued extras, and the next tap started
+    a 1-song list, so the server-clearing rule (`ids.length > 1`) never ran
+    and Spotify's queue piled up. Now `pendingExtrasRef` counts queued songs
+    Spotify hasn't reached (from `run` + last position) and `clearExtras()`
+    runs before every start: SDK volume 0, `nextTrack()` × k, pause, start,
+    then `unmute()` (volume back to `SDK_VOLUME` 0.8; also in the finally).
+    The wait for the next songs' versions before a start is 2 s (was 0.7 s),
+    so an album usually goes as one list.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -899,3 +909,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: YouTube mode lock screen: hub's card (with skip buttons) claimed back once per song.
 - 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.
 - 2026-11-08: Lock-screen skip buttons: handlers re-set every time the hub's sound starts (iOS drops them → ±10 s), seek actions nulled, audio session = playback.
+- 2026-11-08: Spotify mode: songs queued earlier are skipped (muted) before each new start, so albums/playlists no longer run through old leftovers; longer first list.

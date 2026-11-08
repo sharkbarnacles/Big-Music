@@ -261,10 +261,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // The Spotify line-up: `ids` the songs it should play in order, `sent` how many
   // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
   const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean; list?: boolean; ctx?: number } | null>(null);
-  // Songs the hub added to Spotify's queue (to keep a list going) that may not
-  // have played yet. Spotify keeps its queue across new starts, so the next
-  // start clears them first (server way) or they'd play after its first song.
-  const extrasPendingRef = useRef(false);
+  // How many songs the hub added to Spotify's queue (to keep a list going)
+  // that Spotify hasn't reached yet. Spotify keeps its queue across new
+  // starts, so they'd play after the next start's first song (owner
+  // 2026-11-08: an album "skipping all weird" through 13 leftovers). The next
+  // start skips past them first, muted (clearExtras).
+  const pendingExtrasRef = useRef(0);
   const extendingRef = useRef(false); // adding songs to Spotify's queue right now
   const matchingAheadRef = useRef(false); // looking up Spotify versions in the background
   const skipToldRef = useRef(false); // "songs not on Spotify are skipped" said once
@@ -545,10 +547,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // finish in the background (owner: taps felt slow on radios).
       setBusy(true);
       if (!sourceId(track, 'spotify') && !spotifyMatchRef.current.has(track.id)) await findSpotifyVersions(i, 1);
-      // A short wait for the next songs' versions (usually remembered by the
-      // server); anything still unknown is added to Spotify's line-up later,
+      // A short wait (≤2 s) for the next songs' versions, so a whole album
+      // usually goes to Spotify in one list; anything still unknown is added to Spotify's line-up later,
       // in order, while the music plays (extendSpotify).
-      await Promise.race([findSpotifyVersions(i + 1), new Promise((r) => setTimeout(r, 700))]);
+      await Promise.race([findSpotifyVersions(i + 1), new Promise((r) => setTimeout(r, 2000))]);
       if (token !== tokenRef.current) return;
       // Spotify mode, the music moving on by itself: a song Spotify doesn't
       // have is skipped. Switching to YouTube without a tap is what paused the
@@ -776,10 +778,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       skipToldRef.current = true;
       showToast('Songs Spotify doesn’t have are skipped in Spotify mode. Tap one to hear it through YouTube.');
     }
-    // Songs the hub queued in Spotify last time and that haven't played would
-    // come before this list: the server way clears them first.
-    if (extrasPendingRef.current && ids.length > 1) forceServerRef.current = true;
-    extrasPendingRef.current = false;
     runRef.current = { ids, idx, sent: 0, ctx: ids.length }; // sent 0 = still starting (no top-ups yet)
     lastPlayedEndRef.current = false;
     // While it starts: the time stays where the song starts (it used to run
@@ -795,6 +793,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // The in-hub player was just made (first tap), or it dropped its link to
     // Spotify while the app was in the background: (re)connect and wait.
     if (!sdkDeviceRef.current) await ensureSdkDevice();
+    // Songs the hub queued last time that haven't played: skip past them now
+    // (muted), or Spotify would play them right after this start's first song.
+    const unmuteAfter = await clearExtras();
     try {
       // Fast path: the hub's own player is connected, so the phone asks
       // Spotify directly (one request, ~0.3 s) instead of going through the
@@ -828,6 +829,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           claimLockScreen();
           touchServer();
           if (directLogRef.current++ < 5) clientLog('spotify', 'started directly', { songs: ids.length, ms: Date.now() - t0 });
+          if (unmuteAfter) setTimeout(unmute, 350);
           // Once per app opening: songs left in Spotify's own queue (from
           // older hand-offs or the Spotify app) would play before the list.
           // If there are any, the server clears them with one restart.
@@ -964,6 +966,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setNotice({ text: 'Couldn’t reach your app. Check your connection.' });
       }
     } finally {
+      // Never leave the player muted (the direct path unmutes right after
+      // its start; this covers the server way and failures).
+      if (unmuteAfter) setTimeout(unmute, 600);
       if (token === tokenRef.current) startingRef.current = false;
       startInFlightRef.current = false;
       const pending = pendingStartRef.current;
@@ -971,6 +976,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (pending && pending.token === tokenRef.current) startSpotify(pending.i, pending.token, pending.positionMs);
       else if (token === tokenRef.current) setBusy(false);
     }
+  };
+
+  // Skips the in-hub player past songs the hub queued earlier and Spotify
+  // hasn't reached, with the sound off, so the next start plays its own list
+  // and nothing else. Returns true if it muted (call unmute after the start).
+  const SDK_VOLUME = 0.8; // the volume the in-hub player is made with
+  const clearExtras = async (): Promise<boolean> => {
+    const k = Math.min(pendingExtrasRef.current, 30);
+    const p = sdkPlayerRef.current;
+    if (k <= 0 || !p?.nextTrack) return false;
+    clientLog('spotify', 'skipping songs queued earlier', { songs: k });
+    await p.setVolume?.(0).catch?.(() => {});
+    for (let n = 0; n < k; n++) {
+      await p.nextTrack().catch(() => {});
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    await p.pause?.().catch?.(() => {});
+    pendingExtrasRef.current = 0;
+    return true;
+  };
+  const unmute = () => {
+    sdkPlayerRef.current?.setVolume?.(SDK_VOLUME).catch?.(() => {});
   };
 
   // Opens the Spotify app (that's what wakes it up on a phone) and asks the
@@ -1639,7 +1666,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         if (auto && document.hidden) claimLockScreen();
       }
       if (run.list) {
-        if (pos === run.ids.length - 1) extrasPendingRef.current = false;
+        pendingExtrasRef.current = Math.max(0, run.ids.length - 1 - Math.max(pos, (run.ctx ?? run.ids.length) - 1));
         extendSpotify(pos);
       }
 
@@ -1733,7 +1760,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         run.ids.push(a.id);
         run.idx.push(a.j);
         run.sent = run.ids.length;
-        extrasPendingRef.current = true;
+        pendingExtrasRef.current = Math.max(0, run.ids.length - 1 - Math.max(pos, (run.ctx ?? run.ids.length) - 1));
         added++;
       }
     } finally {
