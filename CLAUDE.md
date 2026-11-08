@@ -304,6 +304,33 @@ Environment variables (set in Vercel; names only, never values):
     ('player back, moving this song to Spotify'). On returning to the app the
     phone checks `/me/player/devices` (≤ every 20 s) and reconnects if the
     hub's player is missing ('player missing on return, reconnecting').
+    **Never run out (2026-11-07, owner: playlists paused when a YouTube song
+    came up, same songs kept playing, ±10 s card, skips/scrubbing glitchy):**
+    the diary showed the cause: lists handed to Spotify were short (3–10
+    songs: only songs already matched, ≤12 searches per match call, shuffled
+    big lists start with 1 song), and when one ran out the hub made a new
+    start without a tap → `autoplay_failed`, stuck at 0 s, and nudge 3
+    restarted the *same* song (blocked again). Within a list, iOS lets the
+    SDK move song to song even locked. Now: (1) the start list stops at the
+    first song not looked up yet (keeps hub order); `run.ctx` = its length.
+    (2) `extendSpotify(pos)` (from `applySpotify`, i.e. every SDK event and the
+    1 s watchdog): once on the list's last song and ≤2 songs ahead, the next ≤4
+    Spotify songs in hub order (skipping known-missing ones) go into Spotify's
+    queue straight from the phone (`/me/player/queue`), appended to
+    `run.ids/idx`; logs 'line-up extended'. `matchAhead` looks up versions in
+    batches; the end of a big list calls `loadMore`. (3) Queued extras persist
+    in Spotify across new starts, so `extrasPendingRef` → the next start goes
+    the server way (which clears leftovers before ids[1]). (4) Spotify mode
+    never switches to YouTube by itself: an automatic move onto a song Spotify
+    lacks skips it ('not on Spotify, skipped'; one toast per load); tapping
+    such a song still plays it via YouTube. (5) Next = the next song in
+    `run` (instant SDK skip, also from the lock screen). (6) Stuck paused at
+    the start after 3 nudges → 'start refused by the phone, waiting for a tap'
+    + notice, no restart. (7) Position matching looks from the current song
+    onwards (duplicates no longer pull the hub back). (8) One lock-card claim
+    on automatic song changes while the screen is off (was off since the
+    rollback; owner still saw ±10 s). `resyncNow` compares only the overlap.
+    Not yet tested by the owner.
 - `components/TrackList.tsx` / `TrackRow.tsx`: song lists, row menu (Play
   next, Add to queue, video, links). Round Shuffle (spiral icon) and Play sit
   in each page's title row (`components/PlayButtons.tsx`). The YouTube mode
@@ -860,3 +887,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-05: Word radios built from your own corner of music in that mood (your artists' genres → seed radios), playlists must be near your taste and sound like the mood; "my taste" prompts use only your music.
 - 2026-11-05: YouTube mode with the screen off: keep-awake sound under YouTube, watchdog moves on when a song ends, coming back no longer replays the finished song.
 - 2026-11-05: YouTube mode lock screen: hub's card (with skip buttons) claimed back once per song.
+- 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.

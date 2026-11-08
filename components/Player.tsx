@@ -260,7 +260,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const tokenRef = useRef(0); // increases on every new play, so stale replies are ignored
   // The Spotify line-up: `ids` the songs it should play in order, `sent` how many
   // of them Spotify has been given so far (10 at a time; more get added while the hub is open).
-  const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean; list?: boolean } | null>(null);
+  const runRef = useRef<{ ids: string[]; idx: number[]; sent: number; topping?: boolean; list?: boolean; ctx?: number } | null>(null);
+  // Songs the hub added to Spotify's queue (to keep a list going) that may not
+  // have played yet. Spotify keeps its queue across new starts, so the next
+  // start clears them first (server way) or they'd play after its first song.
+  const extrasPendingRef = useRef(false);
+  const extendingRef = useRef(false); // adding songs to Spotify's queue right now
+  const matchingAheadRef = useRef(false); // looking up Spotify versions in the background
+  const skipToldRef = useRef(false); // "songs not on Spotify are skipped" said once
   const skipLeftoverAtRef = useRef(0);
   // When the current line-up started, and a stranger song seen since when:
   // right after a start Spotify still reports the old song for a moment.
@@ -537,8 +544,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // finish in the background (owner: taps felt slow on radios).
       setBusy(true);
       if (!sourceId(track, 'spotify') && !spotifyMatchRef.current.has(track.id)) await findSpotifyVersions(i, 1);
-      await Promise.race([findSpotifyVersions(i + 1), new Promise((r) => setTimeout(r, 1200))]);
+      // A short wait for the next songs' versions (usually remembered by the
+      // server); anything still unknown is added to Spotify's line-up later,
+      // in order, while the music plays (extendSpotify).
+      await Promise.race([findSpotifyVersions(i + 1), new Promise((r) => setTimeout(r, 700))]);
       if (token !== tokenRef.current) return;
+      // Spotify mode, the music moving on by itself: a song Spotify doesn't
+      // have is skipped. Switching to YouTube without a tap is what paused the
+      // music (iPhones only let a new player start after a tap).
+      if (opts.reason === 'auto' && decide(track, false).engine !== 'spotify') {
+        startingRef.current = false;
+        setBusy(false);
+        const skips = (opts.skips ?? 0) + 1;
+        const n = nextIndex(i);
+        clientLog('spotify', 'not on Spotify, skipped', { song: track.title });
+        if (n !== null && skips < 40) playAt(n, { reason: 'auto', skips });
+        else setPlay(false);
+        return;
+      }
       // busy stays on: the Spotify start right after keeps the spinner going.
     }
     let choice = decide(track, videoRef.current);
@@ -734,13 +757,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const idx: number[] = [];
     // Songs Spotify doesn't have are skipped, so the music never stops
     // with the phone locked (the hub would need to be open to play them).
+    // Stops at the first song not looked up yet: it's added later, in order
+    // (extendSpotify), so Spotify never plays songs out of the hub's order.
+    let skippedSome = false;
     for (let j = i; j < list.length && j < i + 150 && ids.length < 50; j++) {
-      const c = decide(list[j], videoRef.current);
-      if (c.engine !== 'spotify') continue;
+      const t = list[j];
+      if (j > i && !sourceId(t, 'spotify') && !spotifyMatchRef.current.has(t.id)) break;
+      const c = decide(t, videoRef.current);
+      if (c.engine !== 'spotify') {
+        skippedSome = true;
+        continue;
+      }
       ids.push(c.id);
       idx.push(j);
     }
-    runRef.current = { ids, idx, sent: 0 }; // 0 = still starting (no top-ups yet)
+    if (skippedSome && !skipToldRef.current) {
+      skipToldRef.current = true;
+      showToast('Songs Spotify doesn’t have are skipped in Spotify mode. Tap one to hear it through YouTube.');
+    }
+    // Songs the hub queued in Spotify last time and that haven't played would
+    // come before this list: the server way clears them first.
+    if (extrasPendingRef.current && ids.length > 1) forceServerRef.current = true;
+    extrasPendingRef.current = false;
+    runRef.current = { ids, idx, sent: 0, ctx: ids.length }; // sent 0 = still starting (no top-ups yet)
     lastPlayedEndRef.current = false;
     // While it starts: the time stays where the song starts (it used to run
     // on from the previous song and show thousands of seconds), and the play
@@ -1169,6 +1208,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
     if (s.tries < 3 && !nearEnd) return; // give a plain resume one more go
     stallRef.current = null;
+    // Stuck paused at the very start: the iPhone refused to start the sound
+    // without a tap. Restarting the song (what this did before) was refused
+    // too and replayed the same song over and over; now it waits for a tap.
+    if (!nearEnd && st.paused && pos <= 1500) {
+      clientLog('spotify', 'start refused by the phone, waiting for a tap', { hidden: document.hidden });
+      userPausedRef.current = true; // the watchdog stops nudging; Play clears it
+      setPlay(false);
+      setNotice({ text: 'Your iPhone held back the start. Tap Play once to carry on.' });
+      return;
+    }
     const n = nearEnd ? nextIndex(indexRef.current) : indexRef.current;
     if (n !== null) playAt(n, nearEnd ? { reason: 'auto' } : { positionMs: pos });
   };
@@ -1476,7 +1525,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const run = runRef.current;
       let pos = -1;
       if (run) {
-        pos = run.ids.findIndex((id) => d.trackIds.includes(id));
+        // Look from the current song onwards first, so a song that's in the
+        // list twice doesn't pull the hub back to the earlier copy.
+        const from = Math.max(0, run.idx.indexOf(indexRef.current));
+        pos = run.ids.findIndex((id, k) => k >= from && d.trackIds.includes(id));
+        if (pos < 0) pos = run.ids.findIndex((id) => d.trackIds.includes(id));
         // Spotify sometimes swaps in another copy of a song (a different id);
         // then match by name among the songs it was given.
         if (pos < 0 && d.trackName) {
@@ -1537,8 +1590,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       const qi = run.idx[pos];
       if (qi !== indexRef.current) {
-        if (Date.now() - runStartedAtRef.current >= 5000) startedByRef.current = 'auto'; // Spotify moved on by itself
+        const auto = Date.now() - runStartedAtRef.current >= 5000;
+        if (auto) startedByRef.current = 'auto'; // Spotify moved on by itself
         setI(qi);
+        // Spotify's frame takes the lock screen on each new song (±10 s
+        // buttons): with the screen off, take it back once for the hub's card.
+        if (auto && document.hidden) claimLockScreen();
+      }
+      if (run.list) {
+        if (pos === run.ids.length - 1) extrasPendingRef.current = false;
+        extendSpotify(pos);
       }
 
       // The last song Spotify was given has finished: the hub plays what's next
@@ -1575,6 +1636,94 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // ── Keeping Spotify's line-up ahead of the music ────────────────────
+  // iPhones let the hub's Spotify player go from song to song inside the list
+  // it was given (even locked), but a brand-new start without a tap is
+  // refused: that's what paused the music when a short list ran out. So
+  // the list never runs out: when Spotify is on the last song of the list
+  // or within 2 of the end, the next songs (in the hub's order, skipping ones
+  // Spotify doesn't have) are added to Spotify's queue.
+  const extendSpotify = async (pos: number) => {
+    const run = runRef.current;
+    if (!run?.list || engineRef.current !== 'spotify' || !sdkLiveRef.current || startingRef.current || extendingRef.current) return;
+    if (repeatRef.current === 'one' || pos < 0) return;
+    // Queue songs play before the rest of the list, so only once the list's
+    // own songs are done, and only when 2 or fewer are left.
+    if (pos < (run.ctx ?? run.ids.length) - 1 || run.ids.length - 1 - pos > 2) return;
+    const q = queueRef.current;
+    const add: { id: string; j: number }[] = [];
+    let unknownAt = -1;
+    let j = run.idx[run.idx.length - 1] + 1;
+    for (; j < q.length && add.length < 4; j++) {
+      const t = q[j];
+      if (!sourceId(t, 'spotify') && !spotifyMatchRef.current.has(t.id)) {
+        unknownAt = j;
+        break;
+      }
+      const c = decide(t, videoRef.current);
+      if (c.engine === 'spotify') add.push({ id: c.id, j });
+    }
+    if (unknownAt >= 0) matchAhead(unknownAt);
+    if (!add.length) {
+      if (unknownAt < 0 && j >= q.length) loadMore(); // a big list: fetch its next songs
+      return;
+    }
+    const device = sdkDeviceRef.current;
+    if (!device) return;
+    extendingRef.current = true;
+    let added = 0;
+    try {
+      for (const a of add) {
+        let ok = false;
+        for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+          const t = await getSpotifyToken(attempt > 0);
+          if (!t) break;
+          const r = await fetch(
+            `https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent(`spotify:track:${a.id}`)}&device_id=${encodeURIComponent(device)}`,
+            { method: 'POST', headers: { Authorization: `Bearer ${t}` } },
+          ).catch(() => null);
+          if (r?.ok) ok = true;
+          else if (r?.status !== 401) {
+            clientLog('spotify', 'adding to the line-up refused', { status: r?.status ?? 0 });
+            break;
+          }
+        }
+        if (!ok || runRef.current !== run) break;
+        run.ids.push(a.id);
+        run.idx.push(a.j);
+        run.sent = run.ids.length;
+        extrasPendingRef.current = true;
+        added++;
+      }
+    } finally {
+      extendingRef.current = false;
+    }
+    if (added) clientLog('spotify', 'line-up extended', { added, songsAhead: run.ids.length - 1 - pos });
+  };
+
+  // Looks up Spotify versions of the coming songs in the background, a batch
+  // at a time (the server searches at most 12 per call), so extendSpotify
+  // always has the next songs ready.
+  const matchAhead = async (from: number) => {
+    if (matchingAheadRef.current) return;
+    matchingAheadRef.current = true;
+    try {
+      for (let round = 0; round < 8; round++) {
+        const before = spotifyMatchRef.current.size;
+        await findSpotifyVersions(from, 40);
+        if (engineRef.current !== 'spotify' || !runRef.current) break;
+        if (spotifyMatchRef.current.size === before) break; // nothing new (Spotify busy): try again later
+        const more = queueRef.current
+          .slice(from, from + 40)
+          .some((t) => !sourceId(t, 'spotify') && !spotifyMatchRef.current.has(t.id));
+        if (!more) break;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    } finally {
+      matchingAheadRef.current = false;
+    }
+  };
+
   const applyRef = useRef(applySpotify);
   applyRef.current = applySpotify;
   const unmatchedRef = useRef('');
@@ -1598,7 +1747,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const run = runRef.current;
     const start = run.idx.indexOf(indexRef.current);
     const remaining = start >= 0 ? run.ids.slice(start) : [];
-    if (ids.join() !== remaining.join()) {
+    // Compare only the songs both cover (Spotify may already have more queued,
+    // or the hub may know more): a real change is a different song in there.
+    const k = Math.min(ids.length, remaining.length);
+    if (k === 0 || ids.slice(0, k).join() !== remaining.slice(0, k).join()) {
       const wasPlaying = playingRef.current;
       playAt(indexRef.current, { positionMs: currentProgress() }).then(() => {
         if (!wasPlaying) {
@@ -1657,6 +1809,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       userPausedRef.current = false;
       if (sdkLiveRef.current && sdkPlayerRef.current) {
         keepAwake(true);
+        setNotice(null);
         await sdkPlayerRef.current.resume().catch(() => {});
         posRef.current = { ms: progress, at: Date.now() };
         setPlay(true);
@@ -1679,9 +1832,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Spotify's list: just skip (instant, no new start).
     const run = runRef.current;
     const p = sdkPlayerRef.current;
-    if (engineRef.current === 'spotify' && sdkLiveRef.current && p?.nextTrack && run && !startingRef.current && run.sent >= run.ids.length) {
+    if (engineRef.current === 'spotify' && sdkLiveRef.current && p?.nextTrack && run?.list && !startingRef.current && run.sent >= run.ids.length) {
       const pos = run.idx.indexOf(indexRef.current);
-      if (pos >= 0 && run.idx[pos + 1] === n) {
+      if (pos >= 0 && pos + 1 < run.ids.length) {
+        const n = run.idx[pos + 1]; // the next song Spotify has (songs it lacks are skipped)
         const leaving = queueRef.current[indexRef.current];
         if (leaving) historyRef.current.push(leaving);
         userPausedRef.current = false;
@@ -2205,7 +2359,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         endedRef.current('stuck at the end');
         return;
       }
-      if (st === 2 && document.hidden && d > 0 && t < d - 1.5 && stillFor > 2000 && w.tries < 3) {
+      if (st === 2 && document.hidden && d > 0 && t < d - 1.5 && stillFor > 2000 && w.tries < 6) {
         w.tries++;
         w.since = Date.now();
         clientLog('youtube', `paused by the phone, play again ${w.tries}`, { t: Math.round(t), d: Math.round(d) });
