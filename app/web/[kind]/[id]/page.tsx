@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import BackButton from '@/components/BackButton';
 import Header from '@/components/Header';
 import PlayButtons from '@/components/PlayButtons';
 import PlaylistMenu from '@/components/PlaylistMenu';
@@ -161,12 +162,10 @@ export default async function WebPage({
   );
 }
 
+// Back to wherever you came from (an artist page when you opened one of
+// their albums, the search otherwise); the search if there's nothing before.
 function Back() {
-  return (
-    <Link href="/library?search=1&where=web" className="muted small d-back">
-      ‹ Search
-    </Link>
-  );
+  return <BackButton fallback="/library?search=1&where=web" />;
 }
 
 function Failed({ message }: { message: string }) {

@@ -910,3 +910,4 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.
 - 2026-11-08: Lock-screen skip buttons: handlers re-set every time the hub's sound starts (iOS drops them → ±10 s), seek actions nulled, audio session = playback.
 - 2026-11-08: Spotify mode: songs queued earlier are skipped (muted) before each new start, so albums/playlists no longer run through old leftovers; longer first list.
+- 2026-11-08: Web album/artist/playlist pages: "‹ Back" (`components/BackButton.tsx`, router.back with search fallback) returns to the artist page you came from instead of always the search.
