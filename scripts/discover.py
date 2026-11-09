@@ -577,7 +577,25 @@ def main():
     today = datetime.now(TZ).date()
     print(f"Today is {today:%A %-d %B %Y} (New York time).")
 
+    # Catch up: if the job couldn't run on some days (e.g. GitHub stopped
+    # Actions on 2026-11-06..08), make those days' lists now, oldest first,
+    # dated the day they were meant for. Only looks back a week, and only
+    # after the first Daily discover ever made.
+    def catch_up():
+        first = db.get("discover_editions", {"kind": "eq.daily", "select": "edition_date", "order": "edition_date.asc", "limit": "1"})
+        if not first:
+            return
+        start = max(date.fromisoformat(first[0]["edition_date"]), today - timedelta(days=7))
+        day = start
+        while day < today:
+            if not edition_exists(db, "daily", day):
+                print(f"  catching up {day:%a %-d %b}")
+                make_daily(db, lib, music, day)
+                make_releases(db, lib, music, day)  # only does anything on a Friday
+            day += timedelta(days=1)
+
     steps = [
+        ("catchup", catch_up),
         ("daily", lambda: make_daily(db, lib, music, today)),
         ("weekly", lambda: make_weekly(db, lib, music, today)),
         ("scan", lambda: scan_releases(db, lib, music, today)),

@@ -67,6 +67,16 @@ Environment variables (set in Vercel; names only, never values):
 - Database changes: the Supabase connector (apply_migration / execute_sql) on
   project `dvcjjcuqmhwdahhaafuy`, **and** append the same SQL to
   `supabase/schema.sql` (kept re-runnable with `if not exists`).
+- **GitHub Actions minutes (2026-11-09):** while the repo was private, the
+  free 2,000 min/month ran out on 2026-11-05 (mostly the hourly 50-min Tag
+  artists job; every run also bills ≥1 min). All jobs were then refused in
+  ~3 s ("recent account payments have failed or your spending limit…"), so
+  Discover made nothing 11-06..11-08. Owner chose to make the repo public
+  (unlimited free minutes; history scanned: no secrets, only placeholders in
+  `.env.example`). Keep secrets out of the code: everything sensitive lives in
+  GitHub/Vercel secrets. The proxy can't change repo settings; the owner does.
+  Check runs with `gh run list -R sharkbarnacles/Big-Music -L 10` and
+  `gh run view <id>` (annotations show billing blocks).
 - The Vercel connector could not create/manage the project (it lacked access
   to the `wiltykelpy` scope); the owner does Vercel dashboard steps.
 - Commit messages end with the attribution lines the session gives.
@@ -910,4 +920,5 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.
 - 2026-11-08: Lock-screen skip buttons: handlers re-set every time the hub's sound starts (iOS drops them → ±10 s), seek actions nulled, audio session = playback.
 - 2026-11-08: Spotify mode: songs queued earlier are skipped (muted) before each new start, so albums/playlists no longer run through old leftovers; longer first list.
+- 2026-11-09: Discover stopped after 11-05: GitHub Actions minutes ran out (private repo). Repo going public; discover.py now catches up missed days (≤7) automatically; Tag artists slimmed to every 6 h × 15 min.
 - 2026-11-08: Web album/artist/playlist pages: "‹ Back" (`components/BackButton.tsx`, router.back with search fallback) returns to the artist page you came from instead of always the search.
