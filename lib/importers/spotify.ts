@@ -238,7 +238,7 @@ export async function importSpotify(): Promise<RoundResult> {
   if (resume) {
     const lasting = prog.skipped.filter((s) => s.reason === 'Spotify does not let apps read this playlist');
     if (lasting.length < prog.skipped.length) {
-      prog.skipped = lasting;
+      prog.skipped = []; // every playlist is passed again, so blocked ones get listed again as they come up
       prog.next_offset = Math.min(prog.next_offset, 1);
     }
   }
