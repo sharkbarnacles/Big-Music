@@ -15,7 +15,7 @@ export function libraryHref(p: LibraryParams, change: Partial<LibraryParams> = {
   if (n.sort && n.sort !== defaultSort(n.view)) qs.set('sort', n.sort);
   if (n.both && n.view !== 'artists') qs.set('both', '1');
   const s = qs.toString();
-  return s ? `/library?${s}` : '/library';
+  return s ? `/library?${s}` : '/library?view=songs'; // plain /library opens the playlists
 }
 
 // What a song list is made of, so the app can fetch more of it (scrolling,

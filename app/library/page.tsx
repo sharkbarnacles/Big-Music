@@ -90,8 +90,9 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  // ── Playlists (the switch at the start of the search line) ──
-  if (sp.view === 'playlists') {
+  // ── Playlists (the switch at the start of the search line). The Library
+  // tab opens here (plain /library); the music side is /library?view=songs.
+  if (sp.view === 'playlists' || Object.keys(sp).length === 0) {
     const chosen = (sp.tags ?? '').split(',').filter((x) => /^[0-9a-f-]{36}$/i.test(x));
     const [{ cards, error }, tags, total] = await Promise.all([loadPlaylistCards(), listTags().catch(() => []), count()]);
     return (
@@ -280,7 +281,7 @@ function LibrarySwitch() {
       <Link href="/library?view=playlists" aria-pressed="false" aria-label="Playlists">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="12" height="12" rx="2" /><path d="M8 4h10a2 2 0 0 1 2 2v10" /></svg>
       </Link>
-      <Link href="/library" aria-pressed="true" aria-label="All music">
+      <Link href="/library?view=songs" aria-pressed="true" aria-label="All music">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></svg>
       </Link>
     </span>

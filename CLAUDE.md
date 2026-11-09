@@ -486,6 +486,14 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   until 2026-11-05 09:35 UTC (332 of 3,357 playlists done). The import is
   now much slower and pauses while Spotify mode is in use.
   Check: `select * from import_progress;`
+  **2026-11-09:** 655 playlists done (offset 791 of 3,357); ~40 had been
+  skipped on 11-05 with "Spotify 401 expired access token" (a round started
+  with a token that had ~1 min left). Now rounds ask `getAccessToken('spotify',
+  10 min)`, a 401 refreshes and retries the playlist once, and a resumed import
+  whose `skipped` holds anything but "does not let apps read" restarts from
+  offset 1 (imported playlists are unchanged → quick) to retry them. To let the
+  import run while the owner listens in YouTube mode, the 3 h quiet window is
+  ended by moving `spotify_queue_state.updated_at` back (owner's OK).
 - Background finder is still filling YouTube versions (started 2026-11-03,
   expected to cover the library within about a day). Check progress:
   `select count(*) filter (where yt_audio_id is not null), count(*) filter (where yt_audio_status is null) from tracks;`
@@ -833,6 +841,18 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    2 songs or 3 plays, artist 2 plays). Play: `/api/speed-dial/play`
    (?radio= edition songs, ?album= whole YouTube album else your songs,
    ?artist= your songs by them shuffled through the player's `source`).
+   **Saved albums (2026-11-09, owner's wish: star albums like songs, a place
+   to see them):** soft star (`components/AlbumStar.tsx`, `.album-star`) in the
+   action row of YouTube Music album pages (`/web/album/MPRE…`, `page.kind ===
+   'album'`). Table `saved_albums` (browse_id pk, title, artist, subtitle,
+   image_url, song_count, saved_at; made via execute_sql, in schema.sql),
+   `lib/savedAlbums.ts`, `/api/albums` (GET list / `?id=` status, POST, DELETE).
+   "Albums" chip right after "Radios" in the playlist chips (Home + Library
+   playlists, `PlaylistBrowser` `show === 'albums'`, reloaded each time it's
+   opened) → `components/AlbumList.tsx` (radio-list rows with a single cover,
+   "Find an album" box when >8; tap = album page, round button = play via
+   `/api/speed-dial/play?albumId=`). Albums from Jump back in reach the same
+   page through `/album?name=&artist=`, so they can be starred there too.
 4. Polish: (done: reorder songs in hub playlists)
    save the current queue as a playlist.
 
@@ -920,5 +940,6 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.
 - 2026-11-08: Lock-screen skip buttons: handlers re-set every time the hub's sound starts (iOS drops them → ±10 s), seek actions nulled, audio session = playback.
 - 2026-11-08: Spotify mode: songs queued earlier are skipped (muted) before each new start, so albums/playlists no longer run through old leftovers; longer first list.
+- 2026-11-09: Saved albums (star on album pages, Albums chip after Radios); Spotify import token fix + retry of 401-skipped playlists; import resumed while owner uses YouTube mode.
 - 2026-11-09: Discover stopped after 11-05: GitHub Actions minutes ran out (private repo). Repo going public; discover.py now catches up missed days (≤7) automatically; Tag artists slimmed to every 6 h × 15 min.
 - 2026-11-08: Web album/artist/playlist pages: "‹ Back" (`components/BackButton.tsx`, router.back with search fallback) returns to the artist page you came from instead of always the search.

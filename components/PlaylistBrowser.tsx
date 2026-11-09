@@ -194,7 +194,7 @@ export default function PlaylistBrowser({
   const go = (next: HomeView, nextTags = chosen) => {
     if (base === '/library') {
       // Library: the music side is the Library's own song list.
-      router.push(next === 'songs' ? '/library' : libraryPlaylistsHref(nextTags));
+      router.push(next === 'songs' ? '/library?view=songs' : libraryPlaylistsHref(nextTags));
       return;
     }
     try {
@@ -230,12 +230,18 @@ export default function PlaylistBrowser({
 
   // ── Playlists ──
   const matches = (p: PlaylistCard) => chosen.every((t) => tagsOf(p).includes(t));
+  // "Find a playlist" box: narrows the list by name as you type.
+  const [find, setFind] = useState('');
+  const needle = find.trim().toLowerCase();
   const shown = useMemo(
     () =>
       playlists.filter(
-        (p) => (show === 'aside' ? aside(p) : !aside(p) && (show === 'all' || p.service === show)) && matches(p),
+        (p) =>
+          (show === 'aside' ? aside(p) : !aside(p) && (show === 'all' || p.service === show)) &&
+          matches(p) &&
+          (!needle || p.name.toLowerCase().includes(needle)),
       ),
-    [playlists, show, moved, chosen, tagMap], // eslint-disable-line react-hooks/exhaustive-deps
+    [playlists, show, moved, chosen, tagMap, needle], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const byName = (a: PlaylistCard, b: PlaylistCard) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   const sorted = useMemo(
@@ -252,7 +258,7 @@ export default function PlaylistBrowser({
   const pinnedList = shown
     .filter((p) => pinnedAt(p))
     .sort((a, b) => Date.parse(pinnedAt(a)!) - Date.parse(pinnedAt(b)!));
-  const showTop = !selecting && show !== 'aside';
+  const showTop = !selecting && show !== 'aside' && !needle; // while searching: just the matching list
   const rest = showTop ? sorted.filter((p) => !pinnedAt(p)) : [...pinnedList, ...sorted.filter((p) => !pinnedAt(p))];
   const shelf = showTop
     ? shown
@@ -603,6 +609,14 @@ export default function PlaylistBrowser({
       {/* ── Playlists ── */}
       {view === 'playlists' && show !== 'radios' && show !== 'albums' && (
         <>
+          <input
+            type="search"
+            className="radio-filter pl-find"
+            placeholder="Find a playlist"
+            aria-label="Find a playlist"
+            value={find}
+            onChange={(e) => setFind(e.target.value)}
+          />
           {show === 'aside' && (
             <p className="small muted pl-aside-note">Kept out of your taste profile. They still play as usual.</p>
           )}
