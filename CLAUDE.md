@@ -474,6 +474,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - Playlist Tools Lab (Set aside folder F, moving M, add-to-playlist window P, multi-select S): https://claude.ai/artifact/LVa34wAaGVwoizVJzvuEf2
 - Home Lab (layout L, Playlists/Songs switch T, pinned P, tag filter G, adding tags E): https://claude.ai/artifact/ViRmYrMA6gzqjTwr1C1wMB
 - Speed Dial Lab (Home speed dial: look S, contents C, labels T, placement P, tap A, name N; picked S1+C3+T1+P1+A1+N1): https://claude.ai/artifact/6qwGLdZZVYwXLXwpE6aFNo
+- Radio Extend Lab (Extend button on saved radios: button B, how many H, source S, new-song marking N, while playing P; pick pending): https://claude.ai/artifact/LrjQKLR2XaMdN4GVNLEoXd
 - Older canvas lab (superseded): https://claude.ai/artifact/AJoM4su4hLjAoMkwHy5xS5
 
 ## Current state
