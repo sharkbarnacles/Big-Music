@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import ImportButton from './ImportButton';
+import { usePlayer } from './Player';
 
 type Conn = { account: string | null } | null;
 
@@ -18,6 +19,7 @@ const ICON = {
 
 export default function HeaderBar({ spotify, youtube }: { spotify: Conn; youtube: Conn }) {
   const [open, setOpen] = useState<null | 'services' | 'account'>(null);
+  const { youtubeMode, setYoutubeMode } = usePlayer();
   const conns = { spotify, youtube };
   const needsAttention = !spotify || !youtube;
 
@@ -34,6 +36,15 @@ export default function HeaderBar({ spotify, youtube }: { spotify: Conn; youtube
       <header className="top-bar">
         <Link href="/" className="brand-small">Music Hub</Link>
         <div className="top-actions">
+          {/* Which service plays songs (was inside the Now Playing "⋯" menu). */}
+          <div className="mode-switch" role="group" aria-label="Play songs with">
+            <button type="button" className="spotify" aria-pressed={!youtubeMode} onClick={() => youtubeMode && setYoutubeMode(false)}>
+              <span className="dot spotify" aria-hidden="true" />Spotify
+            </button>
+            <button type="button" className="youtube" aria-pressed={youtubeMode} onClick={() => !youtubeMode && setYoutubeMode(true)}>
+              <span className="dot youtube" aria-hidden="true" />YouTube
+            </button>
+          </div>
           <button
             type="button"
             className="round-btn"

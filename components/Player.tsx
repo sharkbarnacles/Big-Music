@@ -2895,11 +2895,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                       {radioEdition && (
                         <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); saveEditionAsPlaylist(radioEdition); }}>Save this radio as a playlist</button>
                       )}
-                      <label className="switch np-switch" role="menuitemcheckbox" aria-checked={youtubeMode}>
-                        <span>YouTube mode</span>
-                        <input type="checkbox" checked={youtubeMode} onChange={(e) => setYoutubeMode(e.target.checked)} />
-                        <span className="track" aria-hidden="true" />
-                      </label>
                       <button type="button" role="menuitem" className="danger-item" onClick={() => { setMoreOpen(false); closePlayer(); }}>Stop and close player</button>
                     </div>
                   </>

@@ -951,3 +951,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-09: Saved albums (star on album pages, Albums chip after Radios); Spotify import token fix + retry of 401-skipped playlists; import resumed while owner uses YouTube mode (09:15 UTC: 921 of 3,357, no 401s left). Library opens on playlists + Find a playlist box.
 - 2026-11-09: Discover stopped after 11-05: GitHub Actions minutes ran out (private repo). Repo going public; discover.py now catches up missed days (≤7) automatically; Tag artists slimmed to every 6 h × 15 min.
 - 2026-11-08: Web album/artist/playlist pages: "‹ Back" (`components/BackButton.tsx`, router.back with search fallback) returns to the artist page you came from instead of always the search.
+- 2026-11-09: Owner asked to change Spotify/YouTube mode without opening a
+  song: the mode switch moved from the Now Playing "⋯" menu to the header
+  (`components/HeaderBar.tsx`, `.mode-switch`), a two-part pill
+  "Spotify | YouTube" left of the Services button. Same `setYoutubeMode`.

@@ -329,6 +329,16 @@ details.services summary { gap: 12px; }
 .round-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .status-dots { position: absolute; top: -1px; right: -2px; display: flex; gap: 2px; }
 .status-dots .dot { width: 8px; height: 8px; margin: 0; box-shadow: 0 0 0 2px var(--bg); }
+/* Spotify / YouTube mode switch, left of the Services button */
+.top-actions { align-items: center; }
+.mode-switch { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.mode-switch button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+.mode-switch .dot { width: 7px; height: 7px; margin: 0; opacity: .45; }
+.mode-switch button[aria-pressed="true"] { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.mode-switch button.spotify[aria-pressed="true"] { color: var(--spotify); }
+.mode-switch button.youtube[aria-pressed="true"] { color: var(--youtube); }
+.mode-switch button[aria-pressed="true"] .dot { opacity: 1; }
+.mode-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Panel that slides up from the bottom (Services, Account) */
 .panel-back { position: fixed; inset: 0; z-index: 44; background: rgba(0, 0, 0, 0.55); border: 0; border-radius: 0; padding: 0; }
