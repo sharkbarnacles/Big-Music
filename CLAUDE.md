@@ -853,6 +853,13 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    "Find an album" box when >8; tap = album page, round button = play via
    `/api/speed-dial/play?albumId=`). Albums from Jump back in reach the same
    page through `/album?name=&artist=`, so they can be starred there too.
+   **Library opens on playlists (2026-11-09, owner's wish):** plain `/library`
+   (no query at all) renders the playlists view; the music side is
+   `/library?view=songs` (LibrarySwitch, PlaylistBrowser's switch, and
+   `libraryHref` with no params all point there). **Find a playlist:** a search
+   box at the top of the playlist list (Home + Library, `find` state in
+   `PlaylistBrowser`, filters by name; while typing, speed dial / pinned tiles /
+   shelf hide so only matches show).
 4. Polish: (done: reorder songs in hub playlists)
    save the current queue as a playlist.
 
@@ -940,6 +947,6 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
 - 2026-11-07: Spotify mode never runs out: line-up extended through Spotify's queue while playing, songs Spotify lacks skipped (no YouTube switch without a tap), refused starts wait for a tap instead of replaying, instant next from the lock screen.
 - 2026-11-08: Lock-screen skip buttons: handlers re-set every time the hub's sound starts (iOS drops them → ±10 s), seek actions nulled, audio session = playback.
 - 2026-11-08: Spotify mode: songs queued earlier are skipped (muted) before each new start, so albums/playlists no longer run through old leftovers; longer first list.
-- 2026-11-09: Saved albums (star on album pages, Albums chip after Radios); Spotify import token fix + retry of 401-skipped playlists; import resumed while owner uses YouTube mode.
+- 2026-11-09: Saved albums (star on album pages, Albums chip after Radios); Spotify import token fix + retry of 401-skipped playlists; import resumed while owner uses YouTube mode (09:15 UTC: 921 of 3,357, no 401s left). Library opens on playlists + Find a playlist box.
 - 2026-11-09: Discover stopped after 11-05: GitHub Actions minutes ran out (private repo). Repo going public; discover.py now catches up missed days (≤7) automatically; Tag artists slimmed to every 6 h × 15 min.
 - 2026-11-08: Web album/artist/playlist pages: "‹ Back" (`components/BackButton.tsx`, router.back with search fallback) returns to the artist page you came from instead of always the search.
