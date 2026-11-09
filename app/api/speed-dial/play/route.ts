@@ -15,6 +15,7 @@ export const maxDuration = 30;
 //   ?radio=<edition id>            the radio's saved songs
 //   ?album=<name>&artist=<name>    the whole album from YouTube Music (else your songs from it)
 //   ?artist=<name>                 your songs by them, shuffled (the whole list, via `source`)
+//   ?albumId=MPRE…                 a saved album (Albums chip), by its YouTube Music id
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
   try {
@@ -22,6 +23,12 @@ export async function GET(req: NextRequest) {
     if (radio) {
       const ed = await getEdition(radio);
       return NextResponse.json({ tracks: (ed?.items ?? []).map(toTrack), from: ed?.title ?? 'Radio' });
+    }
+    const albumId = q.get('albumId');
+    if (albumId) {
+      if (!/^MPRE[\w-]{4,76}$/.test(albumId)) return NextResponse.json({ error: 'Not an album.' }, { status: 400 });
+      const page = await browseCollection(albumId);
+      return NextResponse.json({ tracks: await toPlayable(page.songs), from: page.title });
     }
     const album = q.get('album');
     if (album) {

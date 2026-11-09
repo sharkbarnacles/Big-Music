@@ -73,12 +73,14 @@ export async function googleTokenRequest(body: Record<string, string>): Promise<
   return res.json();
 }
 
-export async function getAccessToken(service: Service): Promise<string> {
+// `minValidMs`: how long the token must still work. Long jobs (a 4-minute
+// import round) ask for more, so the token can't expire halfway through.
+export async function getAccessToken(service: Service, minValidMs = 60_000): Promise<string> {
   const conn = await getConnection(service);
   if (!conn) throw new NotConnectedError(service);
 
   const msLeft = new Date(conn.expires_at).getTime() - Date.now();
-  if (msLeft > 60_000) return conn.access_token;
+  if (msLeft > minValidMs) return conn.access_token;
 
   if (!conn.refresh_token) throw new NotConnectedError(service);
   try {

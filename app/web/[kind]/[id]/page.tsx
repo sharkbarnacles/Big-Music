@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import AlbumStar from '@/components/AlbumStar';
 import BackButton from '@/components/BackButton';
 import Header from '@/components/Header';
 import PlayButtons from '@/components/PlayButtons';
@@ -154,6 +155,11 @@ export default async function WebPage({
       </div>
       <div className="mix-acts">
         <PlayButtons tracks={tracks} />
+        {page.kind === 'album' && (
+          <AlbumStar
+            album={{ id, title: page.title, artist: page.owner, subtitle: page.subtitle || null, image: page.image, count: tracks.length }}
+          />
+        )}
         <PlaylistMenu id={id} name={page.title} hub={false} tracks={tracks.map((t) => ({ id: t.id, title: t.title }))} />
       </div>
       {tracks.length ? <TrackList tracks={tracks} /> : <p className="muted">This {page.kind} has no songs the hub can play.</p>}

@@ -203,7 +203,10 @@ async function importOne(token: string, p: any, prog: Progress) {
 // Runs one round. `next_offset` counts Liked Songs as 0 and playlist n as n+1.
 export async function importSpotify(): Promise<RoundResult> {
   const began = Date.now();
-  const token = await getAccessToken('spotify');
+  // A round lasts up to ~5 minutes: get a token good for at least 10, so it
+  // can't expire mid-round (on 2026-11-05 ~40 playlists were skipped with
+  // "Spotify 401 … expired access token" when a nearly-expired one was used).
+  let token = await getAccessToken('spotify', 10 * 60_000);
 
   const saved = await loadProgress();
   // Still inside Spotify's time-out: don't ask again (that can make it longer).
@@ -229,6 +232,16 @@ export async function importSpotify(): Promise<RoundResult> {
   const prog: Progress = resume
     ? { ...saved!, skipped: saved!.skipped ?? [] }
     : { next_offset: 0, total: 0, playlists: 0, unchanged: 0, songs: 0, excluded: 0, skipped: [], done: false, updated_at: '' };
+  // Playlists skipped for a passing reason (expired sign-in, a Spotify
+  // hiccup) get another go: go back to the start of the playlist list.
+  // Playlists already imported are unchanged, so passing them again is quick.
+  if (resume) {
+    const lasting = prog.skipped.filter((s) => s.reason === 'Spotify does not let apps read this playlist');
+    if (lasting.length < prog.skipped.length) {
+      prog.skipped = lasting;
+      prog.next_offset = Math.min(prog.next_offset, 1);
+    }
+  }
   prog.blocked_until = null;
   const fresh = !resume;
   const result = (): RoundResult => ({
@@ -302,7 +315,13 @@ export async function importSpotify(): Promise<RoundResult> {
           continue;
         }
         try {
-          await importOne(token, p, prog);
+          try {
+            await importOne(token, p, prog);
+          } catch (err) {
+            if (!(err instanceof SpotifyError && err.status === 401)) throw err;
+            token = await getAccessToken('spotify', 10 * 60_000); // sign-in ran out: refresh once and retry
+            await importOne(token, p, prog);
+          }
         } catch (err) {
           if (err instanceof SpotifyPaused || (err instanceof SpotifyError && err.status === 429)) {
             prog.next_offset = offset + i + 1; // try this one again next round

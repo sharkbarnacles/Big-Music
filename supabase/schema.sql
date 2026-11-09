@@ -656,3 +656,17 @@ create table if not exists skips (
 );
 create index if not exists skips_artist_at on skips (artist_key, at desc);
 alter table skips enable row level security;
+
+-- Saved albums (2026-11-09): the star on a YouTube Music album page; listed
+-- under the "Albums" chip on Home / Library playlists.
+create table if not exists saved_albums (
+  browse_id text primary key,
+  title text not null,
+  artist text,
+  subtitle text,
+  image_url text,
+  song_count int,
+  saved_at timestamptz not null default now()
+);
+create index if not exists saved_albums_saved_at on saved_albums (saved_at desc);
+alter table saved_albums enable row level security;

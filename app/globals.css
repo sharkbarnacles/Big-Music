@@ -970,3 +970,9 @@ span.tag-pill { display: inline-flex; align-items: center; }
 .radio-play { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
 .radio-play svg { width: 16px; height: 16px; fill: currentColor; margin-left: 2px; }
 .radio-play .play-spin { width: 16px; height: 16px; border-width: 2px; }
+
+/* Saved albums (2026-11-09): star on album pages, "Albums" chip list. */
+.album-cover { flex: none; width: 56px; height: 56px; border-radius: 8px; object-fit: cover; display: block; background: var(--panel-2); }
+.mix-acts .album-star { width: 40px; height: 40px; flex: none; }
+.mix-acts .album-star svg { width: 22px; height: 22px; }
+.pl-albums-chip svg { width: 15px; height: 15px; margin-right: 2px; fill: none; stroke: currentColor; stroke-width: 1.8; vertical-align: -2px; }

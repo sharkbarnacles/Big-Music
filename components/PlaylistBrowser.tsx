@@ -10,6 +10,8 @@ import TagSheet from './TagSheet';
 import RadioList from './RadioList';
 import type { RadioCard } from '@/lib/radioList';
 import { PLAYER_ICONS } from '@/lib/playerIcons';
+import type { SavedAlbum } from '@/lib/savedAlbums';
+import AlbumList from './AlbumList';
 import SpeedDial from './SpeedDial';
 import type { SpeedDial as Dial } from '@/lib/speedDial';
 import { smallCover } from '@/lib/img';
@@ -42,7 +44,7 @@ export type HomeSongs = { tracks: TrackRowData[]; total: number; query: string; 
 export type HomeView = 'playlists' | 'songs';
 
 type Sort = 'recent' | 'az' | 'size';
-type Show = 'all' | 'hub' | 'spotify' | 'youtube' | 'aside' | 'radios';
+type Show = 'all' | 'hub' | 'spotify' | 'youtube' | 'aside' | 'radios' | 'albums';
 
 const SORTS: { id: Sort; label: string; short: string }[] = [
   { id: 'recent', label: 'Recently updated', short: 'Recent' },
@@ -116,6 +118,26 @@ export default function PlaylistBrowser({
       .then((d) => (d.radios ? setRadios(d.radios) : setRadiosError(d.error ?? 'Couldn’t load your radios.')))
       .catch(() => setRadiosError('Couldn’t load your radios.'));
   }, [show, radios]);
+  // The "Albums" chip (after Radios): albums you've starred, loaded fresh each time it's opened.
+  const [albums, setAlbums] = useState<SavedAlbum[] | null>(null);
+  const [albumsError, setAlbumsError] = useState<string | null>(null);
+  useEffect(() => {
+    if (show !== 'albums') return;
+    let alive = true;
+    fetch('/api/albums')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        if (d.albums) {
+          setAlbums(d.albums);
+          setAlbumsError(null);
+        } else setAlbumsError(d.error ?? 'Couldn’t load your albums.');
+      })
+      .catch(() => alive && setAlbumsError('Couldn’t load your albums.'));
+    return () => {
+      alive = false;
+    };
+  }, [show]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagMenu, setTagMenu] = useState(false);
   const [chosen, setChosen] = useState<string[]>(initialTags);
@@ -150,7 +172,7 @@ export default function PlaylistBrowser({
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved?.sort && SORTS.some((s) => s.id === saved.sort)) setSort(saved.sort);
-      if (saved?.show && (saved.show === 'aside' || saved.show === 'radios' || SHOWS.some((s) => s.id === saved.show))) setShow(saved.show);
+      if (saved?.show && (saved.show === 'aside' || saved.show === 'radios' || saved.show === 'albums' || SHOWS.some((s) => s.id === saved.show))) setShow(saved.show);
     } catch {
       /* ignore */
     }
@@ -443,6 +465,16 @@ export default function PlaylistBrowser({
                         <svg viewBox="0 0 24 24" aria-hidden="true" className="picon" dangerouslySetInnerHTML={{ __html: PLAYER_ICONS.radio }} />
                         Radios
                       </button>,
+                      <button
+                        key="albums"
+                        type="button"
+                        className="pl-chip pl-albums-chip"
+                        aria-pressed={show === 'albums'}
+                        onClick={() => setShow(show === 'albums' ? 'all' : 'albums')}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2.2" /></svg>
+                        Albums
+                      </button>,
                     ]
                   : [chip],
               )}
@@ -559,8 +591,17 @@ export default function PlaylistBrowser({
         </div>
       )}
 
+      {/* ── Albums (chip after Radios) ── */}
+      {view === 'playlists' && show === 'albums' && (
+        <div style={{ marginTop: 8 }}>
+          {albumsError && <div className="notice error">{albumsError}</div>}
+          {!albums && !albumsError && <p className="small muted">Loading your albums…</p>}
+          {albums && <AlbumList albums={albums} />}
+        </div>
+      )}
+
       {/* ── Playlists ── */}
-      {view === 'playlists' && show !== 'radios' && (
+      {view === 'playlists' && show !== 'radios' && show !== 'albums' && (
         <>
           {show === 'aside' && (
             <p className="small muted pl-aside-note">Kept out of your taste profile. They still play as usual.</p>
