@@ -81,7 +81,7 @@ type PlayerApi = {
   youtubeMode: boolean;
   setYoutubeMode: (on: boolean) => void;
   playList: (list: TrackRowData[], start: number, opts?: PlayOptions) => void;
-  playNext: (track: TrackRowData) => void;
+  playNext: (track: TrackRowData | TrackRowData[], label?: string) => void;
   addToQueue: (track: TrackRowData) => void;
   startRadio: (track: TrackRowData, label?: string) => void;
   startPromptRadio: (words: string) => Promise<void>;
@@ -2238,18 +2238,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Play next: straight after the current song. Add to queue: after the other
   // songs you added, before the rest of the list (like Spotify's queue).
   // Each added song is a copy, so it can be told apart from the same song in the list.
-  const playNext = (track: TrackRowData) => {
-    if (indexRef.current < 0) return playList([track], 0);
-    const t = { ...track };
-    addedRef.current.add(t);
+  // Several songs at once (a whole album) go in together, in order.
+  const playNext = (track: TrackRowData | TrackRowData[], label?: string) => {
+    const list = Array.isArray(track) ? track : [track];
+    if (!list.length) return;
+    if (indexRef.current < 0) return playList(list, 0, list.length > 1 ? { noShuffle: true } : {});
+    const added = list.map((x) => ({ ...x }));
+    added.forEach((t) => addedRef.current.add(t));
     const q = queueRef.current.slice();
-    q.splice(indexRef.current + 1, 0, t);
+    q.splice(indexRef.current + 1, 0, ...added);
     const cur = queueRef.current[indexRef.current];
     const base = baseRef.current.slice();
-    base.splice(Math.max(0, base.indexOf(cur)) + 1, 0, t);
+    base.splice(Math.max(0, base.indexOf(cur)) + 1, 0, ...added);
     baseRef.current = base;
     setQ(q, indexRef.current);
-    showToast(`Playing next: ${track.title}`);
+    showToast(added.length === 1 ? `Playing next: ${added[0].title}` : `Playing next: ${label || `${added.length} songs`}`);
     resyncSpotify();
   };
 

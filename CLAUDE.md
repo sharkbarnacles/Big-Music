@@ -977,3 +977,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   with an untitled "Watch the new music video" shelf, so artists with fresh
   releases were skipped (~10% per scan). `Music.__init__` wraps
   `yt._send_request` to drop untitled carousel shelves from browse answers.
+- **Play next for whole albums (2026-11-17):** album/playlist pages
+  (`app/web/[kind]/[id]`) have a queue button left of Shuffle
+  (`PlayButtons playNext=<name>`); `playNext` in Player now takes one song or a
+  list and inserts them in order after the current song.

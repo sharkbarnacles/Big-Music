@@ -154,7 +154,7 @@ export default async function WebPage({
         </div>
       </div>
       <div className="mix-acts">
-        <PlayButtons tracks={tracks} />
+        <PlayButtons tracks={tracks} playNext={page.title} />
         {page.kind === 'album' && (
           <AlbumStar
             album={{ id, title: page.title, artist: page.owner, subtitle: page.subtitle || null, image: page.image, count: tracks.length }}
