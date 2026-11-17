@@ -195,9 +195,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const onRejection = (e: PromiseRejectionEvent) => clientLog('rejection', String(e.reason?.stack ?? e.reason).slice(0, 1500));
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
+    // Leaving the page: note right now whether music is playing, so the
+    // reloaded page knows to carry on (see restorePlayer).
+    const markAlive = () => {
+      try {
+        const last = JSON.parse(localStorage.getItem('mh-alive') || 'null') ?? {};
+        localStorage.setItem('mh-alive', JSON.stringify({ ...last, at: Date.now(), playing: playingRef.current }));
+      } catch {
+        /* private browsing */
+      }
+    };
     const onHide = () => document.visibilityState === 'hidden' && savePlayer();
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', savePlayer);
+    window.addEventListener('pagehide', markAlive);
     restorePlayer();
     // Every few seconds: am I playing, and where? (read on the next start)
     const beat = window.setInterval(() => {
@@ -223,6 +234,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(beat);
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', savePlayer);
+      window.removeEventListener('pagehide', markAlive);
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
     };
@@ -408,9 +420,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       videoRef.current = Boolean(saved.video);
       setVideo(videoRef.current);
       restoredRef.current = true;
+      // On a computer, if music was playing a moment ago (the page reloaded
+      // itself, e.g. the first page change after an update), carry straight
+      // on instead of waiting for a tap. Computers allow this because you
+      // just clicked inside the hub. iPhones need a tap, so they stay paused.
+      const alive = JSON.parse(localStorage.getItem('mh-alive') || 'null');
+      if (!isPhone() && alive?.playing && Date.now() - alive.at < 20_000) resumeAfterReload();
     } catch {
       /* nothing saved */
     }
+  };
+  // Waits for the in-hub Spotify player when Spotify mode needs it (it
+  // starts a second or two after the page loads), then presses Play.
+  const resumeAfterReload = () => {
+    const started = Date.now();
+    const go = () => {
+      if (!restoredRef.current) return; // you already pressed something
+      const needsSpotify = !ytModeRef.current && !videoRef.current;
+      if (needsSpotify && !sdkDeviceRef.current && Date.now() - started < 8000) {
+        setTimeout(go, 250);
+        return;
+      }
+      clientLog('player', 'resumed after reload', { waitedMs: Date.now() - started, spotify: Boolean(sdkDeviceRef.current) });
+      togglePlayRef.current();
+    };
+    setTimeout(go, 300);
   };
   const setI = (i: number) => {
     indexRef.current = i;

@@ -957,3 +957,11 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   song: the mode switch moved from the Now Playing "⋯" menu to the header
   (`components/HeaderBar.tsx`, `.mode-switch`), a two-part pill
   "Spotify | YouTube" left of the Services button. Same `setYoutubeMode`.
+- **Resume after reload (2026-11-17):** every deploy makes the next page change
+  in an open tab a full page load (Next.js version mismatch; Vercel Skew
+  Protection would prevent it but is Pro-only). `client_events`
+  `restart-while-playing` lined up exactly with pushes. On computers,
+  `restorePlayer` now presses Play by itself if `mh-alive` says music was
+  playing <20 s ago (`markAlive` on pagehide keeps that fresh); in Spotify
+  mode it waits up to 8 s for the in-hub player. Logged as
+  `player / resumed after reload`. Phones still come back paused (need a tap).
