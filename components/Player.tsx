@@ -484,6 +484,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       keepAliveUnlockedRef.current = true;
       unlockKeepRef.current();
     }
+    // A tap is when browsers allow sound again, so undo any silent start.
+    try {
+      if (ytPlayerRef.current?.isMuted?.()) ytPlayerRef.current.unMute?.();
+    } catch {
+      /* player not ready */
+    }
   };
 
   const currentProgress = () =>
@@ -1909,8 +1915,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // ── Controls ────────────────────────────────────────────────────────
 
   const togglePlay = async () => {
-    gesture();
+    let wasMuted = false;
+    try {
+      wasMuted = engineRef.current === 'youtube' && Boolean(ytPlayerRef.current?.isMuted?.());
+    } catch {
+      /* ignore */
+    }
+    gesture(); // turns the sound back on
+    setNotice((n) => (n?.text.startsWith('The sound got switched off') ? null : n));
     if (!current || busy) return;
+    // Playing silently: this tap only brings the sound back, it doesn't pause.
+    if (wasMuted && playingRef.current) {
+      clientLog('youtube', 'sound back on from a tap');
+      return;
+    }
     if (restoredRef.current) {
       restoredRef.current = false;
       playAt(indexRef.current, { positionMs: progress, back: true });
@@ -2507,6 +2525,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // paused by the phone (not by you) while the screen is off → play again.
   // It also keeps the lock screen's time bar right.
   const ytWatchRef = useRef<{ t: number; since: number; token: number; tries: number } | null>(null);
+  // When the watchdog first saw each song (so a song that has only just been
+  // asked for, still showing the last one's "ended", isn't skipped too).
+  const ytBornRef = useRef<{ token: number; at: number }>({ token: -1, at: 0 });
+  const mutedRef = useRef<{ token: number; tries: number; told: boolean }>({ token: -1, tries: 0, told: false });
   useEffect(() => {
     let beat = 0;
     const iv = setInterval(() => {
@@ -2525,9 +2547,43 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const st = ytState();
       const token = tokenRef.current;
       if (++beat % 5 === 0) setLockPosition(t * 1000, d * 1000, st === 1);
+      if (ytBornRef.current.token !== token) ytBornRef.current = { token, at: Date.now() };
+      // "Ended" only counts once this song has had 3 s to start: right after
+      // skipping, YouTube still reports the previous song as ended, and that
+      // used to skip song after song, once a second.
       if (st === 0) {
-        endedRef.current('watchdog');
+        if (Date.now() - ytBornRef.current.at > 3000) endedRef.current('watchdog');
         return;
+      }
+      // Time running but no sound: when the browser blocks sound (YouTube
+      // restarted by script, not a tap), YouTube plays on muted instead of
+      // stopping. Turn the sound back on; if the browser won't allow it, ask
+      // for one tap.
+      if (st === 1) {
+        let muted = false;
+        try {
+          muted = Boolean(ytPlayerRef.current.isMuted?.());
+        } catch {
+          /* ignore */
+        }
+        const m = mutedRef.current;
+        if (m.token !== token) mutedRef.current = { token, tries: 0, told: false };
+        if (muted) {
+          const mm = mutedRef.current;
+          if (mm.tries < 3) {
+            mm.tries++;
+            clientLog('youtube', `playing muted, unmute ${mm.tries}`, { hidden: document.hidden, t: Math.round(t) });
+            try {
+              ytPlayerRef.current.unMute?.();
+              ytPlayerRef.current.setVolume?.(100);
+            } catch {
+              /* ignore */
+            }
+          } else if (!mm.told && !document.hidden) {
+            mm.told = true;
+            setNotice({ text: 'The sound got switched off by the browser: tap Play (or anywhere on the player) once to bring it back.' });
+          }
+        }
       }
       const w = ytWatchRef.current;
       if (!w || w.token !== token || Math.abs(t - w.t) > 0.3) {

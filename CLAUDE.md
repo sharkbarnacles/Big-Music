@@ -992,3 +992,11 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   video shows) and in the full-screen overlay. Off = `unloadModule('captions')`
   on the YouTube player, re-applied each time a video starts playing (YouTube
   reloads captions per video). Saved per device in `mh-captions-off`.
+- **YouTube watchdog fixes (2026-11-17):** (1) right after a skip YouTube still
+  reports the old song as ended (state 0), so the watchdog skipped ~10 songs in
+  10 s (seen 11:11 on the phone). Now "ended" only counts once a song is >3 s
+  old (`ytBornRef`). (2) "Time running, no sound": when the browser blocks
+  sound on a script-started play, YouTube plays on *muted*. The watchdog checks
+  `isMuted()` while playing, unmutes (logged `playing muted, unmute n`), and
+  after 3 tries shows a one-tap notice; `gesture()` unmutes on any tap and Play
+  on a muted song only unmutes instead of pausing.
