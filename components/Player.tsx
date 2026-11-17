@@ -171,6 +171,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [repeat, setRepeat] = useState<Repeat>('off');
   const [youtubeMode, setYoutubeModeState] = useState(true); // YouTube-first by default
   const [video, setVideo] = useState(false);
+  // Full-screen music video: the YouTube player covers the whole screen
+  // (and the computer's real full screen where the browser allows it).
+  const [fullVideo, setFullVideo] = useState(false);
+  const [fullControls, setFullControls] = useState(true);
   const [, setVersionTick] = useState(0); // redraw when a song's other version turns up
   const historyRef = useRef<TrackRowData[]>([]); // songs you were on before, newest last (for Back)
   const ytIdRef = useRef<string | null>(null); // the YouTube video loaded right now
@@ -2077,6 +2081,38 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     playAt(indexRef.current, { positionMs: currentProgress() });
   };
 
+  // ── Full-screen music video ──
+  const fullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pokeFullControls = () => {
+    setFullControls(true);
+    if (fullTimerRef.current) clearTimeout(fullTimerRef.current);
+    fullTimerRef.current = setTimeout(() => setFullControls(false), 3000);
+  };
+  const openFullVideo = () => {
+    gesture();
+    if (!videoRef.current) toggleVideo();
+    setFullVideo(true);
+    pokeFullControls();
+    // Computers (and Android): the real full screen, no browser bars.
+    // iPhones can't do this for a page, so there the video just fills the app.
+    try {
+      const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+      if (document.fullscreenEnabled && !document.fullscreenElement) root.requestFullscreen?.().catch(() => {});
+      else root.webkitRequestFullscreen?.();
+    } catch {
+      /* not allowed here; the in-app full screen still works */
+    }
+  };
+  const closeFullVideo = () => {
+    setFullVideo(false);
+    if (fullTimerRef.current) clearTimeout(fullTimerRef.current);
+    try {
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  };
+
   const playList = (list: TrackRowData[], start: number, opts: PlayOptions = {}) => {
     gesture();
     if (list.length === 0) return;
@@ -2701,13 +2737,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(timer);
   }, [engine]);
 
+  // Leave full screen when the video goes away, the browser's own full
+  // screen is left (Esc), or Esc is pressed.
+  useEffect(() => {
+    if (fullVideo && (!video || engine !== 'youtube' || !current)) closeFullVideo();
+  }, [fullVideo, video, engine, current]);
+  useEffect(() => {
+    if (!fullVideo) return;
+    const onChange = () => {
+      if (!document.fullscreenElement) setFullVideo(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeFullVideo();
+      else if (e.key === ' ') {
+        e.preventDefault();
+        togglePlayRef.current();
+      } else pokeFullControls();
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [fullVideo]);
+
   // ── Layout ──────────────────────────────────────────────────────────
 
   const ytActive = engine === 'youtube';
   // Where YouTube's player sits: over the artwork in Now Playing, a wide
   // panel above the bar for music videos, a small square in the bar, or hidden.
   const hostStyle: React.CSSProperties =
-    ytActive && sheetOpen
+    ytActive && fullVideo
+      ? { top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 60, opacity: 1, borderRadius: 0, background: '#000' }
+      : ytActive && sheetOpen
       ? {
           top: 'var(--np-top, calc(env(safe-area-inset-top) + 64px))',
           clipPath: 'inset(var(--np-clip, 0px) 0 0 0)',
@@ -2792,6 +2855,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     queue: 'M3 6h13M3 12h13M3 18h9M17 15l5 3-5 3z',
     video: 'M3 5h18v14H3zM10 9l5 3-5 3z',
     close: 'M6 6l12 12M18 6L6 18',
+    full: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+    unfull: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
   };
 
   return (
@@ -2809,6 +2874,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         data-needs-tap={notice?.text.startsWith('Your iPhone wants one tap') ? '' : undefined}
         style={hostStyle}
       />
+
+      {/* Full-screen music video: tap anywhere to show the buttons; they hide again after 3 s. */}
+      {ytActive && fullVideo && current && (
+        <div className={`mv-full${fullControls ? ' show' : ''}`} onClick={pokeFullControls} onMouseMove={pokeFullControls}>
+          <div className="mv-full-top">
+            <div className="mv-full-text">
+              <span className="title">{current.title}</span>
+              <span className="sub">{current.artist}</span>
+            </div>
+            <button type="button" className="ctrl" aria-label="Leave full screen" onClick={(e) => { e.stopPropagation(); closeFullVideo(); }}>
+              {icon(ICON.unfull)}
+            </button>
+          </div>
+          <div className="mv-full-bottom" onClick={(e) => { e.stopPropagation(); pokeFullControls(); }}>
+            <div className="mv-full-bar" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
+            <div className="mv-full-ctrls">
+              <button type="button" className="ctrl" aria-label="Previous song" onClick={prev}>{icon(ICON.prev)}</button>
+              <button type="button" className="ctrl primary" aria-label={busy ? 'Loading' : playing ? 'Pause' : 'Play'} aria-busy={busy} onClick={togglePlay}>
+                {busy ? <span className="play-spin" aria-hidden="true" /> : playing ? icon(ICON.pause) : icon(ICON.play, true)}
+              </button>
+              <button type="button" className="ctrl" aria-label="Next song" onClick={next}>{icon(ICON.next)}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(toast || notice) && !sheetOpen && (
         <div className="player-float" style={{ bottom: `calc(var(--nav-h) + ${current ? BAR_HEIGHT + 16 : 10}px + env(safe-area-inset-bottom))` }}>
@@ -2990,6 +3080,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Back to the cover and studio audio' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!ytActive || !(current.video_id || current.yt_audio_id)} onClick={toggleVideo}>
                   {picon('video', 'row-video')}
                 </button>
+                {ytActive && video && (
+                  <button type="button" className="np-icon" aria-label="Full-screen music video" title="Full screen" onClick={openFullVideo}>
+                    {icon(ICON.full)}
+                  </button>
+                )}
                 <button type="button" className="np-icon" aria-label="Show up next" title="Up next" onClick={showUpNext}>
                   {picon('queue', 'row-queue')}
                 </button>

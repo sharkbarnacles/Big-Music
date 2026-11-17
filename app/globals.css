@@ -983,3 +983,19 @@ span.tag-pill { display: inline-flex; align-items: center; }
 .mix-acts .album-star { width: 40px; height: 40px; flex: none; }
 .mix-acts .album-star svg { width: 22px; height: 22px; }
 .pl-albums-chip svg { width: 15px; height: 15px; margin-right: 2px; fill: none; stroke: currentColor; stroke-width: 1.8; vertical-align: -2px; }
+
+/* Full-screen music video: the YouTube player fills the screen (z 60); these
+   buttons sit on top and fade out after a few seconds. */
+.mv-full { position: fixed; inset: 0; z-index: 61; display: flex; flex-direction: column; justify-content: space-between; opacity: 0; transition: opacity .25s; cursor: none; }
+.mv-full.show { opacity: 1; cursor: auto; }
+.mv-full:not(.show) * { pointer-events: none; }
+.mv-full-top, .mv-full-bottom { padding: calc(env(safe-area-inset-top) + 12px) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); }
+.mv-full-top { display: flex; align-items: center; gap: 12px; background: linear-gradient(rgba(0,0,0,.65), transparent); }
+.mv-full-bottom { padding-top: 24px; padding-bottom: calc(env(safe-area-inset-bottom) + 16px); background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+.mv-full-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mv-full-text .title { font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-full-text .sub { font-size: 13px; color: rgba(255,255,255,.75); }
+.mv-full .ctrl { color: #fff; }
+.mv-full-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; margin-bottom: 10px; }
+.mv-full-bar i { display: block; height: 100%; background: var(--accent); }
+.mv-full-ctrls { display: flex; justify-content: center; align-items: center; gap: 28px; }

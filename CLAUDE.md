@@ -981,3 +981,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   (`app/web/[kind]/[id]`) have a queue button left of Shuffle
   (`PlayButtons playNext=<name>`); `playNext` in Player now takes one song or a
   list and inserts them in order after the current song.
+- **Full-screen music video (2026-11-17):** Now Playing shows a full-screen
+  button next to the music-video eye while a video plays. `fullVideo` makes
+  the YouTube host cover the screen (z 60; it's never moved, so playback
+  doesn't reload) with a `.mv-full` overlay (title, leave, prev/play/next,
+  progress; tap to show, hides after 3 s; Esc leaves, Space plays/pauses).
+  Computers/Android also enter the browser's real full screen; iPhones can't,
+  so there it fills the app.
