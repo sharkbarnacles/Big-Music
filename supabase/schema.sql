@@ -315,8 +315,10 @@ create table if not exists discover_releases (
   kind       text,
   year       text,
   first_seen date not null default current_date,
-  published  boolean not null default false
+  published  boolean not null default false,
+  filler_used boolean not null default false  -- used to top up a short Friday mix
 );
+alter table discover_releases add column if not exists filler_used boolean not null default false;
 alter table discover_editions enable row level security;
 alter table discover_items enable row level security;
 alter table discover_artists enable row level security;

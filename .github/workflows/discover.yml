@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: '38 11 * * *' # 11:38 UTC = 6:38 am New York in winter, 7:38 am in summer
   workflow_dispatch:
+    inputs:
+      scan_all:
+        description: 'Only look at all your top artists for new releases now (~10 min)'
+        type: boolean
+        default: false
 
 concurrency:
   group: discover
@@ -33,4 +38,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        run: python scripts/discover.py
+        run: python scripts/discover.py ${{ inputs.scan_all && '--scan-all' || '' }}

@@ -965,3 +965,11 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   playing <20 s ago (`markAlive` on pagehide keeps that fresh); in Spotify
   mode it waits up to 8 s for the in-hub player. Logged as
   `player / resumed after reload`. Phones still come back paused (need a tap).
+- **Friday New Releases fixes (2026-11-17):** the 13 Nov mix had 4 songs because
+  a release only counts as new when it appears on an artist's *second* look,
+  and the 45-a-day scan (plus 4 missed days) had only rechecked ~65 artists.
+  Now: (1) short mixes are topped up from this year's releases found on first
+  looks (`releases_top_up`, one song per release/artist, favours bigger
+  artists, `discover_releases.filler_used` stops reuse; chip "New this year:
+  …"). (2) `discover.py --scan-all` / workflow input `scan_all` looks at all
+  top-300 artists at once (run once on 2026-11-17 to finish the second pass).

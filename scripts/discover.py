@@ -428,13 +428,17 @@ def make_weekly(db, lib, music, today: date):
     save_edition(db, lib, "weekly", monday, "Monday Discovery", f"Week of {monday.strftime('%-d %b')}", songs[:30])
 
 
-def scan_releases(db, lib, music, today: date):
-    """Looks at ~45 of your artists' pages a day (all top 300 in about a week) and notes new releases."""
+def scan_releases(db, lib, music, today: date, every: bool = False):
+    """Looks at ~45 of your artists' pages a day (all top 300 in about a week) and notes new releases.
+    every=True looks at all 300 in one go (the --scan-all run)."""
     top = lib.top_artists(300)
     if not top:
         return
-    start = (today.toordinal() * 45) % len(top)
-    batch = (top + top)[start:start + 45]
+    if every:
+        batch = top
+    else:
+        start = (today.toordinal() * 45) % len(top)
+        batch = (top + top)[start:start + 45]
     known = {r["browse_id"] for r in db.get_all("discover_releases", {"select": "browse_id"})}
     year = str(today.year)
     found = 0
@@ -476,9 +480,51 @@ def make_releases(db, lib, music, today: date):
             t["reason"] = f"New {'single' if rel.get('kind') == 'singles' else 'album'} from {rel['artist']}"
             songs.append(t)
             lib.suggested.add(match_key(t["artist"], t["title"]))
+    if len(songs) < 30:
+        songs += releases_top_up(db, lib, music, today, 30 - len(songs), {r["browse_id"] for r in pending})
     save_edition(db, lib, "releases", today, "Friday New Releases", today.strftime("%a %-d %b"), songs[:30])
     for rel in pending:
         db.patch("discover_releases", {"browse_id": f"eq.{rel['browse_id']}"}, {"published": True})
+
+
+def releases_top_up(db, lib, music, today: date, need: int, skip_ids: set) -> list[dict]:
+    """Fills a short Friday New Releases with songs from this year's releases
+    that were already out the first time we looked at the artist (so we can't
+    tell if they're from this week). Favours the artists you have most of,
+    one song per release, and never uses the same release twice."""
+    years = [str(today.year)] + ([str(today.year - 1)] if today.month == 1 else [])
+    rows = db.get_all("discover_releases", {
+        "published": "eq.true", "filler_used": "eq.false",
+        "year": f"in.({','.join(years)})", "select": "*",
+    })
+    rows = [r for r in rows if r["browse_id"] not in skip_ids and not lib.skipped(r["artist"])]
+    # Your bigger artists first, with a little shuffle so it isn't the same order every week.
+    score = lambda r: math.sqrt(lib.artist_counts.get(simplify(r["artist"]), 0) + 1) * random.uniform(0.6, 1.4)
+    rows.sort(key=score, reverse=True)
+    out: list[dict] = []
+    used_artists: set = set()
+    looked = 0
+    for rel in rows:
+        if len(out) >= need or looked >= 80:
+            break
+        akey = simplify(rel["artist"])
+        if akey in used_artists:
+            continue  # one release per artist per week
+        looked += 1
+        tracks = [t for t in music.album_tracks(rel["browse_id"]) if lib.is_new(t["artist"] or rel["artist"], t["title"])]
+        # Marked used even when nothing was new, so it isn't looked up again next week.
+        db.patch("discover_releases", {"browse_id": f"eq.{rel['browse_id']}"}, {"filler_used": True})
+        if not tracks:
+            continue
+        t = dict(tracks[0])
+        t["artist"] = t["artist"] or rel["artist"]
+        kind = "single" if rel.get("kind") == "singles" else "album"
+        t["reason"] = f"New this year: {kind} from {rel['artist']}"
+        out.append(t)
+        used_artists.add(akey)
+        lib.suggested.add(match_key(t["artist"], t["title"]))
+    print(f"  Topped up with {len(out)} songs from this year's releases ({looked} looked at).")
+    return out
 
 
 def make_forgotten(db, lib, today: date):
@@ -566,6 +612,7 @@ def months_ago(iso: str) -> str:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", choices=["daily", "weekly", "releases", "forgotten", "month", "scan"], help="make just one kind")
+    parser.add_argument("--scan-all", action="store_true", help="look at all top-300 artists' pages for new releases now (takes ~10 min), then stop")
     args = parser.parse_args()
 
     env = load_env()
@@ -593,6 +640,12 @@ def main():
                 make_daily(db, lib, music, day)
                 make_releases(db, lib, music, day)  # only does anything on a Friday
             day += timedelta(days=1)
+
+    if args.scan_all:
+        print("→ scan (all artists)")
+        scan_releases(db, lib, music, today, every=True)
+        print(f"Done. {music.calls} YouTube Music requests.")
+        return
 
     steps = [
         ("catchup", catch_up),
