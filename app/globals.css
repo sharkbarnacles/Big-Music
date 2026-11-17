@@ -1000,3 +1000,6 @@ span.tag-pill { display: inline-flex; align-items: center; }
 .mv-full-bar i { display: block; height: 100%; background: var(--accent); }
 .mv-full-ctrls { display: flex; justify-content: center; align-items: center; gap: 28px; }
 .np-icon > svg:not(.picon) { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* Captions button: a "CC" badge, struck through when captions are off. */
+.cc-mark { position: relative; display: inline-grid; place-items: center; min-width: 26px; height: 19px; padding: 0 3px; border: 2px solid currentColor; border-radius: 4px; font-size: 10px; font-weight: 800; line-height: 1; letter-spacing: .5px; }
+.cc-mark.off::after { content: ''; position: absolute; left: -4px; right: -4px; top: 50%; height: 2px; background: currentColor; transform: rotate(-30deg); }

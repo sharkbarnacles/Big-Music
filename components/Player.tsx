@@ -175,6 +175,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // (and the computer's real full screen where the browser allows it).
   const [fullVideo, setFullVideo] = useState(false);
   const [fullControls, setFullControls] = useState(true);
+  // YouTube's captions on music videos: your choice is remembered on this device.
+  const [captionsOff, setCaptionsOff] = useState(false);
+  const captionsOffRef = useRef(false);
   const [, setVersionTick] = useState(0); // redraw when a song's other version turns up
   const historyRef = useRef<TrackRowData[]>([]); // songs you were on before, newest last (for Back)
   const ytIdRef = useRef<string | null>(null); // the YouTube video loaded right now
@@ -1531,8 +1534,44 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Called by YouTube; goes through a ref so it always sees the latest state.
+  // YouTube loads captions again with every video, so this runs each time one starts.
+  const applyCaptions = () => {
+    const p = ytPlayerRef.current;
+    if (!p) return;
+    try {
+      if (captionsOffRef.current) {
+        p.unloadModule?.('captions');
+        p.unloadModule?.('cc');
+      } else {
+        p.loadModule?.('captions');
+      }
+    } catch {
+      /* player between videos */
+    }
+  };
+  const toggleCaptions = () => {
+    captionsOffRef.current = !captionsOffRef.current;
+    setCaptionsOff(captionsOffRef.current);
+    try {
+      localStorage.setItem('mh-captions-off', captionsOffRef.current ? '1' : '0');
+    } catch {
+      /* private browsing */
+    }
+    applyCaptions();
+    showToast(captionsOffRef.current ? 'Captions off' : 'Captions on');
+  };
+  useEffect(() => {
+    try {
+      captionsOffRef.current = localStorage.getItem('mh-captions-off') === '1';
+      setCaptionsOff(captionsOffRef.current);
+    } catch {
+      /* private browsing */
+    }
+  }, []);
+
   const onYouTubeState = (state: number) => {
     if (engineRef.current !== 'youtube') return;
+    if (state === 1 && captionsOffRef.current) applyCaptions();
     if (state === 1) {
       ytErrorsRef.current = 0;
       setPlay(true);
@@ -2883,6 +2922,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               <span className="title">{current.title}</span>
               <span className="sub">{current.artist}</span>
             </div>
+            <button type="button" className="ctrl cc-btn" aria-label={captionsOff ? 'Turn captions on' : 'Turn captions off'} title="Captions" aria-pressed={!captionsOff} onClick={(e) => { e.stopPropagation(); toggleCaptions(); pokeFullControls(); }}>
+              <span className={`cc-mark${captionsOff ? ' off' : ''}`}>CC</span>
+            </button>
             <button type="button" className="ctrl" aria-label="Leave full screen" onClick={(e) => { e.stopPropagation(); closeFullVideo(); }}>
               {icon(ICON.unfull)}
             </button>
@@ -3082,6 +3124,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 </button>
                 {/* Always shown (turns the music video on too); greyed out like the eye
                     when there's no video to show, e.g. in Spotify mode. */}
+                {ytActive && video && (
+                  <button type="button" className={`np-icon cc-btn${captionsOff ? '' : ' on'}`} aria-label={captionsOff ? 'Turn captions on' : 'Turn captions off'} title="Captions" aria-pressed={!captionsOff} onClick={toggleCaptions}>
+                    <span className={`cc-mark${captionsOff ? ' off' : ''}`}>CC</span>
+                  </button>
+                )}
                 <button type="button" className="np-icon" aria-label="Full-screen music video" title="Full-screen music video" disabled={!ytActive || !(current.video_id || current.yt_audio_id)} onClick={openFullVideo}>
                   {icon(ICON.full)}
                 </button>

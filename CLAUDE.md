@@ -988,3 +988,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   progress; tap to show, hides after 3 s; Esc leaves, Space plays/pauses).
   Computers/Android also enter the browser's real full screen; iPhones can't,
   so there it fills the app.
+- **Captions toggle (2026-11-17):** "CC" button in Now Playing (while a music
+  video shows) and in the full-screen overlay. Off = `unloadModule('captions')`
+  on the YouTube player, re-applied each time a video starts playing (YouTube
+  reloads captions per video). Saved per device in `mh-captions-off`.
