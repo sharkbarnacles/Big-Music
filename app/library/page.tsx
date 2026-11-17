@@ -55,14 +55,15 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const artist = sp.artist?.trim() || null;
   const search = params.q.trim();
 
-  // ── Search everywhere (all of YouTube Music) ──
-  if (sp.where === 'web') {
+  // ── Search (all of YouTube Music). The Search tab (/library?search=1)
+  // always searches everywhere; your own songs are searched from the
+  // Library tab's search box instead.
+  if (sp.where === 'web' || sp.search === '1') {
     return (
       <main className="wrap">
         <Header />
         <Title title="Search" />
         <SearchRow params={{ ...params, search: true }} placeholder="Songs, artists, albums, playlists" web />
-        <WhereSwitch q={search} web />
         <div style={{ marginTop: 8 }}>
           {search ? <WebResults q={search} /> : <p className="muted">Search all of YouTube Music, including playlists other people made.</p>}
         </div>
@@ -201,7 +202,6 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         </span>
       </p>
       <SearchRow params={params} placeholder={isVideos ? 'Search music videos' : 'Search title, artist or album'} />
-      {(params.search || search) && !isVideos && <WhereSwitch q={search} web={false} />}
       {error && <div className="notice error">{error}</div>}
       <div style={{ marginTop: 8 }}>
         <LibraryList key={query} initial={tracks} total={matching} query={query} video={isVideos} />
@@ -231,22 +231,6 @@ function Title({
 }
 
 // Search box with the filter button; keeps the current view and sort.
-// "Your library" or "Everywhere" under the search box; keeps what you typed.
-function WhereSwitch({ q, web }: { q: string; web: boolean }) {
-  const base = new URLSearchParams({ search: '1', ...(q ? { q } : {}) });
-  const everywhere = new URLSearchParams({ search: '1', where: 'web', ...(q ? { q } : {}) });
-  return (
-    <div className="where-switch" role="tablist" aria-label="Where to search">
-      <Link href={`/library?${base}`} role="tab" aria-selected={!web} className={!web ? 'on' : undefined}>
-        Your library
-      </Link>
-      <Link href={`/library?${everywhere}`} role="tab" aria-selected={web} className={web ? 'on' : undefined}>
-        Everywhere
-      </Link>
-    </div>
-  );
-}
-
 function SearchRow({ params, placeholder, web = false }: { params: LibraryParams; placeholder: string; web?: boolean }) {
   return (
     <div className="search-row">

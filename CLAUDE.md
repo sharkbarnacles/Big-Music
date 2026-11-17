@@ -617,8 +617,10 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
    want it); with the sheet closed the YouTube player sits hidden (opacity 0,
    still playing) behind the bar, which shows the cover picture.
    Discover chips read "via “Playlist”" (shortReason drops "From ").
-   **Search everywhere (2026-11-03):** Search has "Your library" /
-   "Everywhere" (`/library?search=1&where=web`). `lib/ytBrowse.ts` (WEB_REMIX
+   **Search everywhere (2026-11-03):** the Search tab (`/library?search=1`,
+   same as `&where=web`) searches all of YouTube Music; the "Your library" /
+   "Everywhere" switch was removed 2026-11-17 (owner searches their own songs
+   from the Library tab's search box). `lib/ytBrowse.ts` (WEB_REMIX
    search with ytmusicapi filters: songs, artists, albums, community +
    featured playlists; browse VL…/MPRE…/UC…, playlist continuations up to
    500) → `components/WebResults.tsx` and `app/web/[kind]/[id]/page.tsx`.
