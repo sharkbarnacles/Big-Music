@@ -257,6 +257,26 @@ class Music:
         self.db = db
         self.yt = YTMusic()
         self.calls = 0
+        # Artists with a brand-new music video get a "Watch the new music
+        # video" shelf with no title, and ytmusicapi (1.12.3) crashes on it
+        # ("Unable to find 'header'"), so exactly the artists with fresh
+        # releases were skipped. Drop untitled shelves before it reads them.
+        send = self.yt._send_request
+
+        def send_without_untitled_shelves(endpoint, body, *args, **kwargs):
+            response = send(endpoint, body, *args, **kwargs)
+            if endpoint == "browse":
+                try:
+                    section = response["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]["content"]["sectionListRenderer"]
+                    section["contents"] = [
+                        c for c in section.get("contents", [])
+                        if "musicCarouselShelfRenderer" not in c or "header" in c["musicCarouselShelfRenderer"]
+                    ]
+                except (KeyError, IndexError, TypeError):
+                    pass
+            return response
+
+        self.yt._send_request = send_without_untitled_shelves
 
     def _call(self, fn, *args, **kwargs):
         time.sleep(PAUSE)

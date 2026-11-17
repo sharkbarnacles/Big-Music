@@ -973,3 +973,7 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   artists, `discover_releases.filler_used` stops reuse; chip "New this year:
   …"). (2) `discover.py --scan-all` / workflow input `scan_all` looks at all
   top-300 artists at once (run once on 2026-11-17 to finish the second pass).
+  Also: ytmusicapi 1.12.3 crashed ("Unable to find 'header'") on artist pages
+  with an untitled "Watch the new music video" shelf, so artists with fresh
+  releases were skipped (~10% per scan). `Music.__init__` wraps
+  `yt._send_request` to drop untitled carousel shelves from browse answers.
