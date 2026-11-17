@@ -3080,11 +3080,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 <button type="button" className={`np-icon${video ? ' on' : ''}`} aria-label={video ? 'Back to the cover and studio audio' : 'Watch music video'} title="Music video" aria-pressed={video} disabled={!ytActive || !(current.video_id || current.yt_audio_id)} onClick={toggleVideo}>
                   {picon('video', 'row-video')}
                 </button>
-                {ytActive && video && (
-                  <button type="button" className="np-icon" aria-label="Full-screen music video" title="Full screen" onClick={openFullVideo}>
-                    {icon(ICON.full)}
-                  </button>
-                )}
+                {/* Always shown (turns the music video on too); greyed out like the eye
+                    when there's no video to show, e.g. in Spotify mode. */}
+                <button type="button" className="np-icon" aria-label="Full-screen music video" title="Full-screen music video" disabled={!ytActive || !(current.video_id || current.yt_audio_id)} onClick={openFullVideo}>
+                  {icon(ICON.full)}
+                </button>
                 <button type="button" className="np-icon" aria-label="Show up next" title="Up next" onClick={showUpNext}>
                   {picon('queue', 'row-queue')}
                 </button>

@@ -999,3 +999,4 @@ span.tag-pill { display: inline-flex; align-items: center; }
 .mv-full-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; margin-bottom: 10px; }
 .mv-full-bar i { display: block; height: 100%; background: var(--accent); }
 .mv-full-ctrls { display: flex; justify-content: center; align-items: center; gap: 28px; }
+.np-icon > svg:not(.picon) { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
