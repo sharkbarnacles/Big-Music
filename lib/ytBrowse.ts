@@ -30,6 +30,7 @@ export type WebSong = {
   durationMs: number | null;
   isVideo: boolean; // a music video or upload, not the studio audio
   release: 'song' | 'video' | 'upload' | 'unknown'; // official track, official video, anyone's upload
+  plays?: number | null; // "133K plays" on album pages and artists' top songs
 };
 export type WebItem = {
   kind: 'playlist' | 'album' | 'artist';
@@ -53,6 +54,8 @@ export type WebArtist = {
   name: string;
   image: string | null;
   songs: WebSong[];
+  // The full "Top songs" list behind the artist's songs shelf (popular now, in order).
+  songsMore?: { id: string; params: string };
   // `more`: the full list behind a shelf (all albums / all singles), when YouTube Music has one.
   shelves: { title: string; items: WebItem[]; more?: { id: string; params: string } }[];
 };
@@ -103,6 +106,8 @@ function parseSong(r: any, fallbackArtist = '', fallbackImage: string | null = n
   const plain = parts.find((p) => !/^(Song|Video|Episode)$/i.test(p) && !/views|plays|^\d+(:\d+)+$/i.test(p));
   const fixed = r.fixedColumns?.[0]?.musicResponsiveListItemFixedColumnRenderer?.text?.runs?.[0]?.text;
   const dur = fixed ?? parts.find((p) => /^\d+(:\d+)+$/.test(p));
+  // "203M plays" / "1.2K views": in any column after the title.
+  const playsText = cols.slice(1).map((c: any[]) => c.map((x: any) => x.text).join('')).find((t: string) => /\b(plays|views)\b/i.test(t));
   const type = r.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint?.watchEndpoint?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType ?? '';
   return {
     videoId,
@@ -113,7 +118,18 @@ function parseSong(r: any, fallbackArtist = '', fallbackImage: string | null = n
     durationMs: toMs(dur),
     isVideo: VIDEO_TYPES.test(type),
     release: /ATV/.test(type) ? 'song' : /OMV|OFFICIAL_SOURCE/.test(type) ? 'video' : /UGC/.test(type) ? 'upload' : 'unknown',
+    plays: countOf(playsText),
   };
+}
+
+// "203M plays" → 203000000; "1.2K views" → 1200.
+export function countOf(t: string | undefined): number | null {
+  const m = t?.replace(/,/g, '').match(/([\d.]+)\s*([KMB])?/i);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n)) return null;
+  const mult = { K: 1e3, M: 1e6, B: 1e9 }[(m[2] ?? '').toUpperCase() as 'K' | 'M' | 'B'] ?? 1;
+  return Math.round(n * mult);
 }
 
 function parseListItem(r: any, kind: WebItem['kind']): WebItem | null {
@@ -230,9 +246,12 @@ export async function browseArtist(id: string): Promise<WebArtist> {
   const image: string | null = thumbs?.length ? thumbs[thumbs.length - 1].url : null;
   const sections = data?.contents?.singleColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents ?? [];
   let songs: WebSong[] = [];
+  let songsMore: WebArtist['songsMore'];
   const shelves: WebArtist['shelves'] = [];
   for (const s of sections) {
     if (s.musicShelfRenderer && !songs.length) {
+      const be = s.musicShelfRenderer.title?.runs?.[0]?.navigationEndpoint?.browseEndpoint ?? s.musicShelfRenderer.bottomEndpoint?.browseEndpoint;
+      if (be?.browseId) songsMore = { id: String(be.browseId), params: decodeURIComponent(String(be.params ?? '')) };
       songs = (s.musicShelfRenderer.contents ?? [])
         .map((c: any) => parseSong(c?.musicResponsiveListItemRenderer, name))
         .filter((x: WebSong | null): x is WebSong => x !== null);
@@ -247,7 +266,7 @@ export async function browseArtist(id: string): Promise<WebArtist> {
       if (items.length) shelves.push({ title: text(head?.title), items, more });
     }
   }
-  return { id, name, image, songs, shelves };
+  return { id, name, image, songs, songsMore, shelves };
 }
 
 // An artist's full albums or singles list (the "More" behind those shelves).
@@ -271,4 +290,21 @@ export async function browseDiscography(id: string, params: string): Promise<{ t
   walk(data?.contents);
   const head = data?.header?.musicHeaderRenderer ?? data?.header?.musicImmersiveHeaderRenderer;
   return { title: text(head?.title) || 'Discography', items: found };
+}
+
+// The artist's full "Top songs" list (YouTube Music's own popularity order,
+// which follows what people play now). Every song row on the page.
+export async function browseTopSongs(id: string, params: string): Promise<WebSong[]> {
+  const data = await call('browse', { browseId: id, ...(params ? { params } : {}) });
+  const rows: any[] = [];
+  const walk = (o: any) => {
+    if (!o || typeof o !== 'object') return;
+    if (o.musicResponsiveListItemRenderer) {
+      rows.push(o.musicResponsiveListItemRenderer);
+      return;
+    }
+    for (const v of Array.isArray(o) ? o : Object.values(o)) walk(v);
+  };
+  walk(data?.contents);
+  return rows.map((r) => parseSong(r)).filter((x): x is WebSong => x !== null);
 }
