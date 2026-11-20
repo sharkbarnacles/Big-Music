@@ -116,6 +116,7 @@ export default function TrackRow({
           <div className="sub">
             {track.artist}
             {track.album ? ` · ${track.album}` : ''}
+            {track.note ? ` · ${track.note}` : ''}
           </div>
         </div>
       </button>

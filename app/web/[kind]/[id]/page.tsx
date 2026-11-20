@@ -11,9 +11,13 @@ import { smallCover } from '@/lib/img';
 import { toPlayable } from '@/lib/webTracks';
 import { browseArtist, browseCollection, browseDiscography } from '@/lib/ytBrowse';
 import { loadTracks } from '@/lib/libraryQuery';
+import { loadDiscography, playsLabel, sortDiscography, type DiscoSort } from '@/lib/discography';
+import type { TrackRowData } from '@/lib/tracks';
 import { trackQueryString } from '@/lib/libraryParams';
 
 export const dynamic = 'force-dynamic';
+// A whole discography opens every album the first time (a few seconds, more for huge artists).
+export const maxDuration = 60;
 
 // A playlist, album or artist from YouTube Music (found with Search →
 // Everywhere). Songs play right here; ⋯ copies them all into one of your
@@ -23,7 +27,7 @@ export default async function WebPage({
   searchParams,
 }: {
   params: Promise<{ kind: string; id: string }>;
-  searchParams: Promise<{ p?: string; t?: string; a?: string; name?: string }>;
+  searchParams: Promise<{ p?: string; t?: string; a?: string; name?: string; sort?: string }>;
 }) {
   const { kind, id: raw } = await params;
   const sp = await searchParams;
@@ -50,6 +54,60 @@ export default async function WebPage({
         <section className="web-sec">
           {page.items.length ? <Tiles items={page.items} grid /> : <p className="muted">YouTube Music sent nothing here.</p>}
         </section>
+        <div className="mix-end" aria-hidden="true" />
+      </main>
+    );
+  }
+
+  // An artist's whole discography as one song list (every album and single),
+  // sortable: popular now / most played / newest / oldest.
+  if (kind === 'songs') {
+    let disco;
+    try {
+      disco = await loadDiscography(id);
+    } catch (err) {
+      return <Failed message={(err as Error).message} />;
+    }
+    const sort: DiscoSort = (['popular', 'plays', 'new', 'old'] as const).find((x) => x === sp.sort) ?? 'popular';
+    const sorted = sortDiscography(disco.songs, sort);
+    const tracks = await playableInChunks(sorted.map((x) => x));
+    tracks.forEach((t, i) => {
+      t.note = [sorted[i].year, playsLabel(sorted[i].plays)].filter(Boolean).join(' · ') || null;
+    });
+    const name = sp.name || disco.name;
+    const href = (to: DiscoSort) => `/web/songs/${encodeURIComponent(id)}?${new URLSearchParams({ ...(sp.name ? { name: sp.name } : {}), sort: to })}`;
+    const SORTS: [DiscoSort, string][] = [
+      ['popular', 'Popular now'],
+      ['plays', 'Most played'],
+      ['new', 'Newest'],
+      ['old', 'Oldest'],
+    ];
+    return (
+      <main className="wrap">
+        <Header />
+        <Back />
+        <div className="mix-head">
+          {disco.image ? <img className="web-artist-pic" src={smallCover(disco.image, 'tile')} alt="" /> : <span className="web-artist-pic" />}
+          <div className="mix-titles">
+            <div className="mix-badge">Whole discography</div>
+            <h1>{name}</h1>
+            <div className="mix-meta">
+              <span>{tracks.length.toLocaleString()} songs</span>
+              <span>{disco.releases} releases</span>
+            </div>
+          </div>
+        </div>
+        <div className="mix-acts">
+          <PlayButtons tracks={tracks} playNext={`${name}'s discography`} />
+        </div>
+        <div className="disco-sorts" role="tablist" aria-label="Sort songs">
+          {SORTS.map(([k, label]) => (
+            <Link key={k} href={href(k)} replace scroll={false} className={`btn chip${sort === k ? ' on' : ''}`} role="tab" aria-selected={sort === k}>
+              {label}
+            </Link>
+          ))}
+        </div>
+        {tracks.length ? <TrackList tracks={tracks} /> : <p className="muted">YouTube Music sent no songs for this artist.</p>}
         <div className="mix-end" aria-hidden="true" />
       </main>
     );
@@ -88,6 +146,13 @@ export default async function WebPage({
             </div>
           </div>
         </div>
+        <Link className="disco-all" href={`/web/songs/${encodeURIComponent(id)}?${new URLSearchParams({ name: artist.name })}`}>
+          <span className="disco-all-text">
+            <b>Whole discography</b>
+            <small>Every song from every album and single · sort by popular, plays or release</small>
+          </span>
+          <span aria-hidden="true">›</span>
+        </Link>
         {songs.length > 0 && (
           <section className="web-sec">
             <div className="web-sech">
@@ -182,4 +247,13 @@ function Failed({ message }: { message: string }) {
       <div className="notice error" style={{ marginTop: 12 }}>{message} Try again in a moment.</div>
     </main>
   );
+}
+
+// toPlayable looks songs up in the database by id; big discographies are
+// done 300 at a time so the request stays a normal size.
+async function playableInChunks(songs: Parameters<typeof toPlayable>[0]): Promise<TrackRowData[]> {
+  const parts: (typeof songs)[] = [];
+  for (let i = 0; i < songs.length; i += 300) parts.push(songs.slice(i, i + 300));
+  const done = await Promise.all(parts.map((p) => toPlayable(p).catch(() => [] as TrackRowData[])));
+  return done.flat();
 }

@@ -1000,3 +1000,17 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   `isMuted()` while playing, unmutes (logged `playing muted, unmute n`), and
   after 3 tries shows a one-tap notice; `gesture()` unmutes on any tap and Play
   on a muted song only unmutes instead of pausing.
+- **Whole discography (2026-11-19, owner: play an artist's whole discography,
+  not just top songs; sortable by popular now / most plays / release order):**
+  artist pages have a "Whole discography ›" card → `/web/songs/<UC id>?name=&sort=`
+  (`popular` | `plays` | `new` | `old`, chips `.disco-sorts`). `lib/discographyBuild.ts`
+  opens every release behind the Albums + Singles & EPs "See all" pages (≤150,
+  12 at a time), album rows carry "133K plays" (`WebSong.plays`, `countOf`),
+  years from the release subtitles; same title on a single and an album counts
+  once (first release, highest plays); "Popular now" = order of the artist's
+  full Top songs list (`browseTopSongs`, `WebArtist.songsMore`), the rest by
+  plays. Cached 6 h (`lib/discography.ts`, `unstable_cache`). Rows show
+  "year · plays" via the new optional `TrackRowData.note`. Play / Shuffle /
+  Play next cover the whole list. `app/web/[kind]/[id]/loading.tsx` shows a
+  spinner while YouTube Music pages load. Tested from GitHub (probe-ytm.yml
+  `script=disco`, `scripts/try_disco.mts`): TVXQ 413 songs / 62 releases, 1.9 s.

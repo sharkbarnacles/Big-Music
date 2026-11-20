@@ -1003,3 +1003,13 @@ span.tag-pill { display: inline-flex; align-items: center; }
 /* Captions button: a "CC" badge, struck through when captions are off. */
 .cc-mark { position: relative; display: inline-grid; place-items: center; min-width: 26px; height: 19px; padding: 0 3px; border: 2px solid currentColor; border-radius: 4px; font-size: 10px; font-weight: 800; line-height: 1; letter-spacing: .5px; }
 .cc-mark.off::after { content: ''; position: absolute; left: -4px; right: -4px; top: 50%; height: 2px; background: currentColor; transform: rotate(-30deg); }
+/* Whole discography: link on artist pages and the sort chips on its page. */
+.disco-all { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; padding: 12px 14px; border: 1px solid var(--accent); border-radius: 14px; color: var(--accent); text-decoration: none; }
+.disco-all-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.disco-all-text b { font-weight: 700; }
+.disco-all-text small { color: var(--muted); font-size: 12px; }
+.disco-all > span:last-child { font-size: 22px; }
+.disco-sorts { display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 8px; scrollbar-width: none; }
+.disco-sorts .chip { flex: none; height: 34px; font-size: 13px; padding: 0 14px; text-decoration: none; }
+.web-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 80px 20px; color: var(--muted); text-align: center; }
+.web-loading small { font-size: 12px; }
