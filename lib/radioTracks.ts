@@ -47,7 +47,7 @@ export async function toRadioTracks(
       if (skip.has(own.id)) return;
       if (mode === 'new') return;
       if (mode === 'mixed' && libSeen.n++ % 3 !== 0) return;
-      tracks.push({ ...own, yt_audio_id: own.yt_audio_id ?? s.videoId, video_id: own.video_id ?? s.mvId });
+      tracks.push({ ...own, yt_audio_id: own.yt_audio_id ?? s.videoId, video_id: own.video_id ?? s.mvId, year: s.year });
       return;
     }
     fresh.push({ video_id: s.videoId, title: s.title, artist: s.artist, album: s.album, image_url: s.image, duration_ms: s.durationMs, seen_at: new Date().toISOString() });
@@ -60,6 +60,7 @@ export async function toRadioTracks(
       image_url: s.image,
       video_id: s.mvId,
       yt_audio_id: s.videoId,
+      year: s.year,
       track_sources: [{ service: 'youtube', external_id: s.videoId, url: `https://music.youtube.com/watch?v=${s.videoId}` }],
     });
   });

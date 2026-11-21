@@ -16,6 +16,7 @@ export type RadioSong = {
   // YouTube Music pairs a song's studio audio ("song") with its music video.
   audioId: string | null; // the studio audio, if YouTube Music knows one
   mvId: string | null; // the music video (official or fan upload), if any
+  year: number | null; // release year from the "Artist • Album • 2009" line (songs only; videos show views)
 };
 
 const VIDEO_TYPES = /MUSIC_VIDEO_TYPE_(OMV|UGC|OFFICIAL_SOURCE_MUSIC)/;
@@ -27,6 +28,16 @@ function toMs(text?: string): number | null {
   const parts = text.split(':').map(Number);
   if (parts.some(Number.isNaN)) return null;
   return parts.reduce((acc, n) => acc * 60 + n, 0) * 1000;
+}
+
+// "Artist • Album • 2009" → 2009 (null for videos, whose line shows views instead).
+function yearOf(r: any): number | null {
+  const parts = ((r?.longBylineText?.runs ?? []) as any[]).map((x) => x.text).join('').split(' • ');
+  for (const p of parts.slice(1)) {
+    const m = /^\s*(\d{4})\s*$/.exec(p);
+    if (m && +m[1] > 1900 && +m[1] <= new Date().getFullYear() + 1) return +m[1];
+  }
+  return null;
 }
 
 function parseItem(raw: any): RadioSong | null {
@@ -59,6 +70,8 @@ function parseItem(raw: any): RadioSong | null {
     durationMs: toMs(r.lengthText?.runs?.[0]?.text),
     audioId,
     mvId,
+    // A music video has no year; its studio counterpart usually does.
+    year: yearOf(r) ?? (other ? yearOf(other) : null),
   };
 }
 

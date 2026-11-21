@@ -6,6 +6,8 @@ import { runPromptRadio } from '@/lib/promptRadioRoute';
 import { playlistRadio } from '@/lib/playlistRadio';
 import { RADIO_SIZE, radioMode, toRadioTracks } from '@/lib/radioTracks';
 import { tasteOrder } from '@/lib/tasteRank';
+import { seedRadioMore, seedRadioStart, type SeedInfo } from '@/lib/seedRadio';
+import { songLanguage } from '@/lib/taste';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,7 +16,8 @@ export const maxDuration = 60;
 // Returns songs ready for the player (see lib/radioTracks.ts for the dial).
 // A new radio starts with 50 songs (RADIO_SIZE); more come as you listen.
 // Continuations: "p:…" = a radio from words, "pl:…" = a radio from a playlist,
-// anything else = YouTube Music's own token for a song radio.
+// "s:…" = a song radio that keeps to the seed's era and sound (lib/seedRadio.ts),
+// anything else = YouTube Music's own token (song radios from before 2026-11-21).
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
   const mode = radioMode(q.get('mode'));
@@ -34,24 +37,39 @@ export async function GET(req: NextRequest) {
     }
 
     const libSeen = { n: 0 };
-    const first = await fetchRadio({ videoId: q.get('videoId') ?? undefined, continuation: token ?? undefined });
-    let continuation = first.continuation;
-    const tracks: TrackRowData[] = await toRadioTracks(first.songs, mode, new Set(), libSeen);
-
-    // A new radio: keep asking until there are 50 songs (the dial can drop many).
-    if (!token) {
-      const have = new Set(tracks.map((t) => t.yt_audio_id ?? t.id));
-      for (let round = 0; round < 4 && tracks.length < RADIO_SIZE + 1 && continuation; round++) {
-        const more = await fetchRadio({ continuation });
-        continuation = more.continuation;
-        for (const t of await toRadioTracks(more.songs, mode, new Set(), libSeen)) {
-          const k = t.yt_audio_id ?? t.id;
-          if (!have.has(k)) {
-            have.add(k);
-            tracks.push(t);
-          }
-        }
+    let tracks: TrackRowData[] = [];
+    let continuation: string | null = null;
+    let seed: SeedInfo | undefined;
+    const addAll = (list: TrackRowData[], have: Set<string>) => {
+      for (const t of list) {
+        const k = t.yt_audio_id ?? t.id;
+        if (have.has(k) || have.has(t.id)) continue;
+        have.add(k);
+        have.add(t.id);
+        tracks.push(t);
       }
+    };
+
+    if (!token) {
+      // A new song radio: the seed's radio plus radios from songs of its era (lib/seedRadio.ts).
+      const videoId = q.get('videoId');
+      if (!videoId) throw new Error('No song to start the radio from.');
+      const start = await seedRadioStart(videoId, { lang: (s) => songLanguage(`${s.title} ${s.artist}`, undefined) });
+      seed = start.seed;
+      if (!seed.artist) seed.artist = q.get('seedArtist') ?? '';
+      continuation = start.continuation;
+      addAll(await toRadioTracks(start.songs, mode, new Set(), libSeen), new Set());
+    } else if (token.startsWith('s:')) {
+      const more = await seedRadioMore(token);
+      if (!more) return NextResponse.json({ tracks: [], continuation: null });
+      seed = more.seed;
+      continuation = more.continuation;
+      addAll(await toRadioTracks(more.songs, mode, new Set(), libSeen), new Set());
+    } else {
+      // A radio started before era-aware radios: YouTube's own token, as before.
+      const more = await fetchRadio({ continuation: token });
+      continuation = more.continuation;
+      tracks = await toRadioTracks(more.songs, mode, new Set(), libSeen);
     }
     if (!tracks.length) return NextResponse.json({ tracks: [], continuation: null });
 
@@ -59,7 +77,8 @@ export async function GET(req: NextRequest) {
     let editionId = editionParam;
     const seedTitle = q.get('seedTitle');
     // Your taste decides which suggestions stay and their order (lib/tasteRank.ts).
-    const ranked = await tasteOrder(tracks, { keepFirst: !token }).catch(() => tracks);
+    // With a seed, its era and sound lead and your taste breaks ties.
+    const ranked = await tasteOrder(tracks, { keepFirst: !token, seed }).catch(() => tracks);
     let list = ranked;
     if (!token && seedTitle) {
       // The song you started from always comes first, even if the dial filters it out,
@@ -81,8 +100,10 @@ export async function GET(req: NextRequest) {
       editionId = await createRadioEdition({ title: seedTitle, artist: seed.artist, videoId: vid, label: q.get('seedLabel') }, [seed, ...list]).catch(() => null);
     } else if (!token) {
       list = ranked.slice(0, RADIO_SIZE);
-    } else if (editionId) {
-      await appendToRadioEdition(editionId, ranked).catch(() => {});
+    } else {
+      // Era radios gather from several chains at once: hand over the best 40 each time.
+      if (token.startsWith('s:')) list = ranked.slice(0, 40);
+      if (editionId) await appendToRadioEdition(editionId, list).catch(() => {});
     }
     return NextResponse.json({ tracks: list, continuation, editionId: editionId ?? null });
   } catch (err) {

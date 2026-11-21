@@ -8,7 +8,7 @@ on:
         description: Search words
         default: matryoshka hachi
       script:
-        description: Which probe (search / artist)
+        description: Which probe (search / artist / disco / radio)
         default: search
 permissions:
   contents: write
@@ -21,6 +21,9 @@ jobs:
         with: { node-version: 20 }
       - if: inputs.script == 'disco'
         run: npx -y tsx scripts/try_disco.mts
+        env: { Q: "${{ inputs.q }}" }
+      - if: inputs.script == 'radio'
+        run: npx -y tsx scripts/try_radio.mts
         env: { Q: "${{ inputs.q }}" }
       - if: inputs.script == 'artist'
         run: node scripts/probe_artist.mjs

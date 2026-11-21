@@ -17,6 +17,7 @@ export type TrackRowData = {
   video_id: string | null;
   yt_audio_id: string | null; // YouTube version to play in YouTube mode
   track_sources: TrackSource[];
+  year?: number | null; // release year, when known (radios use it to stay in the seed's era)
   note?: string | null; // extra bit after the album in a song row ("2024 · 133K plays")
 };
 
