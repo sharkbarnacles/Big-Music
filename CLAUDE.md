@@ -1000,6 +1000,25 @@ Main tables: `tracks`, `track_sources`, `playlists`, `playlist_items`,
   `isMuted()` while playing, unmutes (logged `playing muted, unmute n`), and
   after 3 tries shows a one-tap notice; `gesture()` unmutes on any tap and Play
   on a muted song only unmutes instead of pausing.
+- **Era-aware song radios (2026-11-21, owner: a radio from SHINee
+  "Romeo+Juliette" (2009) filled with 2015–2018 BTS/EXO; wants radios to keep
+  the seed's sound and era, not just artist/genre):** YouTube's byline year
+  ("Artist • Album • 2009") is now parsed (`RadioSong.year`, counterpart's if
+  a video; `TrackRowData.year`). `lib/seedRadio.ts`: `seedRadioStart` = the
+  seed's radio (+2 steps) plus radios from up to 3 "era anchors" (suggestions
+  within ±1 year by other artists, then ±2), one more round if <60 songs are
+  within ±3 years; continuations are `s:<state>` tokens (year, artist,
+  language, ≤4 chains, used anchors), `seedRadioMore` steps every chain once
+  and adds anchors when chains end; ≤40 songs per continuation.
+  `tasteOrder(…, {seed})`: 2.6×`eraFit` + 0.9×shared genre tags with the seed
+  artist + seed language ±, then taste at lower weights; songs ≥5 years away
+  dropped when ≥20 within ±3 (≥7 when ≥10); ≤4 songs per artist per batch
+  (seed artist 5). Old raw YouTube tokens still work as before. Word and
+  playlist radios unchanged. Test from GitHub: probe-ytm.yml `script=radio`,
+  `q="Romeo+Juliette | SHINee"` (`scripts/try_radio.mts`): plain radio had
+  11/50 songs from 2008–10; new top 49 all 2008–2011 (SS501, 2PM, TVXQ,
+  Big Bang, early SHINee/SJ, OSTs). GitHub's runner got a 403 from the
+  `next` endpoint once (rerun passed).
 - **Whole discography (2026-11-19, owner: play an artist's whole discography,
   not just top songs; sortable by popular now / most plays / release order):**
   artist pages have a "Whole discography ›" card → `/web/songs/<UC id>?name=&sort=`
